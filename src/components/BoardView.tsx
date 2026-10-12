@@ -25,7 +25,12 @@ import { todayISO } from '../lib/dates';
 import { fetchAdminHubCounts, fetchAppreciations, fetchCommunityContext, giveKudos, type AdminHubCounts, type AppreciationState, type CommunityContext } from '../lib/community';
 import CommunitySheet from './CommunitySheet';
 import { hapticTick } from '../lib/haptics';
-import { dispatchAdminNotification, dismissAdminNotification } from '../lib/notifications';
+import {
+  dispatchAdminNotification,
+  dismissAdminNotification,
+  dispatchCommunityNotification,
+  dismissCommunityNotification,
+} from '../lib/notifications';
 
 const WINDOWS: { id: PaceWindow; label: string }[] = [
   { id: 'today', label: 'Today' },
@@ -272,8 +277,11 @@ export default function BoardView({
   const [savingAppreciation, setSavingAppreciation] = useState(false);
   const [appreciationError, setAppreciationError] = useState('');
 
+  const prevCommunityUnread = useRef<number | null>(null);
+
   useEffect(() => {
     if (!user) {
+      prevCommunityUnread.current = null;
       return;
     }
     let cancelled = false;
@@ -283,7 +291,20 @@ export default function BoardView({
       busy = true;
       try {
         const next = await fetchCommunityContext(user.id);
-        if (!cancelled && !next.error) setCommunity(next);
+        if (!cancelled && !next.error) {
+          setCommunity(next);
+          const nextCount = (next.unread?.chat ?? 0) + (next.unread?.updates ?? 0);
+          if (prevCommunityUnread.current !== null && nextCount > prevCommunityUnread.current) {
+            const diff = nextCount - prevCommunityUnread.current;
+            void dispatchCommunityNotification({
+              senderName: 'Community',
+              content: `${diff} new ${diff === 1 ? 'message' : 'messages'} in public room`,
+            });
+          } else if (nextCount === 0 && prevCommunityUnread.current !== null && prevCommunityUnread.current > 0) {
+            void dismissCommunityNotification();
+          }
+          prevCommunityUnread.current = nextCount;
+        }
       } catch {
         // Keep the last known indicator during a transient network failure.
       } finally { busy = false; }

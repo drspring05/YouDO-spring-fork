@@ -688,10 +688,15 @@ export async function dispatchCommunityNotification(params: {
   const prefs = getNotificationPreferences();
   if (!prefs.enabled || !prefs.publicHub.enabled) return;
 
-  const isHashtagMatch =
-    Boolean(prefs.publicHub.hashtagMentions && params.hashtag && params.myHashtag && params.hashtag.toLowerCase() === params.myHashtag.toLowerCase());
+  const isHashtagAlert = Boolean(
+    prefs.publicHub.hashtagMentions &&
+      params.hashtag &&
+      (params.senderName === 'Hashtag Support' ||
+        !params.myHashtag ||
+        params.hashtag.toLowerCase() === params.myHashtag.toLowerCase()),
+  );
 
-  if (!prefs.publicHub.communityMessages && !isHashtagMatch) return;
+  if (!prefs.publicHub.communityMessages && !isHashtagAlert) return;
 
   const id = NOTIFICATION_IDS.COMMUNITY;
   const title = params.hashtag ? `#${params.hashtag} Community` : 'Public Community';

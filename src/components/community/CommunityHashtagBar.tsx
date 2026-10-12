@@ -8,6 +8,7 @@ import {
 } from '../../lib/communityHashtags';
 import Overlay from '../Overlay';
 import CommunityHashtagSupportChat from './CommunityHashtagSupportChat';
+import { dispatchCommunityNotification } from '../../lib/notifications';
 
 interface Props {
   selectedId?: string;
@@ -25,8 +26,29 @@ export default function CommunityHashtagBar({selectedId,onSelect,onContextChange
   const [details,setDetails]=useState('');
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
+  const prevWaitingIds = useRef<Set<string> | null>(null);
+
   const refresh=useCallback(async()=>{
-    try { const next=await fetchCommunityRooms();setContext(next);onContextChange(next);setError('');
+    try {
+      const next=await fetchCommunityRooms();
+      setContext(next);
+      onContextChange(next);
+      setError('');
+
+      const waitingRequests = next.requests.filter((r) => r.status === 'waiting');
+      if (prevWaitingIds.current !== null) {
+        for (const req of waitingRequests) {
+          if (!prevWaitingIds.current.has(req.id)) {
+            void dispatchCommunityNotification({
+              senderName: 'Hashtag Support',
+              content: `Admin replied to #${req.examName}: ${req.adminResponse ? `"${req.adminResponse}"` : 'Open chat to read note'}`,
+              hashtag: req.examName,
+            });
+          }
+        }
+      }
+      prevWaitingIds.current = new Set(waitingRequests.map((r) => r.id));
+
       const current=selectedRef.current;
       if(current&&!next.hashtags.some(tag=>tag.id===current))onSelect(undefined);
     }
