@@ -19,6 +19,7 @@ tmp
 scratch
 *firebase-adminsdk*.json
 *service-account*.json
+supabase/.temp/
 
 # Logs
 logs
