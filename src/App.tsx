@@ -833,7 +833,21 @@ function AppInner() {
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
 
-    let sub: { remove: () => void } | undefined;
+    let tapSub: { remove: () => void } | undefined;
+    let receiveSub: { remove: () => void } | undefined;
+
+    // Re-schedule morning briefing for the next day whenever it fires.
+    // (repeats:true/every:'day' is iOS-only in Capacitor LocalNotifications;
+    //  on Android we schedule one exact alarm and re-book it after each fire.)
+    void LocalNotifications.addListener('localNotificationReceived', (notification) => {
+      const extra = notification?.extra as Record<string, unknown> | undefined;
+      if (extra?.type === 'morning_briefing' || extra?.type === 'morning_briefing_test') {
+        void scheduleMorningBriefing(tasks, goals, streakStatus.current, streakStatus.best, { force: true });
+      }
+    }).then((handle) => {
+      receiveSub = handle;
+    });
+
     void LocalNotifications.addListener('localNotificationActionPerformed', (notificationAction) => {
       const extra = notificationAction?.notification?.extra as Record<string, unknown> | undefined;
       if (!extra?.type) return;
@@ -852,15 +866,19 @@ function AppInner() {
       } else if (extra.type === 'community') {
         handleNavigateTab('board');
         setHubSubTab('social');
+      } else if (extra.type === 'admin_hub') {
+        handleNavigateTab('board');
+        setHubSubTab('social');
       }
     }).then((handle) => {
-      sub = handle;
+      tapSub = handle;
     });
 
     return () => {
-      sub?.remove();
+      tapSub?.remove();
+      receiveSub?.remove();
     };
-  }, [handleNavigateTab]);
+  }, [handleNavigateTab, tasks, goals, streakStatus]);
 
   const backlogByDate = useMemo(() => {
     const groups: Record<string, Task[]> = {};

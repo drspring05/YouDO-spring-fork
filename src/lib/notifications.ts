@@ -452,7 +452,7 @@ export async function scheduleMorningBriefing(
   const data = extractBriefingData(tasks, goals, streakCount, streakBest, todayISO(), prefs.morningBriefing.selectedGoalId);
   const { title, body, largeBody, summaryText } = buildMorningBriefingContent(data, prefs.morningBriefing);
   const nextAt = calculateNextBriefingTime(prefs.morningBriefing.time);
-  const fingerprint = `${prefs.morningBriefing.time}|${prefs.morningBriefing.selectedGoalId ?? 'auto'}|${nextAt.getTime()}|${title}|${body}`;
+  const fingerprint = `${prefs.morningBriefing.time}|${prefs.morningBriefing.selectedGoalId ?? 'auto'}|${nextAt.getTime()}`;
 
   if (!options?.force && lastScheduledBriefingFingerprint === fingerprint) {
     return;
@@ -483,8 +483,6 @@ export async function scheduleMorningBriefing(
             schedule: {
               at: nextAt,
               allowWhileIdle: true,
-              repeats: true,
-              every: 'day',
             },
             channelId: NOTIFICATION_CHANNELS.DAILY_BRIEFING,
             extra: {
