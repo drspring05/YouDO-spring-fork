@@ -4,6 +4,7 @@ import { StatusBar, Style } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { ensureNotificationChannels, scheduleMorningBriefing } from './lib/notifications';
+import { initPushNotifications } from './lib/pushNotifications';
 import type { GoalKind, GoalNode, Task, View, TaskSession } from './types';
 import { useNavigationSync } from './hooks/useNavigationSync';
 import { formatDDMMYYYY, hasGoalExecutionState, isBacklogTask, isGoalEndpoint, isOpenBacklogTask, isTaskComplete, isToday, pathNodes, pathTitles, todayISO, useStore, useSessionStore, findGoal } from './store';
@@ -879,6 +880,22 @@ function AppInner() {
       receiveSub?.remove();
     };
   }, [handleNavigateTab, tasks, goals, streakStatus]);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    const cleanup = initPushNotifications(activityUser?.id, {
+      onNavigate: (route) => {
+        if (route === 'today') {
+          handleNavigateTab('tasks');
+          setTodaySubTab('today');
+        } else if (route === 'social' || route === 'board') {
+          handleNavigateTab('board');
+          setHubSubTab('social');
+        }
+      },
+    });
+    return cleanup;
+  }, [activityUser?.id, handleNavigateTab]);
 
   const backlogByDate = useMemo(() => {
     const groups: Record<string, Task[]> = {};

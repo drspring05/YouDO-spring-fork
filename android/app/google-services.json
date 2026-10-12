@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "320554779311",
+    "project_id": "youdo-aspirants-app",
+    "storage_bucket": "youdo-aspirants-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:320554779311:android:208f3c6132443a5dfb0a5a",
+        "android_client_info": {
+          "package_name": "com.mattedhairr.youdo"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBlFSkDFjHFOBKdQ5BfVn9Sf9kdmKNoelE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
