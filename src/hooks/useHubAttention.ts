@@ -14,6 +14,8 @@ import {
 } from '../lib/squads';
 import { fetchPendingRequests } from '../lib/profiles';
 
+const IS_PRIVATE_HUB_GATED = true;
+
 export function useHubAttention(userId: string | undefined, publicBoardOptedIn = false) {
   const [friendPending, setFriendPending] = useState(0);
   const [squadInboxPending, setSquadInboxPending] = useState(0);
@@ -21,8 +23,6 @@ export function useHubAttention(userId: string | undefined, publicBoardOptedIn =
   const [squadChatUnread, setSquadChatUnread] = useState(false);
   const [dmUnread, setDmUnread] = useState(0);
   const [communityUnread, setCommunityUnread] = useState(0);
-
-  const IS_PRIVATE_HUB_GATED = true;
 
   const privatePending = IS_PRIVATE_HUB_GATED ? 0 : friendPending + squadInboxPending;
 

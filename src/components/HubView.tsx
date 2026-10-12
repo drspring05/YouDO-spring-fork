@@ -9,15 +9,8 @@ import PrivateHubUnderDevelopment from './PrivateHubUnderDevelopment';
 export default function HubView({
   onOpenBoardSettings,
   activeTab = 'social',
-  personalPace: _personalPace = 4,
   onSwitchToPrivate,
   onSwitchToPublic,
-  pendingCount: _pendingCount = 0,
-  refreshPendingCount: _refreshPendingCount,
-  refreshDmInbox: _refreshDmInbox,
-  refreshSquadChat: _refreshSquadChat,
-  dmsTabAttention: _dmsTabAttention = false,
-  roomsTabAttention: _roomsTabAttention = false,
 }: {
   onOpenBoardSettings: () => void;
   activeTab?: 'social' | 'private';

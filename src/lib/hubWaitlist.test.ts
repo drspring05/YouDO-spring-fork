@@ -59,10 +59,13 @@ describe('hubWaitlist library', () => {
   });
 
   it('fetches waitlist status via supabase rpc', async () => {
-    vi.spyOn(supabase, 'rpc').mockResolvedValueOnce({
-      data: { joined: true, total_count: 42 },
-      error: null,
-    } as any);
+    vi.spyOn(supabase, 'rpc').mockImplementation(
+      () =>
+        Promise.resolve({
+          data: { joined: true, total_count: 42 },
+          error: null,
+        }) as unknown as ReturnType<typeof supabase.rpc>
+    );
 
     const status = await getHubWaitlistStatus();
     expect(status.joined).toBe(true);
@@ -71,10 +74,13 @@ describe('hubWaitlist library', () => {
   });
 
   it('joins waitlist via supabase rpc and persists locally', async () => {
-    vi.spyOn(supabase, 'rpc').mockResolvedValueOnce({
-      data: { joined: true, already_joined: false, total_count: 43 },
-      error: null,
-    } as any);
+    vi.spyOn(supabase, 'rpc').mockImplementation(
+      () =>
+        Promise.resolve({
+          data: { joined: true, already_joined: false, total_count: 43 },
+          error: null,
+        }) as unknown as ReturnType<typeof supabase.rpc>
+    );
 
     const res = await joinHubWaitlist();
     expect(res.joined).toBe(true);
@@ -83,10 +89,13 @@ describe('hubWaitlist library', () => {
   });
 
   it('submits backer details with success response', async () => {
-    vi.spyOn(supabase, 'rpc').mockResolvedValueOnce({
-      data: { success: true, id: 'backer-uuid-123' },
-      error: null,
-    } as any);
+    vi.spyOn(supabase, 'rpc').mockImplementation(
+      () =>
+        Promise.resolve({
+          data: { success: true, id: 'backer-uuid-123' },
+          error: null,
+        }) as unknown as ReturnType<typeof supabase.rpc>
+    );
 
     const res = await submitHubBacker({
       amount: 100,
@@ -100,10 +109,13 @@ describe('hubWaitlist library', () => {
   });
 
   it('handles backer submission errors gracefully', async () => {
-    vi.spyOn(supabase, 'rpc').mockResolvedValueOnce({
-      data: null,
-      error: { message: 'Invalid UTR format' } as any,
-    } as any);
+    vi.spyOn(supabase, 'rpc').mockImplementation(
+      () =>
+        Promise.resolve({
+          data: null,
+          error: { message: 'Invalid UTR format' },
+        }) as unknown as ReturnType<typeof supabase.rpc>
+    );
 
     const res = await submitHubBacker({
       amount: 50,

@@ -135,6 +135,8 @@ describe('PrivateHubUsernameGate', () => {
           id: 'user-abc-123',
           username: 'jatin_focus',
           display_name: 'Jatin',
+          bio: '',
+          stats_private: false,
         },
         onSuccess: vi.fn(),
         onSwitchToPublic: vi.fn(),

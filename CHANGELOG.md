@@ -17,6 +17,16 @@ Guidance: keep 3–6 short, user-facing bullets. Group related small fixes under
 
 ---
 
+## [v7.8.0] - 2026-10-12 - Private Hub Waitlist, Push Notifications & Cloud Integrity
+
+- **Push Notifications** — Integrated Firebase Cloud Messaging (FCM) v1 REST API for killed-state Android notifications on high-intent alerts and hashtag support replies.
+- **Priority Waitlist & Live Counter** — Real-time Private Hub waitlist tracking in Supabase with one-tap registration and instant confirmation.
+- **Founding Backer Portal** — Voluntary UPI contribution portal with manual admin UTR verification and exclusive profile badges.
+- **Username Flow & State Reset** — Cleaned handle setup flow with dedicated confirmation screen for pre-claimed handles and full offline caching.
+- **Android APK** — versionName **7.8.0**, versionCode **78**. Installs cleanly over v7.7.4 (71) and earlier preview builds.
+
+---
+
 ## [v7.8.0-beta] - 2026-10-09 - Preview Candidate: Private Hub Rooms & Studio Polish (test build)
 
 - **Private Hub Rooms** — Optional invite-only privacy, direct @username invites, stacking capsule progress bars, and zero bar hours restriction.

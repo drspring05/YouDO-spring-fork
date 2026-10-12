@@ -9,7 +9,6 @@ import {
   Clock,
   Sparkles,
   Loader2,
-  Heart,
 } from 'lucide-react';
 import {
   fetchPendingHubBackers,
