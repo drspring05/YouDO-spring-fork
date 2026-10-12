@@ -278,6 +278,8 @@ export default function BoardView({
   const [appreciationError, setAppreciationError] = useState('');
 
   const prevCommunityUnread = useRef<number | null>(null);
+  const communityOpenRef = useRef(communityOpen);
+  communityOpenRef.current = communityOpen;
 
   useEffect(() => {
     if (!user) {
@@ -296,10 +298,12 @@ export default function BoardView({
           const nextCount = (next.unread?.chat ?? 0) + (next.unread?.updates ?? 0);
           if (prevCommunityUnread.current !== null && nextCount > prevCommunityUnread.current) {
             const diff = nextCount - prevCommunityUnread.current;
-            void dispatchCommunityNotification({
-              senderName: 'Community',
-              content: `${diff} new ${diff === 1 ? 'message' : 'messages'} in public room`,
-            });
+            if (!communityOpenRef.current) {
+              void dispatchCommunityNotification({
+                senderName: 'Community',
+                content: `${diff} new ${diff === 1 ? 'message' : 'messages'} in public room`,
+              });
+            }
           } else if (nextCount === 0 && prevCommunityUnread.current !== null && prevCommunityUnread.current > 0) {
             void dismissCommunityNotification();
           }

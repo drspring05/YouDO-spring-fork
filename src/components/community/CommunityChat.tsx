@@ -71,10 +71,12 @@ export default function CommunityChat({ userId, context, names, onProfile, onOpe
     }
   }, [userId]);
 
-  const waitingHashtagRequest = useMemo(
-    () => roomContext.requests.find((r) => r.status === 'waiting'),
-    [roomContext.requests],
-  );
+  const [dismissedWaitingBannerIds, setDismissedWaitingBannerIds] = useState<Set<string>>(new Set());
+
+  const waitingHashtagRequest = useMemo(() => {
+    const found = roomContext.requests.find((r) => r.status === 'waiting');
+    return found && !dismissedWaitingBannerIds.has(found.id) ? found : undefined;
+  }, [roomContext.requests, dismissedWaitingBannerIds]);
 
   const roomScope=`room:${selectedHashtag??'general'}`;
   const canWriteRoom =
@@ -379,14 +381,27 @@ export default function CommunityChat({ userId, context, names, onProfile, onOpe
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setSelectedChatRequest(waitingHashtagRequest)}
-              className="shrink-0 px-2.5 py-1.5 rounded-lg bg-secondary text-on-secondary text-[10.5px] font-bold shadow-sm transition active:scale-95 flex items-center gap-1"
-            >
-              <MessageSquare size={12} />
-              <span>Reply</span>
-            </button>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => setSelectedChatRequest(waitingHashtagRequest)}
+                className="px-2.5 py-1.5 rounded-lg bg-secondary text-on-secondary text-[10.5px] font-bold shadow-sm transition active:scale-95 flex items-center gap-1"
+              >
+                <MessageSquare size={12} />
+                <span>Reply</span>
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setDismissedWaitingBannerIds((prev) => new Set(prev).add(waitingHashtagRequest.id))
+                }
+                className="size-7 grid place-items-center rounded-lg text-content-muted hover:text-content-primary hover:bg-warning/15 transition active:scale-90"
+                aria-label="Dismiss banner"
+                title="Dismiss"
+              >
+                <X size={14} />
+              </button>
+            </div>
           </div>
         </aside>
       )}
