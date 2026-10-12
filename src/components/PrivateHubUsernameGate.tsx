@@ -3,6 +3,7 @@ import type { User } from '@supabase/supabase-js';
 import {
   AtSign,
   ArrowRight,
+  Check,
   Loader2,
   AlertCircle,
   MessageCircle,
@@ -16,6 +17,7 @@ import { upsertProfile, fetchProfile, resolvePrivateHubUsername, type Profile } 
 interface Props {
   user: User;
   initialDraft?: string;
+  existingProfile?: Profile | null;
   onSuccess: (profile: Profile) => void;
   onSwitchToPublic?: () => void;
 }
@@ -23,9 +25,11 @@ interface Props {
 export default function PrivateHubUsernameGate({
   user,
   initialDraft = '',
+  existingProfile,
   onSuccess,
   onSwitchToPublic,
 }: Props) {
+  const [profile, setProfile] = useState<Profile | null>(existingProfile ?? null);
   const [draftUsername, setDraftUsername] = useState(() => {
     return (
       initialDraft.replace(/^@/, '').toLowerCase().trim() ||
@@ -35,6 +39,22 @@ export default function PrivateHubUsernameGate({
   });
   const [usernameError, setUsernameError] = useState('');
   const [savingUsername, setSavingUsername] = useState(false);
+
+  useEffect(() => {
+    if (existingProfile !== undefined) {
+      setProfile(existingProfile);
+      return;
+    }
+    let cancelled = false;
+    void fetchProfile(user.id).then((p) => {
+      if (!cancelled && p?.username) {
+        setProfile(p);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user.id, existingProfile]);
 
   useEffect(() => {
     const cleanInitial = initialDraft.replace(/^@/, '').toLowerCase().trim();
@@ -90,6 +110,75 @@ export default function PrivateHubUsernameGate({
       setSavingUsername(false);
     }
   };
+
+  if (profile?.username) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center px-4 pt-4 pb-28 max-w-md mx-auto w-full select-none animate-fadeIn">
+        <div className="relative w-full rounded-[28px] border border-primary/25 bg-gradient-to-b from-primary-soft/30 via-elevated/95 to-surface/90 p-6 sm:p-8 shadow-elevated overflow-hidden backdrop-blur-md">
+          {/* Ambient Glow */}
+          <div className="pointer-events-none absolute -right-8 -top-8 size-36 rounded-full bg-primary/15 blur-3xl" />
+          <div className="pointer-events-none absolute -left-8 -bottom-8 size-36 rounded-full bg-primary/10 blur-3xl" />
+
+          {/* Center Card */}
+          <div className="relative text-center flex flex-col items-center">
+            <div className="relative mb-4">
+              <div className="size-16 sm:size-20 rounded-[22px] bg-gradient-to-br from-primary to-primary-hover text-on-primary flex items-center justify-center shadow-elevated shadow-primary/30">
+                <Check size={34} strokeWidth={2.8} className="text-on-primary" />
+              </div>
+              <div className="absolute -bottom-1 -right-1 size-6 rounded-full bg-elevated border-2 border-surface flex items-center justify-center text-primary shadow-xs">
+                <Sparkles size={12} strokeWidth={2.4} />
+              </div>
+            </div>
+
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/15 border border-primary/30 text-[10.5px] font-bold uppercase tracking-[0.16em] text-primary mb-2.5">
+              <span className="size-1.5 rounded-full bg-primary" />
+              <span>Identity Claimed</span>
+            </div>
+
+            <h2 className="text-[22px] sm:text-[24px] font-extrabold text-content-primary tracking-tight leading-snug">
+              You have already claimed your username
+            </h2>
+
+            <div className="mt-4 px-4 py-2 rounded-2xl bg-surface border border-subtle inline-flex items-center gap-2 shadow-xs">
+              <span className="size-2 rounded-full bg-primary" />
+              <span className="text-[15px] font-extrabold text-primary tracking-tight">
+                @{profile.username}
+              </span>
+            </div>
+
+            <p className="text-[12.5px] sm:text-[13px] text-content-secondary mt-3 leading-relaxed max-w-[310px] mx-auto">
+              Your handle is set and ready for Private Hub. Click continue to enter squad rooms and companion DMs.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => onSuccess(profile)}
+              className="w-full h-12 rounded-[16px] bg-primary text-on-primary font-bold text-[13.5px] flex items-center justify-center gap-2 shadow-elevated shadow-primary/25 hover:brightness-105 active:scale-[0.98] transition-all cursor-pointer mt-6"
+            >
+              <span>Continue to Private Hub</span>
+              <ArrowRight size={17} strokeWidth={2.4} />
+            </button>
+
+            <p className="text-[11px] text-content-muted mt-3">
+              Need to change your handle? You can edit it anytime in Settings ➔ Account &amp; Sync.
+            </p>
+          </div>
+
+          {onSwitchToPublic && (
+            <div className="mt-5 pt-4 border-t border-subtle/60 text-center">
+              <button
+                type="button"
+                onClick={onSwitchToPublic}
+                className="text-[11.5px] font-semibold text-content-secondary hover:text-primary transition-colors"
+              >
+                Want to check public leaderboards first? <span className="text-primary underline">View Public Board</span>
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-4 pt-4 pb-28 max-w-md mx-auto w-full select-none animate-fadeIn">

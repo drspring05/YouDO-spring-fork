@@ -126,6 +126,25 @@ describe('PrivateHubUsernameGate', () => {
     expect(html).toContain('local_stored_handle');
     vi.unstubAllGlobals();
   });
+
+  it('renders already claimed username confirmation screen when existingProfile has a username', () => {
+    const html = renderToStaticMarkup(
+      createElement(PrivateHubUsernameGate, {
+        user: mockUser,
+        existingProfile: {
+          id: 'user-abc-123',
+          username: 'jatin_focus',
+          display_name: 'Jatin',
+        },
+        onSuccess: vi.fn(),
+        onSwitchToPublic: vi.fn(),
+      }),
+    );
+
+    expect(html).toContain('You have already claimed your username');
+    expect(html).toContain('@jatin_focus');
+    expect(html).toContain('Continue to Private Hub');
+  });
 });
 
 describe('HubView unauthenticated scrolling layout', () => {
