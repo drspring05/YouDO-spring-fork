@@ -181,7 +181,7 @@ describe('HubView unauthenticated scrolling layout', () => {
 });
 
 describe('PrivateHubUnderDevelopment', () => {
-  it('renders cooking notice, roadmap highlights, and action button', () => {
+  it('renders cooking notice, roadmap highlights, priority waitlist, and solo dev UPI section', () => {
     const html = renderToStaticMarkup(
       createElement(PrivateHubUnderDevelopment, {
         onSwitchToPublic: vi.fn(),
@@ -190,9 +190,14 @@ describe('PrivateHubUnderDevelopment', () => {
 
     expect(html).toContain('Private Hub is Cooking');
     expect(html).toContain('In The Kitchen · Under Development');
+    expect(html).toContain('Priority Waitlist');
+    expect(html).toContain('Notify Me When Ready');
     expect(html).toContain('4-Member Focus Squads');
     expect(html).toContain('Companion DMs &amp; Streaks');
     expect(html).toContain('Real-Time Study Sync');
+    expect(html).toContain('Fuel Solo Dev ☕');
+    expect(html).toContain('mattedhairr@axl');
+    expect(html).toContain('Claim Backer Badge');
     expect(html).toContain('Back to Public Board');
   });
 });
