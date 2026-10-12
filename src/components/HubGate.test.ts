@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import HubAuthGate from './HubAuthGate';
 import PrivateHubUsernameGate from './PrivateHubUsernameGate';
+import PrivateHubUnderDevelopment from './PrivateHubUnderDevelopment';
 import type { User } from '@supabase/supabase-js';
 
 describe('HubAuthGate', () => {
@@ -143,4 +144,37 @@ describe('HubView unauthenticated scrolling layout', () => {
     expect(html).not.toContain('overflow-y-auto');
     expect(html).not.toContain('h-full');
   }, 15000);
+
+  it('renders PrivateHubUnderDevelopment gate when activeTab is private', async () => {
+    const HubView = (await import('./HubView')).default;
+    const html = renderToStaticMarkup(
+      createElement(HubView, {
+        onOpenBoardSettings: vi.fn(),
+        activeTab: 'private',
+        onSwitchToPublic: vi.fn(),
+      }),
+    );
+
+    expect(html).toContain('Private Hub is Cooking');
+    expect(html).toContain('In The Kitchen · Under Development');
+    expect(html).toContain('Back to Public Board');
+  }, 15000);
 });
+
+describe('PrivateHubUnderDevelopment', () => {
+  it('renders cooking notice, roadmap highlights, and action button', () => {
+    const html = renderToStaticMarkup(
+      createElement(PrivateHubUnderDevelopment, {
+        onSwitchToPublic: vi.fn(),
+      }),
+    );
+
+    expect(html).toContain('Private Hub is Cooking');
+    expect(html).toContain('In The Kitchen · Under Development');
+    expect(html).toContain('4-Member Focus Squads');
+    expect(html).toContain('Companion DMs &amp; Streaks');
+    expect(html).toContain('Real-Time Study Sync');
+    expect(html).toContain('Back to Public Board');
+  });
+});
+

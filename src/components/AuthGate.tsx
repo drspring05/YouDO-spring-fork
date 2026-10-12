@@ -21,9 +21,6 @@ import { APP_VERSION } from '../lib/version';
 import { supabase } from '../lib/supabase';
 import {
   ensureProfileFromAuth,
-  normalizeUsername,
-  searchProfileByUsername,
-  upsertProfile,
 } from '../lib/profiles';
 import {
   readOfflineMode,
@@ -95,7 +92,6 @@ export function AuthWelcome({ allowOffline, onContinueOffline, accountNotice }: 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
-  const [username, setUsername] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
   const summary = useMemo(readLocalWorkspaceSummary, []);
@@ -118,30 +114,12 @@ export function AuthWelcome({ allowOffline, onContinueOffline, accountNotice }: 
           await ensureProfileFromAuth(data.user);
         }
       } else {
-        const handle = normalizeUsername(username);
-        if (!handle) {
-          throw new Error('Username must be 3–20 characters: lowercase letters, numbers, and underscores only.');
-        }
-
-        const existing = await searchProfileByUsername(handle);
-        if (existing) {
-          throw new Error('That username is already taken. Please choose another.');
-        }
-
-        try {
-          localStorage.setItem('youdo_pending_signup_claim', handle);
-        } catch {
-          /* ignore */
-        }
-
         const { data, error } = await supabase.auth.signUp({
           email: email.trim(),
           password,
           options: {
             data: {
               full_name: fullName.trim() || undefined,
-              username: handle,
-              signup_claim: true,
             },
             emailRedirectTo: resolveAuthRedirectUrl(import.meta.env.VITE_AUTH_REDIRECT_URL),
           },
@@ -149,26 +127,10 @@ export function AuthWelcome({ allowOffline, onContinueOffline, accountNotice }: 
         if (error) throw error;
 
         if (data.session && data.user) {
-          try {
-            localStorage.setItem(`youdo_signup_username:${data.user.id}`, handle);
-          } catch {
-            /* ignore */
-          }
-          await upsertProfile({
-            id: data.user.id,
-            username: handle,
-            display_name: fullName.trim() || handle,
-          });
+          await ensureProfileFromAuth(data.user);
         }
 
         if (!data.session) {
-          if (data.user?.id) {
-            try {
-              localStorage.setItem(`youdo_signup_username:${data.user.id}`, handle);
-            } catch {
-              /* ignore */
-            }
-          }
           setMessage({
             text: 'Almost done. Check your inbox and Spam for the YouDO verification email. You cannot sign in until you open its link.',
           });
@@ -223,10 +185,7 @@ export function AuthWelcome({ allowOffline, onContinueOffline, accountNotice }: 
 
           <form onSubmit={submit} className="mt-4 space-y-3">
             {mode === 'signup' && (
-              <>
-                <label className="block"><span className="text-[10px] uppercase tracking-wider text-content-muted font-semibold">Name</span><div className="relative mt-1.5"><User size={15} className="absolute left-3 top-3.5 text-content-muted" /><input value={fullName} onChange={(event) => setFullName(event.target.value)} required className="w-full h-11 rounded-[11px] border border-subtle bg-base pl-9 pr-3 text-[13px] outline-none focus:border-primary" placeholder="Your name" /></div></label>
-                <label className="block"><span className="text-[10px] uppercase tracking-wider text-content-muted font-semibold">Username</span><div className="relative mt-1.5"><span className="absolute left-3.5 top-3.5 text-content-muted text-[13px] font-bold">@</span><input value={username} onChange={(event) => setUsername(event.target.value)} required pattern="[a-zA-Z0-9_]+" minLength={3} maxLength={20} autoComplete="username" className="w-full h-11 rounded-[11px] border border-subtle bg-base pl-9 pr-3 text-[13px] font-bold outline-none focus:border-primary" placeholder="unique_handle" /></div><span className="mt-1.5 block text-[10px] leading-relaxed text-content-muted">Required. Powers Private Hub — friends find you by @handle.</span></label>
-              </>
+              <label className="block"><span className="text-[10px] uppercase tracking-wider text-content-muted font-semibold">Name</span><div className="relative mt-1.5"><User size={15} className="absolute left-3 top-3.5 text-content-muted" /><input value={fullName} onChange={(event) => setFullName(event.target.value)} required className="w-full h-11 rounded-[11px] border border-subtle bg-base pl-9 pr-3 text-[13px] outline-none focus:border-primary" placeholder="Your name" /></div></label>
             )}
             <label className="block"><span className="text-[10px] uppercase tracking-wider text-content-muted font-semibold">Email</span><div className="relative mt-1.5"><Mail size={15} className="absolute left-3 top-3.5 text-content-muted" /><input type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required className="w-full h-11 rounded-[11px] border border-subtle bg-base pl-9 pr-3 text-[13px] outline-none focus:border-primary" placeholder="you@example.com" /></div>{mode === 'signup' && <span className="mt-1.5 block text-[10px] leading-relaxed text-content-muted">Use an inbox you can open for confirmation and account recovery.</span>}</label>
             {mode !== 'forgot' && <label className="block"><span className="text-[10px] uppercase tracking-wider text-content-muted font-semibold">Password</span><div className="relative mt-1.5"><LockKeyhole size={15} className="absolute left-3 top-3.5 text-content-muted" /><input type="password" autoComplete={mode === 'signin' ? 'current-password' : 'new-password'} minLength={mode === 'signup' ? 10 : 1} value={password} onChange={(event) => setPassword(event.target.value)} required className="w-full h-11 rounded-[11px] border border-subtle bg-base pl-9 pr-3 text-[13px] outline-none focus:border-primary" placeholder={mode === 'signup' ? 'At least 10 characters' : 'Your password'} /></div></label>}

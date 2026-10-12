@@ -1153,7 +1153,7 @@ function AppInner() {
                         })}
               </p>
             </div>
-            {randomQuote&&<blockquote className="quote-ticker m-0">
+            {randomQuote && <blockquote className="quote-ticker my-1">
               <div
                 className={`quote-ticker-track ${
                   randomQuote.text.length >= 80

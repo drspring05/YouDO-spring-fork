@@ -352,7 +352,7 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
 
   return (
     <div className="fade-in pb-20">
-      <div className="sticky top-0 z-30 no-swipe -mt-4 mb-3.5 pt-1 pb-2.5 bg-base space-y-2 shadow-[0_10px_18px_-18px_rgba(0,0,0,0.9)]">
+      <div className="sticky top-0 z-30 no-swipe mb-3.5 pt-1.5 pb-2 bg-base space-y-2 shadow-[0_10px_18px_-18px_rgba(0,0,0,0.9)]">
         <nav
           aria-label="Goal location"
           className="flex items-center gap-1 rounded-[12px] border border-subtle bg-surface p-1"

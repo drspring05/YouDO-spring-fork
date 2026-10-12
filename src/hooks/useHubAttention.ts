@@ -22,10 +22,12 @@ export function useHubAttention(userId: string | undefined, publicBoardOptedIn =
   const [dmUnread, setDmUnread] = useState(0);
   const [communityUnread, setCommunityUnread] = useState(0);
 
-  const privatePending = friendPending + squadInboxPending;
+  const IS_PRIVATE_HUB_GATED = true;
+
+  const privatePending = IS_PRIVATE_HUB_GATED ? 0 : friendPending + squadInboxPending;
 
   const refreshPrivate = useCallback(async () => {
-    if (!userId) return;
+    if (!userId || IS_PRIVATE_HUB_GATED) return;
     const [friends, invites, joins, outgoing] = await Promise.all([
       fetchPendingRequests(userId),
       fetchPendingSquadInvites(userId),
@@ -38,7 +40,7 @@ export function useHubAttention(userId: string | undefined, publicBoardOptedIn =
   }, [userId]);
 
   const refreshDmInbox = useCallback(async () => {
-    if (!userId) return;
+    if (!userId || IS_PRIVATE_HUB_GATED) return;
     const previews = await fetchDmInboxPreviews(userId);
     let total = 0;
     for (const p of Object.values(previews)) total += p.unreadCount;
@@ -46,7 +48,7 @@ export function useHubAttention(userId: string | undefined, publicBoardOptedIn =
   }, [userId]);
 
   const refreshSquadChat = useCallback(async () => {
-    if (!userId) return;
+    if (!userId || IS_PRIVATE_HUB_GATED) return;
     setSquadChatUnread(await squadRoomsHaveUnreadChat(userId));
   }, [userId]);
 
@@ -68,9 +70,11 @@ export function useHubAttention(userId: string | undefined, publicBoardOptedIn =
   }, [userId, publicBoardOptedIn]);
 
   const refreshAll = useCallback(() => {
-    void refreshPrivate();
-    void refreshDmInbox();
-    void refreshSquadChat();
+    if (!IS_PRIVATE_HUB_GATED) {
+      void refreshPrivate();
+      void refreshDmInbox();
+      void refreshSquadChat();
+    }
     if (publicBoardOptedIn) void refreshCommunity();
     else setCommunityUnread(0);
   }, [refreshPrivate, refreshDmInbox, refreshSquadChat, refreshCommunity, publicBoardOptedIn]);
@@ -92,13 +96,17 @@ export function useHubAttention(userId: string | undefined, publicBoardOptedIn =
 
     refreshAll();
 
-    const stopRealtime = subscribePrivateHubRealtime(userId, {
-      onPending: () => void refreshPrivate(),
-      onDms: () => void refreshDmInbox(),
-      onSquads: () => void refreshSquadChat(),
-    });
+    const stopRealtime = IS_PRIVATE_HUB_GATED
+      ? () => {}
+      : subscribePrivateHubRealtime(userId, {
+          onPending: () => void refreshPrivate(),
+          onDms: () => void refreshDmInbox(),
+          onSquads: () => void refreshSquadChat(),
+        });
 
-    const stopPoll = startPrivateHubForegroundSync(refreshAll);
+    const stopPoll = IS_PRIVATE_HUB_GATED
+      ? () => {}
+      : startPrivateHubForegroundSync(refreshAll);
 
     const onCommunityRead = () => {
       if (publicBoardOptedIn) void refreshCommunity();
@@ -106,6 +114,7 @@ export function useHubAttention(userId: string | undefined, publicBoardOptedIn =
     window.addEventListener('youdo-community-read', onCommunityRead);
 
     const onPrivateSync = (e: Event) => {
+      if (IS_PRIVATE_HUB_GATED) return;
       const reason = (e as CustomEvent<{ reason?: PrivateHubSyncReason }>).detail?.reason ?? 'all';
       if (reason === 'pending' || reason === 'all') void refreshPrivate();
       if (reason === 'dms' || reason === 'all') void refreshDmInbox();
