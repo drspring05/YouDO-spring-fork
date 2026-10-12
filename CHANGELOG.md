@@ -17,12 +17,14 @@ Guidance: keep 3–6 short, user-facing bullets. Group related small fixes under
 
 ---
 
-## [v7.8.0] - 2026-10-12 - Private Hub Waitlist, Push Notifications & Cloud Integrity
+## [v7.8.0] - 2026-10-12 - Private Hub Waitlist, Push Notifications & Studio Overhaul
 
-- **Push Notifications** — Integrated Firebase Cloud Messaging (FCM) v1 REST API for killed-state Android notifications on high-intent alerts and hashtag support replies.
-- **Priority Waitlist & Live Counter** — Real-time Private Hub waitlist tracking in Supabase with one-tap registration and instant confirmation.
-- **Founding Backer Portal** — Voluntary UPI contribution portal with manual admin UTR verification and exclusive profile badges.
-- **Username Flow & State Reset** — Cleaned handle setup flow with dedicated confirmation screen for pre-claimed handles and full offline caching.
+- **Private Hub & Focus Squads** — Invite-only squad rooms, direct @username invites, zero bar-hour limits, stacking capsule progress visualization, and real-time companion presence.
+- **Unified Chat & Author Profiles** — Standardized long-press action sheets across Community, Squad Rooms, and Direct Messages; clickable message author avatars with instant profile previews; and dedicated 1-on-1 Hashtag Support Admin chat.
+- **Android Notifications & FCM Push** — Killed-state push alerts via Firebase Cloud Messaging (FCM v1 REST API) for support replies; MediaStyle live focus session controls with native dark-mode contrast; 4:00 AM Morning Briefing notifications; and active-screen suppression.
+- **Blueprint Studio & Timeline Overhaul** — Rebuilt Studio with headless state controller, strict single-line tree rows for uniform height, integrated calendar picker for custom scheduling, and keyboard-aware responsive action bars.
+- **Settings Sheet Re-architecture** — Smooth segmented tab navigation (Account, Preferences, Notifications, Board, About) with swipe gestures, streamlined @username claiming, and offline identity persistence.
+- **Priority Waitlist & Founding Backers** — Edge-to-edge Private Hub preview with live community waitlist counter and built-in voluntary UPI contribution portal with admin verification for Founding Backer badges.
 - **Android APK** — versionName **7.8.0**, versionCode **78**. Installs cleanly over v7.7.4 (71) and earlier preview builds.
 
 ---
