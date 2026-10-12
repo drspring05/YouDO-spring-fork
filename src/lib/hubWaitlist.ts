@@ -151,3 +151,48 @@ export async function submitHubBacker({
     return { success: false, error: message };
   }
 }
+
+export interface PendingBackerItem {
+  id: string;
+  user_id?: string | null;
+  username: string;
+  amount: number;
+  currency: string;
+  utr: string;
+  note?: string | null;
+  status: string;
+  created_at: string;
+}
+
+export async function fetchPendingHubBackers(): Promise<PendingBackerItem[]> {
+  try {
+    const { data, error } = await supabase.rpc('get_pending_hub_backers');
+    if (error || !Array.isArray(data)) {
+      return [];
+    }
+    return data as PendingBackerItem[];
+  } catch {
+    return [];
+  }
+}
+
+export async function reviewHubBacker(
+  backerId: string,
+  status: 'verified' | 'rejected'
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { data, error } = await supabase.rpc('review_hub_backer', {
+      p_backer_id: backerId,
+      p_status: status,
+    });
+    if (error) {
+      return { success: false, error: error.message };
+    }
+    const res = data as { success?: boolean; error?: string } | null;
+    return { success: Boolean(res?.success), error: res?.error };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Network error';
+    return { success: false, error: message };
+  }
+}
+

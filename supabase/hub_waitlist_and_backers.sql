@@ -183,3 +183,94 @@ BEGIN
   RETURN jsonb_build_object('success', true, 'id', v_new_id);
 END;
 $$;
+
+-- 3. Profile badge flags & Admin review functions
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_backer BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS backer_tier TEXT DEFAULT NULL;
+
+-- RPC: Get pending backer claims (Admin only)
+CREATE OR REPLACE FUNCTION public.get_pending_hub_backers()
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF NOT public.is_community_admin() THEN
+    RAISE EXCEPTION 'Unauthorized: only community admins can review backer submissions';
+  END IF;
+
+  RETURN coalesce(
+    (SELECT jsonb_agg(
+      jsonb_build_object(
+        'id', b.id,
+        'user_id', b.user_id,
+        'username', coalesce(b.username, p.username, 'Anonymous'),
+        'amount', b.amount,
+        'currency', b.currency,
+        'utr', b.utr,
+        'note', b.note,
+        'status', b.status,
+        'created_at', b.created_at
+      ) ORDER BY b.created_at DESC
+    )
+    FROM public.hub_backers b
+    LEFT JOIN public.profiles p ON p.id = b.user_id
+    WHERE b.status = 'pending'
+    ),
+    '[]'::jsonb
+  );
+END;
+$$;
+
+-- RPC: Review backer submission (Admin only)
+CREATE OR REPLACE FUNCTION public.review_hub_backer(
+  p_backer_id UUID,
+  p_status TEXT -- 'verified' or 'rejected'
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_user_id UUID;
+  v_username TEXT;
+BEGIN
+  IF NOT public.is_community_admin() THEN
+    RAISE EXCEPTION 'Unauthorized: only community admins can review backer submissions';
+  END IF;
+
+  IF p_status NOT IN ('verified', 'rejected') THEN
+    RAISE EXCEPTION 'Status must be verified or rejected';
+  END IF;
+
+  SELECT user_id, username INTO v_user_id, v_username
+  FROM public.hub_backers
+  WHERE id = p_backer_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Backer submission not found';
+  END IF;
+
+  UPDATE public.hub_backers
+  SET status = p_status
+  WHERE id = p_backer_id;
+
+  IF p_status = 'verified' THEN
+    IF v_user_id IS NOT NULL THEN
+      UPDATE public.profiles
+      SET is_backer = TRUE, backer_tier = 'founding'
+      WHERE id = v_user_id;
+    END IF;
+    IF v_username IS NOT NULL THEN
+      UPDATE public.profiles
+      SET is_backer = TRUE, backer_tier = 'founding'
+      WHERE username = v_username;
+    END IF;
+  END IF;
+
+  RETURN jsonb_build_object('success', true, 'status', p_status);
+END;
+$$;
+

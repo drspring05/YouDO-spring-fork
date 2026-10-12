@@ -268,6 +268,10 @@ export default function BackerBadgeModal({ open, onClose, currentUsername }: Pro
               </div>
             )}
 
+            <p className="text-[10.5px] text-content-muted text-center leading-tight px-2">
+              🛡️ Claims are verified by the admin against UPI receipts before the Founding Backer badge is activated.
+            </p>
+
             {errorMsg && (
               <p className="text-[11.5px] font-semibold text-rose-500 bg-rose-500/10 border border-rose-500/20 rounded-lg p-2 text-center">
                 {errorMsg}

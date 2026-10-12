@@ -38,11 +38,11 @@ export default function HubAuthGate({ tab, isOffline = false, onSwitchTab }: Pro
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-4 pt-4 pb-28 max-w-lg mx-auto w-full select-none animate-fadeIn">
-      {/* Outer Glow Card */}
-      <div className="relative w-full rounded-[28px] border border-primary/25 bg-gradient-to-b from-primary-soft/30 via-elevated/95 to-surface/90 p-6 sm:p-8 shadow-elevated overflow-hidden backdrop-blur-md">
+      {/* Content Container (open, edge-to-edge layout) */}
+      <div className="relative w-full space-y-4">
         {/* Ambient Top Glow Orbs */}
-        <div className="pointer-events-none absolute -right-10 -top-10 size-40 rounded-full bg-primary/15 blur-3xl" />
-        <div className="pointer-events-none absolute -left-10 -bottom-10 size-40 rounded-full bg-primary/10 blur-3xl" />
+        <div className="pointer-events-none absolute -right-6 -top-10 size-48 rounded-full bg-primary/15 blur-3xl" />
+        <div className="pointer-events-none absolute -left-6 top-40 size-48 rounded-full bg-primary/10 blur-3xl" />
 
         {/* Top Header Section */}
         <div className="relative text-center flex flex-col items-center">

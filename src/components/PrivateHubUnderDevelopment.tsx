@@ -13,10 +13,13 @@ import {
   ExternalLink,
   Heart,
   Loader2,
+  ShieldCheck,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { getHubWaitlistStatus, joinHubWaitlist } from '../lib/hubWaitlist';
+import { fetchCommunityContext } from '../lib/community';
 import BackerBadgeModal from './BackerBadgeModal';
+import AdminBackersReviewModal from './AdminBackersReviewModal';
 
 interface Props {
   onSwitchToPublic?: () => void;
@@ -40,6 +43,10 @@ export default function PrivateHubUnderDevelopment({ onSwitchToPublic }: Props) 
   const [showBackerModal, setShowBackerModal] = useState(false);
   const [copiedUpi, setCopiedUpi] = useState(false);
 
+  // Admin state
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [showAdminModal, setShowAdminModal] = useState(false);
+
   useEffect(() => {
     let mounted = true;
     getHubWaitlistStatus().then((status) => {
@@ -48,10 +55,19 @@ export default function PrivateHubUnderDevelopment({ onSwitchToPublic }: Props) 
         setWaitlistCount(status.totalCount);
       }
     });
+
+    if (user?.id) {
+      fetchCommunityContext(user.id).then((ctx) => {
+        if (mounted) {
+          setIsAdmin(Boolean(ctx.isAdmin || user.email === 'mattedhairr@gmail.com'));
+        }
+      });
+    }
+
     return () => {
       mounted = false;
     };
-  }, [user?.id]);
+  }, [user?.id, user?.email]);
 
   const handleJoinWaitlist = async () => {
     if (isWaitlisted || isJoiningWaitlist) return;
@@ -81,11 +97,11 @@ export default function PrivateHubUnderDevelopment({ onSwitchToPublic }: Props) 
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-4 pt-4 pb-28 max-w-lg mx-auto w-full select-none animate-fadeIn">
-      {/* Outer Glow Card */}
-      <div className="relative w-full rounded-[28px] border border-primary/25 bg-gradient-to-b from-primary-soft/30 via-elevated/95 to-surface/90 p-5 sm:p-7 shadow-elevated overflow-hidden backdrop-blur-md">
-        {/* Ambient Glow Orbs */}
-        <div className="pointer-events-none absolute -right-10 -top-10 size-40 rounded-full bg-primary/15 blur-3xl" />
-        <div className="pointer-events-none absolute -left-10 -bottom-10 size-40 rounded-full bg-primary/10 blur-3xl" />
+      {/* Content Container (open, edge-to-edge layout) */}
+      <div className="relative w-full space-y-4">
+        {/* Ambient Top Glow Orbs */}
+        <div className="pointer-events-none absolute -right-6 -top-10 size-48 rounded-full bg-primary/15 blur-3xl" />
+        <div className="pointer-events-none absolute -left-6 top-40 size-48 rounded-full bg-amber-500/10 blur-3xl" />
 
         {/* Top Header Section */}
         <div className="relative text-center flex flex-col items-center">
@@ -282,6 +298,18 @@ export default function PrivateHubUnderDevelopment({ onSwitchToPublic }: Props) 
                 <span>Claim Backer Badge</span>
               </button>
             </div>
+
+            {/* Admin Action Pill (Visible only to Admin) */}
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => setShowAdminModal(true)}
+                className="w-full mt-2 h-8 rounded-xl bg-primary/10 border border-primary/25 hover:bg-primary/20 text-primary font-bold text-[11px] flex items-center justify-center gap-1.5 transition-colors"
+              >
+                <ShieldCheck size={13} />
+                <span>Admin: Review Pending Backer Claims</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -306,6 +334,14 @@ export default function PrivateHubUnderDevelopment({ onSwitchToPublic }: Props) 
         onClose={() => setShowBackerModal(false)}
         currentUsername={currentUsername}
       />
+
+      {/* Admin Review Modal Dialog */}
+      {isAdmin && (
+        <AdminBackersReviewModal
+          open={showAdminModal}
+          onClose={() => setShowAdminModal(false)}
+        />
+      )}
     </div>
   );
 }
