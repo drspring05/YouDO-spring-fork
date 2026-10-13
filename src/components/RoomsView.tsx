@@ -1,261 +1,223 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Lock, UsersRound, DoorOpen, Loader2, Clock, X, Globe } from 'lucide-react';
+import { ChevronRight, Compass, Globe, Loader2, Lock, Plus, UsersRound } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import {
-  fetchDiscoverableSquads,
-  fetchMySquads,
-  fetchOutgoingSquadJoinRequests,
+  ROOM_MEMBER_LIMIT,
   cancelOutgoingSquadJoinRequest,
-  requestJoinSquad,
+  fetchDiscoverableSquads,
+  fetchMyRoomSummaries,
+  fetchOutgoingSquadJoinRequests,
   normalizeSquadPrivacy,
+  requestJoinSquad,
+  type RoomSummary,
   type Squad,
 } from '../lib/squads';
 import { PRIVATE_HUB_SYNC_EVENT } from '../lib/privateHubSync';
+import { HubAvatarStack, HubEmpty, HubSection } from './hub/HubParts';
 
 interface Props {
   personalPace?: number;
   onOpenRoom: (squadId: string) => void;
+  onCreateRoom?: () => void;
   onNotificationsChanged?: () => void;
 }
 
-export default function RoomsView({ onOpenRoom, onNotificationsChanged }: Props) {
+function barLabel(hours?: number | null): string | null {
+  return hours != null && hours > 0 ? `${hours}h a day` : null;
+}
+
+export default function RoomsView({ onOpenRoom, onCreateRoom, onNotificationsChanged }: Props) {
   const { user } = useAuth();
-  const [myRooms, setMyRooms] = useState<Squad[]>([]);
+  const [rooms, setRooms] = useState<RoomSummary[]>([]);
   const [discoverRooms, setDiscoverRooms] = useState<Squad[]>([]);
-  const [pendingJoinRooms, setPendingJoinRooms] = useState<Squad[]>([]);
+  const [requested, setRequested] = useState<Squad[]>([]);
   const [loading, setLoading] = useState(true);
-  const [joinBusyId, setJoinBusyId] = useState<string | null>(null);
-  const [joinMessage, setJoinMessage] = useState<{ id: string; text: string; error?: boolean } | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{ id: string; text: string; error?: boolean } | null>(null);
 
   const reload = useCallback(async () => {
     if (!user) {
-      setMyRooms([]);
+      setRooms([]);
       setDiscoverRooms([]);
-      setPendingJoinRooms([]);
+      setRequested([]);
       setLoading(false);
       return;
     }
-    setLoading(true);
     const [mine, discover, pending] = await Promise.all([
-      fetchMySquads(user.id),
+      fetchMyRoomSummaries(user.id),
       fetchDiscoverableSquads(),
       fetchOutgoingSquadJoinRequests(),
     ]);
-    setMyRooms(mine);
+    setRooms(mine);
     setDiscoverRooms(discover);
-    setPendingJoinRooms(pending);
+    setRequested(pending);
     setLoading(false);
   }, [user]);
 
   useEffect(() => {
     void reload();
-    const handleSync = () => {
-      void reload();
-    };
-    window.addEventListener(PRIVATE_HUB_SYNC_EVENT, handleSync);
-    return () => {
-      window.removeEventListener(PRIVATE_HUB_SYNC_EVENT, handleSync);
-    };
+    const onSync = () => void reload();
+    window.addEventListener(PRIVATE_HUB_SYNC_EVENT, onSync);
+    return () => window.removeEventListener(PRIVATE_HUB_SYNC_EVENT, onSync);
   }, [reload]);
 
-  const handleRequestJoin = async (room: Squad) => {
+  const requestJoin = async (room: Squad) => {
     if (!user) return;
-    setJoinBusyId(room.id);
-    setJoinMessage(null);
+    setBusyId(room.id);
+    setNotice(null);
     const res = await requestJoinSquad(room.id, user.id);
-    setJoinBusyId(null);
+    setBusyId(null);
     if (res.ok) {
-      setJoinMessage({ id: room.id, text: 'Request sent — waiting for the squad admin.' });
+      setNotice({ id: room.id, text: 'Request sent. The room admin will let you in.' });
       onNotificationsChanged?.();
       void reload();
     } else {
-      setJoinMessage({ id: room.id, text: res.error || 'Request failed.', error: true });
+      setNotice({ id: room.id, text: res.error || 'Could not send the request.', error: true });
     }
   };
 
-  const handleCancelRequest = async (room: Squad) => {
+  const withdraw = async (room: Squad) => {
     if (!user) return;
-    setJoinBusyId(room.id);
+    setBusyId(room.id);
     const ok = await cancelOutgoingSquadJoinRequest(room.id, user.id);
-    setJoinBusyId(null);
+    setBusyId(null);
     if (ok) {
       onNotificationsChanged?.();
       void reload();
     }
   };
 
-  const pendingIds = new Set(pendingJoinRooms.map((r) => r.id));
+  if (loading) {
+    return (
+      <div className="hub flex items-center justify-center gap-2 py-16 text-[14px] text-content-muted" role="status">
+        <Loader2 size={16} className="animate-spin" /> Loading rooms…
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-[11px] font-bold text-content-muted uppercase tracking-wider mb-2.5 px-1">Your squads</h3>
-        {loading ? (
-          <p className="text-center text-[12px] text-content-muted py-4">Loading…</p>
-        ) : myRooms.length === 0 ? (
-          <div className="py-6 px-4 text-center border border-dashed border-subtle rounded-2xl bg-elevated/30">
-            <p className="text-[12px] text-content-secondary">Create a room or join one from Discover below.</p>
+    <div className="hub">
+      <HubSection
+        title="Your rooms"
+        aside={rooms.length > 0 ? `${rooms.length}` : undefined}
+        footer={rooms.length > 0 ? `Up to ${ROOM_MEMBER_LIMIT} people per room. Progress counts each member’s own daily bar.` : undefined}
+      >
+        {rooms.length === 0 ? (
+          <div className="hub-group">
+            <HubEmpty
+              icon={<UsersRound size={24} />}
+              title="No rooms yet"
+              text={`Start a room for up to ${ROOM_MEMBER_LIMIT} people and keep each other on pace.`}
+              action={onCreateRoom && (
+                <button type="button" className="hub-pill-button is-filled" onClick={onCreateRoom}>
+                  <Plus size={16} strokeWidth={2.6} /> New room
+                </button>
+              )}
+            />
           </div>
         ) : (
-          <div className="space-y-2">
-            {myRooms.map((room) => (
-              <button
-                key={room.id}
-                type="button"
-                onClick={() => onOpenRoom(room.id)}
-                className="w-full text-left bg-elevated border border-primary/25 rounded-[16px] p-4 hover:border-primary/45 transition-colors active:scale-[0.99]"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="text-2xl shrink-0">{room.description || '🔥'}</span>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <p className="text-[14px] font-bold text-content-primary truncate">{room.name}</p>
-                        {normalizeSquadPrivacy(room.privacy) === 'invite_only' ? (
-                          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-content-muted bg-surface px-1.5 py-0.5 rounded-md border border-subtle">
-                            <Lock size={9} /> Private
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-primary bg-primary-soft px-1.5 py-0.5 rounded-md border border-primary/20">
-                            <Globe size={9} /> Public
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[10px] text-primary font-semibold mt-0.5">Your room · tap to open</p>
-                    </div>
-                  </div>
-                  {room.bar_hours != null && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary-soft text-primary border border-primary/20 shrink-0">
-                      🎯 {room.bar_hours}h/day
+          <div className="hub-group">
+            {rooms.map(({ squad, role, members, pendingRequests }) => {
+              const bar = barLabel(squad.bar_hours);
+              const isPrivate = normalizeSquadPrivacy(squad.privacy) === 'invite_only';
+              return (
+                <button key={squad.id} type="button" className="hub-row" onClick={() => onOpenRoom(squad.id)}>
+                  <span className="hub-room-tile" aria-hidden>{squad.description || '🔥'}</span>
+                  <span className="hub-row-main">
+                    <span className="hub-row-title">
+                      <span className="hub-truncate">{squad.name}</span>
+                      {isPrivate && <Lock size={12} className="shrink-0 text-content-muted" aria-label="Invite only" />}
                     </span>
-                  )}
-                </div>
-              </button>
-            ))}
+                    <span className={`hub-row-subtitle hub-truncate block ${pendingRequests > 0 ? 'text-primary' : ''}`}>
+                      {pendingRequests > 0
+                        ? `${pendingRequests} ${pendingRequests === 1 ? 'request' : 'requests'} to join`
+                        : [role === 'admin' ? 'Admin' : 'Member', `${members.length} of ${ROOM_MEMBER_LIMIT}`, bar].filter(Boolean).join(' · ')}
+                    </span>
+                  </span>
+                  <span className="hub-row-trailing">
+                    {pendingRequests > 0 ? (
+                      <span className="hub-count is-alert" aria-hidden>{pendingRequests}</span>
+                    ) : (
+                      <HubAvatarStack people={members} />
+                    )}
+                    <ChevronRight size={18} className="hub-chevron" />
+                  </span>
+                </button>
+              );
+            })}
           </div>
         )}
-      </div>
+      </HubSection>
 
-      {pendingJoinRooms.length > 0 && (
-        <div>
-          <h3 className="text-[11px] font-bold text-content-muted uppercase tracking-wider mb-2.5 px-1">
-            Request sent
-          </h3>
-          <p className="text-[10px] text-content-muted px-1 mb-2 leading-relaxed">
-            Waiting for the squad admin to accept. You&apos;ll see the room under Your squads when approved.
-          </p>
-          <div className="space-y-2">
-            {pendingJoinRooms.map((room) => (
-              <div
-                key={room.id}
-                className="bg-elevated border border-secondary/30 rounded-[16px] p-4"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="text-2xl shrink-0">{room.description || '🔥'}</span>
-                    <div className="min-w-0">
-                      <p className="text-[14px] font-bold text-content-primary truncate">{room.name}</p>
-                      <p className="text-[10px] font-semibold text-secondary mt-0.5 flex items-center gap-1">
-                        <Clock size={11} /> Request sent
-                      </p>
-                    </div>
-                  </div>
-                  {room.bar_hours != null && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary-soft text-primary border border-primary/20 shrink-0">
-                      🎯 {room.bar_hours}h/day
-                    </span>
-                  )}
-                </div>
+      {requested.length > 0 && (
+        <HubSection title="Waiting for approval" footer="You’ll find the room above once an admin lets you in.">
+          <div className="hub-group">
+            {requested.map((room) => (
+              <div key={room.id} className="hub-row">
+                <span className="hub-room-tile" aria-hidden>{room.description || '🔥'}</span>
+                <span className="hub-row-main">
+                  <span className="hub-row-title"><span className="hub-truncate">{room.name}</span></span>
+                  <span className="hub-row-subtitle block">Request sent</span>
+                </span>
                 <button
                   type="button"
-                  disabled={joinBusyId === room.id}
-                  onClick={() => void handleCancelRequest(room)}
-                  className="mt-3 w-full h-9 rounded-xl text-[11px] font-semibold border border-subtle text-content-secondary flex items-center justify-center gap-1.5"
+                  className="hub-pill-button is-quiet"
+                  disabled={busyId === room.id}
+                  onClick={() => void withdraw(room)}
                 >
-                  {joinBusyId === room.id ? <Loader2 className="animate-spin" size={14} /> : <X size={14} />}
-                  Withdraw request
+                  {busyId === room.id ? <Loader2 size={14} className="animate-spin" /> : 'Withdraw'}
                 </button>
               </div>
             ))}
           </div>
-        </div>
+        </HubSection>
       )}
 
-      <div>
-        <div className="flex items-center justify-between gap-3 mb-2 px-1">
-          <h3 className="text-[11px] font-bold text-content-muted uppercase tracking-wider">Discover</h3>
-          <span className="text-[10px] text-content-muted font-medium">
-            {discoverRooms.length} {discoverRooms.length === 1 ? 'squad available' : 'squads available'}
-          </span>
-        </div>
-        <p className="text-[10px] text-content-muted px-1 mb-3 leading-relaxed">
-          Public rooms anyone can ask to join. Select a squad to request membership.
-        </p>
-
-        {loading ? (
-          <p className="text-center text-[12px] text-content-muted py-6">Finding squads…</p>
-        ) : discoverRooms.length === 0 ? (
-          <div className="py-8 flex flex-col items-center justify-center text-center text-content-muted border border-dashed border-subtle rounded-2xl bg-elevated/30 px-4">
-            <UsersRound size={24} className="mb-3 opacity-50" />
-            <p className="text-[13px] font-medium text-content-primary">No squads to discover</p>
-            <p className="text-[11px] mt-1 max-w-[240px] mx-auto leading-relaxed">
-              {pendingIds.size > 0
-                ? 'You have pending requests above — admins must accept before you can enter.'
-                : 'No public squads available to join right now.'}
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {discoverRooms.map((room) => (
-              <div
-                key={room.id}
-                className="bg-elevated border border-subtle rounded-[18px] p-4 transition-all hover:border-primary/30"
-              >
-                <div className="flex items-start justify-between gap-2 mb-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="text-2xl shrink-0">{room.description || '🔥'}</div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <Globe size={12} className="text-content-muted shrink-0" />
-                        <h3 className="text-[14px] font-bold text-content-primary truncate">{room.name}</h3>
-                      </div>
-                      <p className="text-[10px] text-content-muted mt-0.5">Public · request to join</p>
-                    </div>
-                  </div>
-                  {room.bar_hours != null && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 border bg-primary-soft text-primary border-primary/20">
-                      🎯 {room.bar_hours}h/day
+      <HubSection
+        title="Discover"
+        aside={discoverRooms.length > 0 ? `${discoverRooms.length} open` : undefined}
+        footer={discoverRooms.length > 0 ? 'Open rooms. Ask to join and an admin decides.' : undefined}
+      >
+        <div className="hub-group">
+          {discoverRooms.length === 0 ? (
+            <HubEmpty
+              icon={<Compass size={24} />}
+              title="Nothing to discover"
+              text="Open rooms you can ask to join will appear here."
+            />
+          ) : (
+            discoverRooms.map((room) => {
+              const bar = barLabel(room.bar_hours);
+              return (
+                <div key={room.id} className="hub-row">
+                  <span className="hub-room-tile" aria-hidden>{room.description || '🔥'}</span>
+                  <span className="hub-row-main">
+                    <span className="hub-row-title"><span className="hub-truncate">{room.name}</span></span>
+                    <span
+                      className={`hub-row-subtitle block ${notice?.id === room.id ? (notice.error ? 'text-error' : 'text-secondary') : ''}`}
+                      role={notice?.id === room.id ? 'status' : undefined}
+                    >
+                      {notice?.id === room.id ? notice.text : (
+                        <span className="inline-flex items-center gap-1">
+                          <Globe size={12} /> {bar ?? 'Open room'}
+                        </span>
+                      )}
                     </span>
-                  )}
-                </div>
-
-                {joinMessage?.id === room.id && (
-                  <p
-                    className={`text-[11px] mb-2.5 px-1 ${joinMessage.error ? 'text-error' : 'text-secondary'}`}
-                    role="status"
+                  </span>
+                  <button
+                    type="button"
+                    className="hub-pill-button"
+                    disabled={busyId === room.id}
+                    onClick={() => void requestJoin(room)}
                   >
-                    {joinMessage.text}
-                  </p>
-                )}
-
-                <button
-                  type="button"
-                  disabled={joinBusyId === room.id}
-                  onClick={() => void handleRequestJoin(room)}
-                  className="w-full h-10 rounded-xl text-[12px] font-bold flex items-center justify-center gap-2 bg-primary text-on-primary disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  {joinBusyId === room.id ? (
-                    <Loader2 className="animate-spin" size={16} />
-                  ) : (
-                    <DoorOpen size={16} strokeWidth={2.2} />
-                  )}
-                  Request to join
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+                    {busyId === room.id ? <Loader2 size={14} className="animate-spin" /> : 'Ask to join'}
+                  </button>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </HubSection>
     </div>
   );
 }

@@ -268,6 +268,8 @@ export async function createSquad(
     }
   }
 
+  // Every rooms list re-reads, so the new room shows at once.
+  dispatchPrivateHubSync('squads');
   return { ok: true, squad: data as Squad };
 }
 
@@ -494,6 +496,70 @@ export async function fetchMySquads(userId: string): Promise<Squad[]> {
   return data
     .map((row) => squadFromJoinedRow(row.squads))
     .filter((s): s is Squad => s != null);
+}
+
+/** A room as the Rooms list shows it: your role, who is in it, what waits for you. */
+export interface RoomSummary {
+  squad: Squad;
+  role: SquadMemberRole;
+  /** Accepted members, at most ROOM_MEMBER_LIMIT. */
+  members: Profile[];
+  /** Join requests waiting for an admin; always 0 for members. */
+  pendingRequests: number;
+}
+
+/** Matches the limit enforced by hub_room_membership.sql. */
+export const ROOM_MEMBER_LIMIT = 4;
+
+export async function fetchMyRoomSummaries(userId: string): Promise<RoomSummary[]> {
+  const { data: mine, error } = await supabase
+    .from('squad_members')
+    .select('squad_id, role, squads(*)')
+    .eq('user_id', userId)
+    .eq('status', 'accepted');
+  if (error || !mine?.length) {
+    if (error) console.error('fetchMyRoomSummaries error:', error);
+    return [];
+  }
+
+  const ids = mine.map((row) => row.squad_id as string);
+  const { data: everyone } = await supabase
+    .from('squad_members')
+    .select('squad_id, user_id, status')
+    .in('squad_id', ids)
+    .in('status', ['accepted', 'pending']);
+  const memberRows = (everyone ?? []) as { squad_id: string; user_id: string; status: string }[];
+  const memberIds = [...new Set(memberRows.filter((r) => r.status === 'accepted').map((r) => r.user_id))];
+  const { data: profiles } = memberIds.length
+    ? await supabase.from('profiles').select('*').in('id', memberIds)
+    : { data: [] as Profile[] };
+  const profileById = new Map(((profiles ?? []) as Profile[]).map((p) => [p.id, p]));
+
+  return mine
+    .map((row): RoomSummary | null => {
+      const squad = squadFromJoinedRow(row.squads);
+      if (!squad) return null;
+      const inRoom = memberRows.filter((r) => r.squad_id === squad.id);
+      const role = row.role === 'admin' ? 'admin' : 'member';
+      return {
+        squad,
+        role,
+        members: inRoom
+          .filter((r) => r.status === 'accepted')
+          .map((r) => profileById.get(r.user_id))
+          .filter((p): p is Profile => Boolean(p)),
+        pendingRequests: role === 'admin' ? inRoom.filter((r) => r.status === 'pending').length : 0,
+      };
+    })
+    .filter((s): s is RoomSummary => s !== null)
+    .sort((a, b) => b.pendingRequests - a.pendingRequests || a.squad.name.localeCompare(b.squad.name));
+}
+
+/** Leave a room you belong to. */
+export async function leaveSquad(squadId: string, userId: string): Promise<boolean> {
+  const { error } = await supabase.from('squad_members').delete().eq('squad_id', squadId).eq('user_id', userId);
+  if (!error) dispatchPrivateHubSync('squads');
+  return !error;
 }
 
 export interface IncomingSquadJoinRequest {

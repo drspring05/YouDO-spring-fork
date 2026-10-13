@@ -1,12 +1,15 @@
-import { useState, useEffect } from 'react';
-import { X, UsersRound, Globe, Lock, Search, Check, UserPlus } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Check, Globe, Loader2, Lock, Minus, Plus, Search, X } from 'lucide-react';
 import Overlay from './Overlay';
-import { createSquad, type SquadPrivacy } from '../lib/squads';
+import { ROOM_MEMBER_LIMIT, createSquad, type SquadPrivacy } from '../lib/squads';
 import { searchProfilesByUsernamePrefix, type Profile } from '../lib/profiles';
-import { ProfileAvatarVisual } from '../lib/profileAvatar';
 import { useAuth } from '../contexts/AuthContext';
 import { clampStreakBarHours, MAX_STREAK_BAR_HOURS, MIN_STREAK_BAR_HOURS } from '../lib/focusTrends';
-import { hapticTick } from '../lib/haptics';
+import { hapticSuccess, hapticTick } from '../lib/haptics';
+import { HubAvatar, HubSection } from './hub/HubParts';
+
+const ROOM_ICONS = ['🔥', '⚡', '🦉', '🚀', '🎯', '📚', '☕', '⚔️', '🌊', '🏔️', '🏆', '💎'];
+const MAX_INVITES = ROOM_MEMBER_LIMIT - 1;
 
 interface Props {
   personalPace?: number;
@@ -17,365 +20,240 @@ interface Props {
 
 export default function CreateRoomSheet({ open, onClose, onSuccess, personalPace = 4 }: Props) {
   const { user } = useAuth();
-
   const [name, setName] = useState('');
-  const [icon, setIcon] = useState('🔥');
-  const [barHours, setBarHours] = useState<number>(personalPace ?? 4);
+  const [icon, setIcon] = useState(ROOM_ICONS[0]);
+  const [barHours, setBarHours] = useState<number>(personalPace);
   const [privacy, setPrivacy] = useState<SquadPrivacy>('anyone_can_join');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<Profile[]>([]);
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<Profile[]>([]);
   const [searching, setSearching] = useState(false);
-  const [searchError, setSearchError] = useState('');
-  const [selectedInvites, setSelectedInvites] = useState<Profile[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
+  const [invites, setInvites] = useState<Profile[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  // Every new room starts from a clean form.
+  useEffect(() => {
+    if (!open) return;
+    setName('');
+    setIcon(ROOM_ICONS[0]);
+    setBarHours(clampStreakBarHours(personalPace));
+    setPrivacy('anyone_can_join');
+    setQuery('');
+    setResults([]);
+    setInvites([]);
+    setError('');
+  }, [open, personalPace]);
 
   useEffect(() => {
-    if (!open) {
-      setSearchQuery('');
-      setSearchResults([]);
-      setSelectedInvites([]);
-      setErrorMsg('');
-      return;
-    }
-    const prefix = searchQuery.replace(/^@/, '').trim();
+    if (!open) return;
+    const prefix = query.replace(/^@/, '').trim();
     if (prefix.length < 2) {
-      setSearchResults([]);
+      setResults([]);
       setSearching(false);
-      setSearchError('');
       return;
     }
-
     let cancelled = false;
     setSearching(true);
     const timer = window.setTimeout(() => {
       void searchProfilesByUsernamePrefix(prefix, { excludeId: user?.id, limit: 5 }).then((rows) => {
         if (cancelled) return;
-        setSearchResults(rows);
+        setResults(rows);
         setSearching(false);
-        setSearchError(rows.length === 0 ? 'No user found with that @username.' : '');
       });
     }, 220);
-
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [open, searchQuery, user?.id]);
+  }, [open, query, user?.id]);
 
   if (!open) return null;
 
-  const handleCreate = async () => {
-    if (!name.trim()) {
-      setErrorMsg('Please give your squad a name.');
-      return;
-    }
-    if (!user) return;
+  const canCreate = name.trim().length > 0 && !saving;
 
-    setLoading(true);
-    setErrorMsg('');
-
-    const allowJoinRequests = privacy === 'anyone_can_join';
-    const inviteIds = selectedInvites.map((p) => p.id);
+  const create = async () => {
+    if (!user || !canCreate) return;
+    setSaving(true);
+    setError('');
     const res = await createSquad(
       user.id,
       name.trim(),
       icon,
       barHours,
-      allowJoinRequests,
+      privacy === 'anyone_can_join',
       privacy,
-      inviteIds,
+      invites.map((p) => p.id),
     );
-
-    setLoading(false);
+    setSaving(false);
     if (res.ok && res.squad) {
+      hapticSuccess();
       onSuccess(res.squad.id);
     } else {
-      setErrorMsg(res.error || 'Could not create room.');
+      setError(res.error || 'Could not create the room. Try again.');
     }
   };
 
+  const toggleInvite = (profile: Profile) => {
+    hapticTick();
+    setInvites((current) =>
+      current.some((p) => p.id === profile.id)
+        ? current.filter((p) => p.id !== profile.id)
+        : current.length >= MAX_INVITES ? current : [...current, profile],
+    );
+  };
+
+  const stepHours = (delta: number) => {
+    hapticTick();
+    setBarHours((h) => clampStreakBarHours(h + delta));
+  };
+
   return (
-    <Overlay open={open} onClose={onClose}>
-      <div className="bg-[var(--bg-surface)] w-full max-w-md mx-auto rounded-[24px] flex flex-col max-h-[85vh] sm:my-auto mb-4">
-        {/* Header */}
-        <div className="flex justify-between items-center p-4 pb-2 border-b border-subtle">
-          <div className="w-10" />
-          <h2 className="text-[14px] font-bold text-content-primary flex items-center gap-1.5">
-            <UsersRound size={16} /> Create Squad
-          </h2>
-          <button
-            onClick={onClose}
-            className="p-2 -mr-2 text-content-secondary hover:text-content-primary rounded-full hover:bg-elevated transition-colors"
-          >
-            <X size={20} />
+    <Overlay open={open} onClose={onClose} align="bottom">
+      <div className="hub hub-sheet" role="dialog" aria-label="New room">
+        <div className="hub-sheet-grabber" aria-hidden />
+        <div className="hub-sheet-header">
+          <button type="button" className="hub-text-button is-start" onClick={onClose}>Cancel</button>
+          <h2>New Room</h2>
+          <button type="button" className="hub-text-button is-strong is-end" disabled={!canCreate} onClick={() => void create()}>
+            {saving ? <Loader2 size={18} className="animate-spin" /> : 'Create'}
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-5">
-          {/* Room Name & Icon */}
-          <div>
-            <label className="block text-[11px] font-semibold uppercase tracking-widest text-content-muted mb-2">
-              Squad Identity
-            </label>
-            <div className="flex gap-3">
-              <div className="w-[52px] shrink-0">
-                <select
-                  value={icon}
-                  onChange={(e) => setIcon(e.target.value)}
-                  className="w-full h-11 bg-elevated border border-subtle rounded-xl text-center text-xl outline-none focus:border-primary appearance-none cursor-pointer"
-                >
-                  {['🔥', '⚡', '🦉', '🚀', '🎯', '📚', '☕', '⚔️', '🌊', '🏔️', '🏆', '💎'].map((e) => (
-                    <option key={e} value={e}>
-                      {e}
-                    </option>
-                  ))}
-                </select>
+        <div className="hub-sheet-body">
+          {error && <div className="hub-banner is-error" role="alert">{error}</div>}
+
+          <HubSection>
+            <div className="hub-group">
+              <div className="hub-row is-compact">
+                <span className="hub-room-tile" aria-hidden>{icon}</span>
+                <input
+                  className="hub-field px-0"
+                  value={name}
+                  maxLength={40}
+                  autoFocus
+                  placeholder="Room name"
+                  aria-label="Room name"
+                  onChange={(e) => setName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') void create(); }}
+                />
               </div>
-              <input
-                type="text"
-                placeholder="e.g. The Night Owls"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                maxLength={30}
-                className="flex-1 bg-elevated border border-subtle rounded-xl px-3 py-2.5 text-sm text-content-primary outline-none focus:border-primary"
-              />
-            </div>
-          </div>
-
-          {/* Pace Target */}
-          <div>
-            <label className="block text-[11px] font-semibold uppercase tracking-widest text-content-muted mb-2">
-              Daily Target Pace
-            </label>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                className="w-12 h-10 rounded-[10px] border border-subtle bg-elevated text-content-primary text-sm font-semibold disabled:opacity-35 hover:bg-base transition-colors"
-                disabled={barHours <= MIN_STREAK_BAR_HOURS}
-                onClick={() => {
-                  hapticTick();
-                  setBarHours(clampStreakBarHours(barHours - 0.5));
-                  setErrorMsg('');
-                }}
-              >
-                —
-              </button>
-              <div className="flex-1 h-10 rounded-xl bg-elevated border border-subtle flex items-center justify-center">
-                <span className="tabular-nums text-sm font-bold text-content-primary">{barHours}h</span>
-              </div>
-              <button
-                type="button"
-                className="w-12 h-10 rounded-[10px] border border-subtle bg-elevated text-content-primary text-sm font-semibold disabled:opacity-35 hover:bg-base transition-colors"
-                disabled={barHours >= MAX_STREAK_BAR_HOURS}
-                onClick={() => {
-                  hapticTick();
-                  setBarHours(clampStreakBarHours(barHours + 0.5));
-                  setErrorMsg('');
-                }}
-              >
-                +
-              </button>
-            </div>
-            <p className="text-[11px] text-content-muted mt-2 leading-relaxed">
-              Target daily focus hours for squad members. Any member can join regardless of personal bar.
-            </p>
-          </div>
-
-          {/* Privacy Settings */}
-          <div>
-            <label className="block text-[11px] font-semibold uppercase tracking-widest text-content-muted mb-2">
-              Room Privacy
-            </label>
-            <div className="space-y-2">
-              <button
-                type="button"
-                onClick={() => {
-                  hapticTick();
-                  setPrivacy('anyone_can_join');
-                }}
-                className={`w-full text-left p-3.5 rounded-2xl border transition-all flex items-start gap-3 ${
-                  privacy === 'anyone_can_join'
-                    ? 'border-primary bg-primary/10 shadow-sm'
-                    : 'border-subtle bg-elevated/60 hover:bg-elevated'
-                }`}
-              >
-                <div
-                  className={`p-2 rounded-xl shrink-0 transition-colors ${
-                    privacy === 'anyone_can_join' ? 'bg-primary text-on-primary' : 'bg-surface text-content-muted'
-                  }`}
-                >
-                  <Globe size={18} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between">
-                    <p className="text-[13px] font-bold text-content-primary">Anyone can join</p>
-                    {privacy === 'anyone_can_join' && <Check size={16} className="text-primary shrink-0" />}
-                  </div>
-                  <p className="text-[11px] text-content-secondary mt-0.5 leading-snug">
-                    Public squad listed in Discover. Compatible members can find it and request to join.
-                  </p>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  hapticTick();
-                  setPrivacy('invite_only');
-                }}
-                className={`w-full text-left p-3.5 rounded-2xl border transition-all flex items-start gap-3 ${
-                  privacy === 'invite_only'
-                    ? 'border-primary bg-primary/10 shadow-sm'
-                    : 'border-subtle bg-elevated/60 hover:bg-elevated'
-                }`}
-              >
-                <div
-                  className={`p-2 rounded-xl shrink-0 transition-colors ${
-                    privacy === 'invite_only' ? 'bg-primary text-on-primary' : 'bg-surface text-content-muted'
-                  }`}
-                >
-                  <Lock size={18} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between">
-                    <p className="text-[13px] font-bold text-content-primary">Invite-only</p>
-                    {privacy === 'invite_only' && <Check size={16} className="text-primary shrink-0" />}
-                  </div>
-                  <p className="text-[11px] text-content-secondary mt-0.5 leading-snug">
-                    Private squad hidden from Discover. Members can only enter if invited by username.
-                  </p>
-                </div>
-              </button>
-            </div>
-          </div>
-
-          {/* Invite Members */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-[11px] font-semibold uppercase tracking-widest text-content-muted">
-                Invite Members (Optional)
-              </label>
-              <span className="text-[10px] text-content-muted">{selectedInvites.length}/3 selected</span>
-            </div>
-
-            {/* Staged Invitees Chips */}
-            {selectedInvites.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-2.5">
-                {selectedInvites.map((p) => (
-                  <div
-                    key={p.id}
-                    className="inline-flex items-center gap-1.5 pl-2 pr-1.5 py-1 rounded-full bg-primary-soft border border-primary/20 text-xs text-primary font-medium"
-                  >
-                    <ProfileAvatarVisual
-                      avatarUrl={p.avatar_url}
-                      displayName={p.display_name}
-                      className="w-4 h-4 text-[9px]"
-                    />
-                    <span className="truncate max-w-[120px]">@{p.username}</span>
+              <div className="hub-row is-compact">
+                <div className="flex flex-1 gap-1.5 overflow-x-auto no-scrollbar py-1" role="radiogroup" aria-label="Room icon">
+                  {ROOM_ICONS.map((glyph) => (
                     <button
+                      key={glyph}
                       type="button"
-                      onClick={() => setSelectedInvites((prev) => prev.filter((item) => item.id !== p.id))}
-                      className="p-0.5 rounded-full hover:bg-primary/20 text-primary transition-colors"
-                      aria-label={`Remove ${p.username}`}
+                      role="radio"
+                      aria-checked={icon === glyph}
+                      onClick={() => { hapticTick(); setIcon(glyph); }}
+                      className={`grid size-10 shrink-0 place-items-center rounded-[11px] text-[21px] transition-colors ${icon === glyph ? 'bg-primary/20 ring-2 ring-primary' : 'bg-[var(--bg-fill)]'}`}
                     >
-                      <X size={12} />
+                      {glyph}
                     </button>
-                  </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </HubSection>
+
+          <HubSection footer="Members can keep their own daily bar; this is the room’s default.">
+            <div className="hub-group">
+              <div className="hub-row is-compact">
+                <span className="hub-row-main">
+                  <span className="hub-row-title">Daily target</span>
+                </span>
+                <span className="mr-1 text-[17px] font-semibold tabular-nums text-content-primary">{barHours}h</span>
+                <span className="hub-stepper">
+                  <button type="button" aria-label="Less" disabled={barHours <= MIN_STREAK_BAR_HOURS} onClick={() => stepHours(-0.5)}>
+                    <Minus size={16} strokeWidth={2.6} />
+                  </button>
+                  <button type="button" aria-label="More" disabled={barHours >= MAX_STREAK_BAR_HOURS} onClick={() => stepHours(0.5)}>
+                    <Plus size={16} strokeWidth={2.6} />
+                  </button>
+                </span>
+              </div>
+            </div>
+          </HubSection>
+
+          <HubSection title="Who can join">
+            <div className="hub-group" role="radiogroup" aria-label="Who can join">
+              {([
+                ['anyone_can_join', Globe, 'Open', 'Listed in Discover. People ask, you approve.'],
+                ['invite_only', Lock, 'Invite only', 'Hidden. Only people you invite can join.'],
+              ] as const).map(([value, Icon, label, hint]) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={privacy === value}
+                  className="hub-row hub-option"
+                  onClick={() => { hapticTick(); setPrivacy(value); }}
+                >
+                  <span className={`hub-activity-icon ${privacy === value ? 'is-tint' : ''}`} aria-hidden><Icon size={16} /></span>
+                  <span className="hub-row-main">
+                    <span className="hub-row-title">{label}</span>
+                    <span className="hub-row-subtitle block">{hint}</span>
+                  </span>
+                  <span className="hub-option-check" aria-hidden>{privacy === value && <Check size={20} strokeWidth={2.6} />}</span>
+                </button>
+              ))}
+            </div>
+          </HubSection>
+
+          <HubSection
+            title="Invite friends"
+            aside={`${invites.length} of ${MAX_INVITES}`}
+            footer={`A room holds ${ROOM_MEMBER_LIMIT} people including you. Invites can also be sent later.`}
+          >
+            {invites.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-1.5 px-1">
+                {invites.map((p) => (
+                  <button key={p.id} type="button" className="hub-chip is-tint" onClick={() => toggleInvite(p)} aria-label={`Remove @${p.username}`}>
+                    @{p.username} <X size={12} strokeWidth={2.6} />
+                  </button>
                 ))}
               </div>
             )}
-
-            {/* Search Input */}
-            <div className="relative">
-              <Search size={16} className="absolute left-3.5 top-3.5 text-content-muted pointer-events-none" />
+            <div className="hub-search mb-2">
+              <Search size={16} aria-hidden />
               <input
-                type="search"
-                name="room_invite_search"
-                id="room_invite_search_query"
-                data-protonpass-ignore="true"
-                data-1p-ignore="true"
-                data-lpignore="true"
-                data-bwignore="true"
-                data-form-type="other"
-                autoComplete="off"
-                placeholder="Search friend handle (e.g. @alex)..."
-                value={searchQuery}
-                disabled={selectedInvites.length >= 3}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') e.preventDefault();
-                }}
-                className="w-full h-11 bg-elevated border border-subtle rounded-xl pl-10 pr-4 text-[13px] outline-none focus:border-primary disabled:opacity-50 transition-colors"
+                value={query}
+                placeholder="Search @username"
+                aria-label="Search friends to invite"
+                autoCapitalize="none"
+                autoCorrect="off"
+                onChange={(e) => setQuery(e.target.value)}
               />
+              {searching && <Loader2 size={15} className="animate-spin" />}
             </div>
-
-            {searching && <p className="text-[11px] text-content-muted mt-2 text-center">Searching users…</p>}
-            {searchError && <p className="text-[11px] text-error mt-2">{searchError}</p>}
-
-            {/* Search Results Dropdown */}
-            {searchResults.length > 0 && (
-              <ul className="mt-2 space-y-1.5 max-h-40 overflow-y-auto no-scrollbar rounded-xl border border-subtle bg-base p-1.5">
-                {searchResults.map((profile) => {
-                  const isSelected = selectedInvites.some((p) => p.id === profile.id);
+            {results.length > 0 && (
+              <div className="hub-group">
+                {results.map((p) => {
+                  const added = invites.some((i) => i.id === p.id);
                   return (
-                    <li
-                      key={profile.id}
-                      className="flex items-center justify-between gap-2 p-2 hover:bg-elevated rounded-lg transition-colors"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-7 h-7 rounded-full bg-primary-soft border border-primary/20 overflow-hidden flex items-center justify-center shrink-0">
-                          <ProfileAvatarVisual
-                            avatarUrl={profile.avatar_url}
-                            displayName={profile.display_name}
-                            className="text-xs"
-                          />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-[12px] font-bold text-content-primary truncate">
-                            {profile.display_name}
-                          </p>
-                          <p className="text-[10px] text-primary truncate">@{profile.username}</p>
-                        </div>
-                      </div>
-                      {isSelected ? (
-                        <span className="text-[11px] font-semibold text-content-muted px-2 py-1">Added</span>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled={selectedInvites.length >= 3}
-                          onClick={() => {
-                            setSelectedInvites((prev) => [...prev, profile]);
-                            setSearchQuery('');
-                            setSearchResults([]);
-                          }}
-                          className="h-7 px-2.5 rounded-lg bg-primary text-on-primary text-[11px] font-bold flex items-center gap-1 disabled:opacity-40 shrink-0"
-                        >
-                          <UserPlus size={12} />
-                          Add
-                        </button>
-                      )}
-                    </li>
+                    <div key={p.id} className="hub-row is-compact">
+                      <HubAvatar url={p.avatar_url} name={p.display_name} size="sm" />
+                      <span className="hub-row-main">
+                        <span className="hub-row-title"><span className="hub-truncate">{p.display_name}</span></span>
+                        <span className="hub-row-subtitle block">@{p.username}</span>
+                      </span>
+                      <button
+                        type="button"
+                        className={`hub-pill-button ${added ? 'is-quiet' : ''}`}
+                        disabled={!added && invites.length >= MAX_INVITES}
+                        onClick={() => toggleInvite(p)}
+                      >
+                        {added ? 'Added' : 'Invite'}
+                      </button>
+                    </div>
                   );
                 })}
-              </ul>
+              </div>
             )}
-          </div>
-
-          {errorMsg && (
-            <div className="p-3 bg-error-soft rounded-xl text-[12px] font-semibold text-error text-center">
-              {errorMsg}
-            </div>
-          )}
-
-          {/* Submit */}
-          <button
-            disabled={loading}
-            onClick={handleCreate}
-            className="w-full mt-2 h-12 rounded-[14px] bg-primary text-on-primary text-[14px] font-bold flex items-center justify-center disabled:opacity-50 transition active:scale-[0.98]"
-          >
-            {loading ? 'Creating...' : 'Create Squad Room'}
-          </button>
+            {query.replace(/^@/, '').trim().length >= 2 && !searching && results.length === 0 && (
+              <p className="hub-section-footer">No one with that @username.</p>
+            )}
+          </HubSection>
         </div>
       </div>
     </Overlay>
