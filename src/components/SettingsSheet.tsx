@@ -22,7 +22,6 @@ import {
   KeyRound,
   LogIn,
   LogOut,
-  Lock,
   Mail,
   MessageCircle,
   MessageSquare,
@@ -2289,90 +2288,95 @@ export default function SettingsSheet({
             )}
           </div>
 
-          {/* PRIVATE HUB NOTIFICATIONS CARD (LOCKED) */}
-          <div className={`settings-card bg-elevated rounded-2xl border border-subtle p-4 shadow-lg mt-2.5 space-y-3 relative overflow-hidden transition-opacity ${notifPrefs.enabled ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
+          {/* PRIVATE HUB NOTIFICATIONS CARD */}
+          <div className={`settings-card bg-elevated rounded-2xl border border-subtle p-4 shadow-lg mt-2.5 space-y-3 transition-opacity ${notifPrefs.enabled ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-start gap-3 min-w-0 flex-1">
                 <div className="w-9 h-9 rounded-xl bg-primary-soft flex items-center justify-center text-primary shrink-0 mt-0.5">
                   <MessageSquare size={16} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-xs font-semibold text-content-primary">Private Hub Notifications</h3>
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-primary/15 text-primary text-[9.5px] font-bold uppercase tracking-wider">
-                      <Lock size={10} /> Locked
-                    </span>
-                  </div>
+                  <h3 className="text-xs font-semibold text-content-primary">Private Hub</h3>
                   <p className="text-[10.5px] text-content-secondary font-medium mt-0.5 leading-snug">
-                    Direct messages, room chats, and companion invites
+                    Direct messages, room chats, requests and invites
                   </p>
                 </div>
               </div>
-              <div className="opacity-50 pointer-events-none">
-                <Toggle
-                  checked={false}
-                  onChange={() => {}}
-                  label="Private hub notifications (Locked)"
-                />
-              </div>
+              <Toggle
+                checked={notifPrefs.privateHub.enabled}
+                onChange={() =>
+                  updateNotifPrefs((p) => ({
+                    ...p,
+                    privateHub: { ...p.privateHub, enabled: !p.privateHub.enabled },
+                  }))
+                }
+                label="Private hub notifications"
+              />
             </div>
 
-            {/* Locked feature options */}
-            <div className="space-y-3 pt-2 border-t border-subtle opacity-60 select-none">
-              <div className="p-2.5 rounded-xl bg-base/60 border border-subtle/80 flex items-center gap-2.5 text-[11px] text-content-muted">
-                <Lock size={13} className="shrink-0 text-primary" />
-                <span>Locked while Private Hub is under development. These preferences will unlock automatically when Private Hub launches.</span>
-              </div>
-
-              <div className="flex items-center justify-between gap-3 pointer-events-none">
-                <div className="min-w-0 flex-1">
-                  <h4 className="text-[11.5px] font-semibold text-content-primary">Direct Messages</h4>
-                  <p className="text-[10px] text-content-secondary">Alert when friends send you a direct message</p>
+            {notifPrefs.privateHub.enabled && (
+              <div className="space-y-3 pt-2 border-t border-subtle">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-[11.5px] font-semibold text-content-primary">Direct Messages</h4>
+                    <p className="text-[10px] text-content-secondary">When a friend sends you a message</p>
+                  </div>
+                  <Toggle
+                    checked={notifPrefs.privateHub.directMessages}
+                    onChange={() =>
+                      updateNotifPrefs((p) => ({
+                        ...p,
+                        privateHub: { ...p.privateHub, directMessages: !p.privateHub.directMessages },
+                      }))
+                    }
+                    label="Direct message notifications"
+                  />
                 </div>
-                <Toggle
-                  checked={false}
-                  onChange={() => {}}
-                  label="Direct messages (Locked)"
-                />
-              </div>
 
-              <div className="flex items-center justify-between gap-3 pointer-events-none">
-                <div className="min-w-0 flex-1">
-                  <h4 className="text-[11.5px] font-semibold text-content-primary">Requests &amp; Invites</h4>
-                  <p className="text-[10px] text-content-secondary">Friend requests and room invitations</p>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-[11.5px] font-semibold text-content-primary">Requests &amp; Invites</h4>
+                    <p className="text-[10px] text-content-secondary">Friend requests, room invites and join requests</p>
+                  </div>
+                  <Toggle
+                    checked={notifPrefs.privateHub.friendRequests || notifPrefs.privateHub.roomInvites}
+                    onChange={() =>
+                      updateNotifPrefs((p) => {
+                        const next = !(p.privateHub.friendRequests || p.privateHub.roomInvites);
+                        return { ...p, privateHub: { ...p.privateHub, friendRequests: next, roomInvites: next } };
+                      })
+                    }
+                    label="Request and invite notifications"
+                  />
                 </div>
-                <Toggle
-                  checked={false}
-                  onChange={() => {}}
-                  label="Requests and invites (Locked)"
-                />
-              </div>
 
-              <div className="pt-1 pointer-events-none">
-                <div className="flex items-center justify-between mb-1.5">
-                  <div>
-                    <h4 className="text-[11.5px] font-semibold text-content-primary">Room Chat Messages</h4>
-                    <p className="text-[10px] text-content-secondary">Control noise from 4-person squad rooms</p>
+                <div className="pt-1">
+                  <h4 className="text-[11.5px] font-semibold text-content-primary">Room Chat</h4>
+                  <p className="text-[10px] text-content-secondary mb-1.5">How much your rooms can notify you</p>
+                  <div className="settings-segment flex bg-base p-1 rounded-xl border border-subtle gap-1" role="radiogroup" aria-label="Room chat notifications">
+                    {(['all', 'mentions', 'off'] as RoomNotificationMode[]).map((mode) => {
+                      const active = notifPrefs.privateHub.roomMessages === mode;
+                      return (
+                        <button
+                          key={mode}
+                          type="button"
+                          role="radio"
+                          aria-checked={active}
+                          onClick={() =>
+                            updateNotifPrefs((p) => ({ ...p, privateHub: { ...p.privateHub, roomMessages: mode } }))
+                          }
+                          className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold transition ${
+                            active ? 'bg-primary text-on-primary' : 'text-content-secondary hover:text-content-primary'
+                          }`}
+                        >
+                          {mode === 'all' ? 'All messages' : mode === 'mentions' ? '@Mentions' : 'Muted'}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
-                <div className="settings-segment flex bg-base p-1 rounded-xl border border-subtle gap-1">
-                  {(['all', 'mentions', 'off'] as RoomNotificationMode[]).map((mode) => (
-                    <button
-                      key={mode}
-                      type="button"
-                      disabled
-                      className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold transition ${
-                        mode === 'all'
-                          ? 'bg-primary/20 text-content-secondary'
-                          : 'text-content-muted'
-                      }`}
-                    >
-                      {mode === 'all' ? 'All Messages' : mode === 'mentions' ? '@Mentions' : 'Muted'}
-                    </button>
-                  ))}
-                </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* PUBLIC HUB NOTIFICATIONS CARD */}

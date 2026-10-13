@@ -29,7 +29,8 @@ html.dark {
   --border: #38383a;
   --border-subtle: #232326;
   --separator: rgba(84, 84, 88, 0.6);
-  --switch-on: #30d158;
+  /* Switches use a deeper tone of the accent so they sit with any accent. */
+  --switch-on: color-mix(in srgb, var(--primary) 72%, #000000);
   --shadow-card: 0 0 0 transparent;
   --shadow-elevated: 0 24px 60px -24px rgba(0, 0, 0, 0.85);
   --backdrop: rgba(0, 0, 0, 0.5);
@@ -61,7 +62,7 @@ html.light-dusky {
   --border: #d1d1d6;
   --border-subtle: #ebebef;
   --separator: rgba(60, 60, 67, 0.22);
-  --switch-on: #34c759;
+  --switch-on: var(--primary);
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 14px -6px rgba(0, 0, 0, 0.06);
   --shadow-elevated: 0 24px 60px -24px rgba(0, 0, 0, 0.28);
   --backdrop: rgba(0, 0, 0, 0.24);
