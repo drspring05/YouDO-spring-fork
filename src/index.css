@@ -848,7 +848,7 @@ html.dark .ios-segmented > button[aria-selected='true'] { background: #636366; }
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px; /* the same gap between every line of the card */
   padding-top: 7px; /* first line centred on the 34px mark */
 }
 .goal-row-head {
@@ -959,8 +959,10 @@ html.dark .ios-segmented > button[aria-selected='true'] { background: #636366; }
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 30px;
-  margin-top: 2px;
+  min-height: 28px;
+  /* The 28px tap row is taller than its 16px text; pull it up so the text
+     keeps the same gap as every other line. */
+  margin-top: -6px;
 }
 .goal-row-footer-main {
   flex: 1 1 auto;
@@ -1008,8 +1010,8 @@ html.dark .ios-segmented > button[aria-selected='true'] { background: #636366; }
   margin-right: -6px; /* icons line up with the chevron above */
 }
 .goal-row-tools > button {
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   display: grid;
   place-items: center;
   border-radius: 9px;
