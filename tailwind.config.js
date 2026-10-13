@@ -8,6 +8,8 @@ export default {
         'base': 'var(--bg-base)',
         'surface': 'var(--bg-surface)',
         'elevated': 'var(--bg-elevated)',
+        'sheet': 'var(--bg-sheet)',
+        'fill': 'var(--bg-fill)',
         
         'primary': 'var(--primary)',
         'primary-soft': 'var(--primary-soft)',
@@ -49,7 +51,22 @@ export default {
       boxShadow: {
         'card': 'var(--shadow-card)',
         'elevated': 'var(--shadow-elevated)',
-      }
+      },
+      // Apple-style continuous corners: larger, softer radii across the scale.
+      borderRadius: {
+        'lg': '10px',
+        'xl': '14px',
+        '2xl': '20px',
+        '3xl': '28px',
+      },
+      fontFamily: {
+        sans: ['var(--font-sans)'],
+        display: ['var(--font-display)'],
+        mono: ['var(--font-mono)'],
+      },
+      transitionTimingFunction: {
+        'spring': 'cubic-bezier(0.32, 0.72, 0, 1)',
+      },
     },
   },
   plugins: [],

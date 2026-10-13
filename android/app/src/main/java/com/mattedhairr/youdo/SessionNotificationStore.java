@@ -141,7 +141,7 @@ final class SessionNotificationStore {
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(ctx, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_youdo)
-            .setColor(paused ? 0xFF8FA68E : 0xFFC4A574)
+            .setColor(paused ? 0xFF8E8E93 : 0xFF0A84FF)
             .setColorized(false)
             .setContentTitle(safeTitle)
             .setContentText(paused ? "Paused" : "Focus in progress")

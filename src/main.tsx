@@ -5,6 +5,7 @@ import App from './App.tsx';
 import { StoreProvider } from './store';
 import { AuthProvider } from './contexts/AuthContext';
 import AuthGate from './components/AuthGate';
+import '@fontsource-variable/inter/opsz.css';
 import './index.css';
 import ExperiencePreferences from './components/ExperiencePreferences';
 import { registerWebUpdates } from './lib/webUpdate';

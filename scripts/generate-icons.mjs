@@ -9,28 +9,10 @@ const resDir = join(__dirname, '..', 'android', 'app', 'src', 'main', 'res');
 const svgPath = join(publicDir, 'icon.svg');
 const svgBuffer = readFileSync(svgPath);
 
-const bgColor = { r: 17, g: 16, b: 14, alpha: 1 }; // #11100E
-
+// The icon SVG is full-bleed (gradient field + centred mark inside the
+// maskable safe zone), so every raster target is a straight resize.
 async function generateMaskableIcon(size, targetPath) {
-  const iconPadded = await sharp(svgBuffer)
-    .resize(Math.round(size * 0.75), Math.round(size * 0.75))
-    .png()
-    .toBuffer();
-
-  await sharp({
-    create: {
-      width: size,
-      height: size,
-      channels: 4,
-      background: bgColor,
-    },
-  })
-    .composite([{
-      input: iconPadded,
-      gravity: 'center',
-    }])
-    .png()
-    .toFile(targetPath);
+  await sharp(svgBuffer).resize(size, size).png().toFile(targetPath);
 }
 
 async function generate() {

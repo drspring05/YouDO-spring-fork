@@ -165,12 +165,12 @@ describe('SettingsSheet Tab Navigation System', () => {
     expect(html).not.toContain('flex-1 min-w-fit');
     expect(html).not.toMatch(/id="settings-tab-account"[^>]*class="[^"]*flex-1[^"]*"/);
 
-    // Active tab (Account) has font-bold and bg-primary
-    expect(html).toMatch(/id="settings-tab-account"[^>]*class="[^"]*bg-primary[^"]*font-bold[^"]*"/);
+    // iOS segmented control: the selected segment is raised (via aria-selected) and semibold
+    expect(html).toMatch(/id="settings-tab-account"[^>]*aria-selected="true"[^>]*class="[^"]*font-semibold[^"]*"/);
 
-    // Inactive tab (Preferences) has font-semibold and no font-bold
-    expect(html).toMatch(/id="settings-tab-preferences"[^>]*class="[^"]*font-semibold[^"]*"/);
-    expect(html).not.toMatch(/id="settings-tab-preferences"[^>]*class="[^"]*font-bold[^"]*"/);
+    // Unselected segments stay medium weight, never semibold
+    expect(html).toMatch(/id="settings-tab-preferences"[^>]*class="[^"]*font-medium[^"]*"/);
+    expect(html).not.toMatch(/id="settings-tab-preferences"[^>]*class="[^"]*font-semibold[^"]*"/);
   });
 
   it('defaults to the Account tab being selected and its panel visible', () => {

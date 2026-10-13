@@ -27,14 +27,23 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
-      # Repository secrets hold the durable v6+ signing identity. Never fall
-      # back to an ephemeral debug key for a distributable APK.
-      - name: Prepare permanent Android signing key
+      # Repository secrets hold the durable v6+ signing identity. Forks and
+      # mirrors without those secrets still produce an installable APK, but it
+      # is signed with the runner's development key and clearly labelled as such
+      # (it cannot install over a release-signed YouDO).
+      - name: Prepare Android signing key
         env:
           SIGNING_KEYSTORE_BASE64: ${{ secrets.YOUDO_SIGNING_KEYSTORE_BASE64 }}
+          SIGNING_PASSWORD: ${{ secrets.YOUDO_SIGNING_PASSWORD }}
         run: |
-          test -n "$SIGNING_KEYSTORE_BASE64"
-          printf '%s' "$SIGNING_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/youdo-release.p12"
+          if [ -n "$SIGNING_KEYSTORE_BASE64" ] && [ -n "$SIGNING_PASSWORD" ]; then
+            printf '%s' "$SIGNING_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/youdo-release.p12"
+            echo "YOUDO_PERMANENT_SIGNING=true" >> "$GITHUB_ENV"
+            echo "Permanent YouDO signing identity loaded."
+          else
+            echo "YOUDO_PERMANENT_SIGNING=false" >> "$GITHUB_ENV"
+            echo "::warning title=Development signing::YOUDO_SIGNING_KEYSTORE_BASE64 / YOUDO_SIGNING_PASSWORD are not set in this repository. The APK will be signed with a development key and cannot install over a release-signed YouDO build."
+          fi
 
       - name: Clear Gradle Caches
         run: |
@@ -97,6 +106,7 @@ jobs:
           sha256sum android/app/build/outputs/apk/debug/app-debug.apk
 
       - name: Verify permanent signing and release identity
+        if: env.YOUDO_PERMANENT_SIGNING == 'true'
         run: |
           CURRENT_APK="android/app/build/outputs/apk/debug/app-debug.apk"
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
@@ -115,6 +125,21 @@ jobs:
           test "$PACKAGE_NAME" = "$CURRENT_NAME"
           test "$APP_NAME" = "$CURRENT_NAME"
           echo "Release identity verified: versionName $CURRENT_NAME; versionCode $CURRENT_CODE; certificate pinned"
+
+      - name: Verify release identity (development-signed build)
+        if: env.YOUDO_PERMANENT_SIGNING != 'true'
+        run: |
+          CURRENT_APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
+          CURRENT_CODE="$("$AAPT" dump badging "$CURRENT_APK" | sed -n "s/.*versionCode='\([0-9]*\)'.*/\1/p" | head -n 1)"
+          CURRENT_NAME="$("$AAPT" dump badging "$CURRENT_APK" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p" | head -n 1)"
+          PACKAGE_NAME="$(node -p "require('./package.json').version")"
+          EXPECTED_CODE="$(sed -n 's/.*versionCode \([0-9]*\).*/\1/p' android/app/build.gradle | head -n 1)"
+          test "$CURRENT_CODE" = "$EXPECTED_CODE"
+          test "$PACKAGE_NAME" = "$CURRENT_NAME"
+          echo "Development-signed APK: versionName $CURRENT_NAME; versionCode $CURRENT_CODE"
+          echo "### ⚠️ Development-signed APK" >> "$GITHUB_STEP_SUMMARY"
+          echo "Signing secrets are not configured, so this build uses a development key. Uninstall any release-signed YouDO before installing it." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4

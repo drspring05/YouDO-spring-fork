@@ -17,6 +17,18 @@ Guidance: keep 3–6 short, user-facing bullets. Group related small fixes under
 
 ---
 
+## [v8.0.0] - 2026-10-13 - Apple-Inspired Redesign
+
+- **A new look, end to end** — YouDO is rebuilt on Apple's Human Interface Guidelines: true-black and grouped-gray canvases, borderless inset cards, hairline separators, the Inter variable typeface (SF Pro on Apple devices) bundled for offline use, and a legibility floor so no label drops below 11pt.
+- **Large titles & Activity ring** — Every tab opens with an iOS Large Title; Today adds a Fitness-style progress ring and a calm, readable quote card instead of the scrolling ticker.
+- **Liquid Glass navigation** — A floating translucent tab bar with a separate Settings button, spring-animated selection, native-style badges, and a tinted compose button above it.
+- **Native controls everywhere** — UISwitch-style toggles, segmented controls for Today/Backlog, Settings and sign-in, 34pt-corner sheets with a proper grabber, capsule buttons, and Reminders-style task cards with a priority-tinted progress ring.
+- **Pick your accent** — Settings → Appearance now offers eight system tint colors (Blue, Indigo, Purple, Pink, Orange, Green, Teal, Graphite) in both Dark and Light themes. Existing theme choices are kept.
+- **New icon & Android chrome** — Blue-to-indigo app icon, matching splash, status/navigation bars, and session notification colors.
+- **Android APK** — versionName **8.0.0**, versionCode **79**. Installs over v7.8.0 (78).
+
+---
+
 ## [v7.8.0] - 2026-10-12 - Blueprint Studio Redesign, Private Hub & Push Notifications
 
 - **Blueprint Studio Redesign** — Complete architectural rebuild powered by a headless state controller: strict single-line tree rows with uniform height, instant tree search filtering, expand/collapse all controls, and full multi-level Undo/Redo history.
