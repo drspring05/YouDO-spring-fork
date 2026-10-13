@@ -1302,12 +1302,10 @@ function AppInner() {
                 aria-label="Open YouDO guide"
                 title="Guide"
               >
-                {/* Today's progress rings the app icon. */}
-                {view === 'tasks' && todayCount > 0 && (
-                  <span className="app-header-ring" aria-hidden="true">
-                    <LavaRing progress={todayProgress} size={54} stroke={4} />
-                  </span>
-                )}
+                {/* Today's progress rings the app icon on every tab; empty until work is done. */}
+                <span className="app-header-ring" aria-hidden="true">
+                  <LavaRing progress={todayProgress} size={54} stroke={4} />
+                </span>
                 <YouDoIcon size={20} />
               </button>
             </div>

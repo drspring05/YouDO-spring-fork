@@ -43,6 +43,9 @@ import { daysBetweenLocalISO, deadlineDaysLabel, goalTimingLabel, todayISO } fro
 import ActivityRing from './ActivityRing';
 import { hapticTick } from '../lib/haptics';
 
+/** Touch screens select with a long press; native drag there lifts rows at the slightest movement. */
+const coarsePointer = typeof window !== 'undefined' && Boolean(window.matchMedia?.('(pointer: coarse)').matches);
+
 function formatShortDate(iso: string): string {
   const [y, m, d] = iso.split('-').map(Number);
   return new Date(y, m - 1, d).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
@@ -151,11 +154,24 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
   const longPressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
   const isLongPressTriggeredRef = useRef(false);
+  // A long press selects. Android sends no click after it, so the "skip the
+  // click after a long press" window must expire on its own, or it would eat
+  // the next tap.
+  const suppressClickUntilRef = useRef(0);
+  const pressHighlightRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearLongPress = () => {
     if (longPressTimeoutRef.current) {
       clearTimeout(longPressTimeoutRef.current);
       longPressTimeoutRef.current = null;
+    }
+    if (pressHighlightRef.current) {
+      clearTimeout(pressHighlightRef.current);
+      pressHighlightRef.current = null;
+    }
+    if (isLongPressTriggeredRef.current) {
+      isLongPressTriggeredRef.current = false;
+      suppressClickUntilRef.current = performance.now() + 450;
     }
     pointerStartRef.current = null;
     setPressingId(null);
@@ -167,10 +183,11 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
 
     clearLongPress();
     pointerStartRef.current = { x: e.clientX, y: e.clientY };
-    isLongPressTriggeredRef.current = false;
-    setPressingId(nodeId);
+    // Only a finger that stays shows the press, so starting a scroll doesn't flash rows.
+    pressHighlightRef.current = setTimeout(() => setPressingId(nodeId), 110);
 
     longPressTimeoutRef.current = setTimeout(() => {
+      longPressTimeoutRef.current = null;
       isLongPressTriggeredRef.current = true;
       hapticTick();
       toggleSelect(nodeId);
@@ -180,7 +197,7 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
   const handleNodePointerMove = (e: React.PointerEvent) => {
     if (!pointerStartRef.current || !longPressTimeoutRef.current) return;
     const dist = Math.hypot(e.clientX - pointerStartRef.current.x, e.clientY - pointerStartRef.current.y);
-    if (dist > 8) {
+    if (dist > 10) {
       clearLongPress();
     }
   };
@@ -732,7 +749,8 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
               id={`goal-node-${child.id}`}
               role={canDrill || selected.size > 0 ? 'button' : undefined}
               tabIndex={canDrill || selected.size > 0 ? 0 : undefined}
-              draggable
+              draggable={!coarsePointer}
+              onContextMenu={coarsePointer ? (e) => e.preventDefault() : undefined}
               onPointerDown={(e) => handleNodePointerDown(child.id, e)}
               onPointerMove={handleNodePointerMove}
               onPointerUp={handleNodePointerUpOrCancel}
@@ -753,8 +771,9 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                 setOverId(null);
               }}
               onClick={() => {
-                if (isLongPressTriggeredRef.current) {
+                if (isLongPressTriggeredRef.current || performance.now() < suppressClickUntilRef.current) {
                   isLongPressTriggeredRef.current = false;
+                  suppressClickUntilRef.current = 0;
                   return;
                 }
                 if (selected.size > 0) {
