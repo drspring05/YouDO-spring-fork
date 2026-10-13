@@ -418,6 +418,9 @@ export function calculateNextBriefingTime(timeStr: string, fromDate = new Date()
 }
 
 let lastScheduledBriefingFingerprint: string | null = null;
+// The last real streak the app reported, so a settings change can reschedule
+// without knowing the streak itself.
+let lastKnownStreak = { count: 0, best: 0 };
 let isSchedulingBriefing = false;
 let pendingBriefingCall: {
   tasks: Task[];
@@ -440,6 +443,7 @@ export async function scheduleMorningBriefing(
   streakBest = 0,
   options?: { force?: boolean },
 ): Promise<void> {
+  lastKnownStreak = { count: streakCount, best: streakBest };
   const prefs = getNotificationPreferences();
   if (!prefs.enabled || !prefs.morningBriefing.enabled) {
     if (lastScheduledBriefingFingerprint !== null) {
@@ -512,6 +516,11 @@ export async function scheduleMorningBriefing(
       );
     }
   }
+}
+
+/** Reschedule after a briefing setting changed, keeping the last known streak. */
+export function refreshMorningBriefing(tasks: Task[], goals: GoalNode[]): Promise<void> {
+  return scheduleMorningBriefing(tasks, goals, lastKnownStreak.count, lastKnownStreak.best, { force: true });
 }
 
 export async function sendTestBriefingNotification(

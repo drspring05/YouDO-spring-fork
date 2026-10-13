@@ -12,7 +12,7 @@ vi.mock('@capacitor/local-notifications', () => ({
   },
 }));
 
-const { resetBriefingSchedulingGuard, scheduleMorningBriefing } = await import('./notifications');
+const { refreshMorningBriefing, resetBriefingSchedulingGuard, scheduleMorningBriefing } = await import('./notifications');
 
 const store = new Map<string, string>();
 const memoryStorage = {
@@ -65,5 +65,14 @@ describe('morning briefing content', () => {
 
     await scheduleMorningBriefing([], [{ ...goal, endDate: '2026-12-01' }]);
     expect(schedule).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps the real streak when a settings change reschedules the briefing', async () => {
+    vi.setSystemTime(new Date(2026, 9, 12, 21, 0, 0));
+    await scheduleMorningBriefing([], [goal], 12, 20);
+    await refreshMorningBriefing([], [goal]);
+
+    const latest = schedule.mock.calls[schedule.mock.calls.length - 1][0].notifications[0];
+    expect(latest.largeBody).toContain('12-day streak');
   });
 });

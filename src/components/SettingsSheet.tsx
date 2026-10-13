@@ -51,7 +51,7 @@ import {
   saveNotificationPreferences,
   checkNotificationPermission,
   requestNotificationPermission,
-  scheduleMorningBriefing,
+  refreshMorningBriefing,
   extractBriefingData,
   buildMorningBriefingContent,
   sendTestBriefingNotification,
@@ -263,7 +263,7 @@ export default function SettingsSheet({
     setNotifPrefs((prev) => {
       const next = updater(prev);
       saveNotificationPreferences(next);
-      void scheduleMorningBriefing(tasks, goals, streakBarHours, 0, { force: true });
+      void refreshMorningBriefing(tasks, goals);
       return next;
     });
   };

@@ -86,6 +86,7 @@ vi.mock('../lib/notifications', async (importOriginal) => {
     checkNotificationPermission: vi.fn().mockResolvedValue('granted'),
     requestNotificationPermission: vi.fn().mockResolvedValue(true),
     scheduleMorningBriefing: vi.fn().mockResolvedValue(true),
+    refreshMorningBriefing: vi.fn().mockResolvedValue(undefined),
     sendTestBriefingNotification: vi.fn().mockResolvedValue(true),
   };
 });
