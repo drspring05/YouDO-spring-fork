@@ -792,7 +792,7 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                   }
                 }
               }}
-              className={`px-3.5 py-3.5 flex flex-col gap-3 bg-surface select-none transition-transform duration-200 ease-out ${
+              className={`goal-row px-3.5 py-3 flex items-start gap-3 bg-surface select-none transition-transform duration-200 ease-out ${
                 canDrill || selected.size > 0 ? 'cursor-pointer' : ''
               } ${
                 pressingId === child.id ? 'transform scale-[0.97] bg-elevated' : ''
@@ -806,30 +806,34 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                     : 'hover:bg-elevated'
               } ${overId === child.id && !dragIds.includes(child.id) ? 'ring-2 ring-primary z-10' : ''}`}
             >
-              <div className="flex items-center gap-2.5">
-                {selected.size > 0 && (
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    onClick={(e) => e.stopPropagation()}
-                    onChange={() => toggleSelect(child.id)}
-                    className="w-4 h-4 rounded accent-primary cursor-pointer shrink-0"
-                    title="Select for batch operations"
-                  />
+              {selected.size > 0 && (
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={() => toggleSelect(child.id)}
+                  className="mt-2 w-4 h-4 rounded accent-primary cursor-pointer shrink-0"
+                  title="Select for batch operations"
+                />
+              )}
+              {/* Progress at a glance: a ring with the item's type inside;
+                  a filled check once done, an empty ring before it starts. */}
+              <span className="goal-row-status" data-state={isDone ? 'done' : pct > 0 ? 'active' : 'idle'} aria-hidden>
+                {isDone ? (
+                  <Check size={15} strokeWidth={3} />
+                ) : (
+                  <>
+                    <ActivityRing progress={pct} size={30} stroke={2.5} />
+                    <Icon size={13} className="goal-row-status-icon" />
+                  </>
                 )}
-                <div className="flex-1 min-w-0 flex items-center gap-2">
-                  {/* Progress at a glance: a ring with the item's type inside;
-                      a filled check once done, an empty ring before it starts. */}
-                  <span className="goal-row-status" data-state={isDone ? 'done' : pct > 0 ? 'active' : 'idle'} aria-hidden>
-                    {isDone ? (
-                      <Check size={15} strokeWidth={3} />
-                    ) : (
-                      <>
-                        <ActivityRing progress={pct} size={30} stroke={2.5} />
-                        <Icon size={13} className="goal-row-status-icon" />
-                      </>
-                    )}
-                  </span>
+              </span>
+
+              {/* Everything else shares one column, so title, details, steps
+                  and actions line up. */}
+              <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+              <div className="flex items-center gap-2 min-h-[30px]">
+                <div className="flex-1 min-w-0 flex items-center gap-1.5">
                   <h3 className={`text-[14.5px] font-semibold leading-snug truncate ${isDone ? 'line-through text-content-muted' : 'text-content-primary'}`}>
                     {child.title}
                   </h3>
@@ -868,11 +872,6 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                     <span className="text-content-muted"> · Next: <span className="text-content-secondary">{nextItem.title}</span></span>
                   )}
                 </p>
-                {child.endDate && !isDone && (
-                  <span className={`goal-row-due shrink-0`} data-tone={dueTone}>
-                    {formatShortDate(child.endDate)} · {deadlineDaysLabel(child.endDate)}
-                  </span>
-                )}
                 {isActivelyScheduled && (
                   <span
                     className="shrink-0 text-[10px] font-semibold text-secondary bg-secondary-soft px-2 py-0.5 rounded-md"
@@ -888,8 +887,8 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                 )}
               </div>
 
-                {isWorkItem && hasSteps && (
-                <div className="flex flex-wrap gap-1">
+              {isWorkItem && hasSteps && (
+                <div className="flex flex-wrap gap-1 pt-0.5">
                   {child.steps!.map((s, i) => (
                     <button
                       key={i}
@@ -912,13 +911,13 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
               )}
 
               {selected.size === 0 ? (
-                <div className="flex items-center gap-1 pt-1">
+                <div className="goal-row-footer flex items-center gap-0.5 -ml-1.5">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       togglePin(child.id);
                     }}
-                    className={`p-2 rounded-[10px] ${child.pinned ? 'text-primary bg-primary-soft' : 'text-content-muted hover:text-content-primary hover:bg-elevated'}`}
+                    className={`p-1.5 rounded-[9px] ${child.pinned ? 'text-primary bg-primary-soft' : 'text-content-muted hover:text-content-primary hover:bg-elevated'}`}
                     title={child.pinned ? 'Unpin' : 'Pin'}
                   >
                     {child.pinned ? <Star size={14} className="fill-primary" /> : <Pin size={14} />}
@@ -928,7 +927,7 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                       e.stopPropagation();
                       onEditNode(child);
                     }}
-                    className="p-2 rounded-[10px] text-content-muted hover:text-content-primary hover:bg-elevated"
+                    className="p-1.5 rounded-[9px] text-content-muted hover:text-content-primary hover:bg-elevated"
                     title="Edit"
                   >
                     <Pencil size={14} />
@@ -938,12 +937,30 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                       e.stopPropagation();
                       onCopy(child.id);
                     }}
-                    className="p-2 rounded-[10px] text-content-muted hover:text-content-primary hover:bg-elevated"
+                    className="p-1.5 rounded-[9px] text-content-muted hover:text-content-primary hover:bg-elevated"
                     title="Copy"
                   >
                     <Copy size={14} />
                   </button>
                   <div className="flex-1" />
+
+                  {/* Branches: the deadline, or how far along it is. */}
+                  {!isWorkItem && (
+                    child.endDate && !isDone ? (
+                      <span className="goal-row-due shrink-0" data-tone={dueTone}>
+                        {formatShortDate(child.endDate)} · {deadlineDaysLabel(child.endDate)}
+                      </span>
+                    ) : (
+                      <span className="goal-row-meter" aria-hidden>
+                        <span style={{ width: `${pct}%` }} data-done={isDone} />
+                      </span>
+                    )
+                  )}
+                  {isWorkItem && child.endDate && !isDone && (
+                    <span className="goal-row-due shrink-0 mr-1" data-tone={dueTone}>
+                      {formatShortDate(child.endDate)}
+                    </span>
+                  )}
 
                   {isWorkItem && (
                     <button
@@ -952,7 +969,7 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                         toggleNodeCompletion(child.id);
                       }}
                       disabled={!!runningTask && goalBranchContainsTask(child, runningTask)}
-                      className={`h-8 px-2.5 rounded-[10px] text-[11px] font-medium border ${
+                      className={`h-7 px-2.5 rounded-[9px] text-[11px] font-semibold border ${
                         isDone
                           ? 'bg-secondary-soft text-secondary border-subtle'
                           : 'text-content-secondary border-subtle hover:text-content-primary'
@@ -971,7 +988,7 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                             e.stopPropagation();
                             onPushNode(child);
                           }}
-                          className="h-8 px-2.5 rounded-[10px] text-[11px] font-medium border border-subtle text-primary"
+                          className="h-7 px-2.5 rounded-[9px] text-[11px] font-semibold border border-subtle text-primary"
                           title="Replan"
                         >
                           Replan
@@ -981,7 +998,7 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                             e.stopPropagation();
                             if (child.todayTaskId) onUnplan(child.todayTaskId);
                           }}
-                          className="h-8 px-2.5 rounded-[10px] text-[11px] font-medium bg-error-soft text-error border border-subtle"
+                          className="h-7 px-2.5 rounded-[9px] text-[11px] font-semibold bg-error-soft text-error border border-subtle"
                           title="Unschedule"
                         >
                           Unplan
@@ -993,7 +1010,7 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                           e.stopPropagation();
                           onPushNode(child);
                         }}
-                        className="h-8 px-2.5 rounded-[10px] text-[11px] font-medium btn-primary"
+                        className="h-7 px-2.5 rounded-[9px] text-[11px] font-semibold btn-primary"
                         title={isBacklogged ? 'Schedule backlogged task' : 'Schedule'}
                       >
                         Schedule
@@ -1008,6 +1025,7 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                   </span>
                 </div>
               )}
+              </div>
             </div>
           );
         })}
