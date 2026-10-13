@@ -149,10 +149,12 @@ describe('M4 Gate Adversarial Challenge 2: Tree, Selection & Guard Probes', () =
         createElement(StudioTree, { controller }),
       );
 
-      // Verify all 10 nodes rendered
-      for (let i = 1; i <= 10; i++) {
+      // The deepest three levels are on screen; the outer seven slide away as rails
+      for (let i = 8; i <= 10; i++) {
         expect(html).toContain(`Deep Level ${i}`);
       }
+      expect(html).not.toContain('Deep Level 7<');
+      expect(html).toContain('data-hidden-levels="7"');
 
       // Verify trunk line guide class presence
       expect(html).toContain('border-l border-border-subtle/70');
@@ -188,11 +190,12 @@ describe('M4 Gate Adversarial Challenge 2: Tree, Selection & Guard Probes', () =
         createElement(StudioTree, { controller }),
       );
 
-      expect(html).toContain('Deep Level 1');
+      expect(html).toContain('Deep Level 48');
       expect(html).toContain('Deep Level 50');
-      // Trunk line guides must appear 49 times for 49 nested levels
+      expect(html).not.toContain('Deep Level 47<');
+      // Indentation never grows past the three visible levels: two trunk guides
       const trunkCount = (html.match(/border-l border-border-subtle\/70/g) || []).length;
-      expect(trunkCount).toBe(49);
+      expect(trunkCount).toBe(2);
     });
 
     it('P1.4: renders 100-level extreme recursion test safely without infinite loops or stack overflow', () => {

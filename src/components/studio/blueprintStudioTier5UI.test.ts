@@ -190,11 +190,13 @@ describe('BlueprintStudio Tier 5 Adversarial UI & Component Hardening', () => {
       const duration = performance.now() - startTime;
 
       expect(duration).toBeLessThan(1000);
-      expect(html).toContain('Deep Item Level 1');
+      // Only the deepest three levels are on screen; the 22 outer ones are rails.
+      expect(html).not.toContain('Deep Item Level 22<');
+      expect(html).toContain('Deep Item Level 23');
       expect(html).toContain('Deep Item Level 25');
-      // Verify visual branch notch is rendered for deeply nested children
+      expect(html).toContain('data-hidden-levels="22"');
+      // Notches and trunk guides still draw the visible levels
       expect(html).toContain('absolute -left-3.5');
-      // Verify container trunk line guides are rendered
       expect(html).toContain('border-l border-border-subtle/70');
     });
 
@@ -279,8 +281,12 @@ describe('BlueprintStudio Tier 5 Adversarial UI & Component Hardening', () => {
       controller.expandAll();
 
       const html = renderToStaticMarkup(createElement(StudioTree, { controller }));
-      expect(html).toContain('Node D1 #bin-1');
+      // Levels 7-9 of the fully open tree are on screen; levels 1-6 are rails.
+      expect(html).not.toContain('Node D1 #bin-1<');
+      expect(html).not.toContain('Node D6 ');
+      expect(html).toContain('Node D7 ');
       expect(html).toContain('Node D9 #bin-511');
+      expect(html).toContain('data-hidden-levels="6"');
     });
 
     it('T1.5: renders heterogeneous tree with active focus, step ratios, date badges, and action triggers', () => {
