@@ -353,7 +353,7 @@ button.hub-row:active, .hub-row.is-pressable:active { background: var(--hub-fill
 /* Full-screen hub pages cover the whole window (no backdrop at the sides on
    wide screens) while their content keeps the app's phone width. */
 .hub-page {
-  --hub-content: 28rem;
+  --hub-content: var(--app-column, 40rem);
   display: flex;
   flex-direction: column;
   width: 100%;

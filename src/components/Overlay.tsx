@@ -12,6 +12,11 @@ interface OverlayProps {
   children: ReactNode;
   align?: Align;
   scrim?: boolean;
+  /**
+   * Width of a full-screen page on large screens: the app's content column
+   * (default), a wider column for editors, or edge to edge.
+   */
+  fullWidth?: 'column' | 'wide' | 'bleed';
 }
 
 function overlayHost(): HTMLElement {
@@ -24,6 +29,7 @@ export default function Overlay({
   children,
   align = 'center',
   scrim = true,
+  fullWidth = 'column',
 }: OverlayProps) {
   const layerRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
@@ -104,6 +110,7 @@ export default function Overlay({
     'overlay-layer',
     align === 'bottom' ? 'overlay-layer-bottom' : align === 'full' ? 'overlay-layer-full' : 'overlay-layer-center',
     scrim ? 'overlay-layer-scrim' : '',
+    align === 'full' && fullWidth !== 'column' ? `overlay-full-${fullWidth}` : '',
   ]
     .filter(Boolean)
     .join(' ');

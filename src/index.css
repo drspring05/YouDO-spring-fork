@@ -234,6 +234,15 @@ button {
   min-width: 0;
   overflow-x: hidden;
 }
+/* One content column on every screen: full width on phones, centred and
+   capped on tablets and laptops so cards never stretch across a desktop. */
+:root {
+  --app-column: 40rem;
+  --app-column-wide: 56rem;
+}
+.app-frame {
+  max-width: min(100%, var(--app-column));
+}
 
 input,
 textarea,
@@ -287,8 +296,17 @@ textarea,
   max-width: 28rem;
 }
 .overlay-layer-full .overlay-content {
-  max-width: none;
+  max-width: var(--app-column);
   height: 100%;
+}
+.overlay-layer-full.overlay-full-wide .overlay-content { max-width: var(--app-column-wide); }
+.overlay-layer-full.overlay-full-bleed .overlay-content { max-width: none; }
+/* Beside the column a full-screen page shows the plain app background, never
+   a dimmed blur (phones have no side space, so this only shows on wide screens). */
+.overlay-layer-full.overlay-layer-scrim {
+  background: var(--bg-base);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 .overlay-layer-bottom .overlay-content {
   max-width: 28rem;

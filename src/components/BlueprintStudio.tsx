@@ -235,7 +235,7 @@ export default function BlueprintStudio({
   if (!open) return null;
 
   return (
-    <Overlay open={open} onClose={onClose} align="full" scrim={false}>
+    <Overlay open={open} onClose={onClose} align="full" scrim={false} fullWidth="wide">
       <BlueprintStudioContent
         goals={goals}
         initialPathIds={initialPathIds}
