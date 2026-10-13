@@ -138,10 +138,11 @@ describe('room progress board', () => {
     expect(html).toContain('focused');
   });
 
-  it('shows the collective label without the arrow for two members, with it from three', () => {
+  it('shows the collective label with its arrow in every shared room', () => {
     const two = render([{ id: 'a', hours: 1 }, { id: 'b', hours: 2 }]);
     expect(two).toContain('Collective bar');
-    expect(two).not.toContain('M8 44V10');
+    expect(two).toContain('M8 24V10');
+    expect(two).toContain('--row:72px');
     const four = render([{ id: 'a', hours: 1 }, { id: 'b', hours: 2 }, { id: 'c', hours: 3 }, { id: 'd', hours: 4 }]);
     expect(four).toContain('Collective bar');
     expect(four).toContain('M8 44V10');

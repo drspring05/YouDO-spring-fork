@@ -347,14 +347,26 @@ button.hub-row:active, .hub-row.is-pressable:active { background: var(--hub-fill
 .hub-banner.is-success { background: var(--hub-success-soft); color: var(--secondary); }
 
 /* ── Full-screen hub pages (room, chat, notifications) ───────────────────── */
+/* Full-screen hub pages cover the whole window (no backdrop at the sides on
+   wide screens) while their content keeps the app's phone width. */
 .hub-page {
+  --hub-content: 28rem;
   display: flex;
   flex-direction: column;
   width: 100%;
-  max-width: 28rem;
   height: 100%;
-  margin: 0 auto;
   background: var(--bg-base);
+}
+/* Side padding that centres the content column; the scroller itself stays
+   full width so the whole screen scrolls. */
+.hub-page {
+  --hub-gutter: max(16px, calc((100% - var(--hub-content)) / 2 + 16px));
+}
+.hub-page > .yd-chat,
+.hub-page > .hub-empty {
+  width: 100%;
+  max-width: var(--hub-content);
+  margin-inline: auto;
 }
 .hub-nav {
   flex: 0 0 auto;
@@ -362,7 +374,7 @@ button.hub-row:active, .hub-row.is-pressable:active { background: var(--hub-fill
   grid-template-columns: 44px minmax(0, 1fr) auto;
   align-items: center;
   gap: 6px;
-  padding: max(10px, var(--safe-area-top, 0px)) 10px 8px;
+  padding: max(10px, var(--safe-area-top, 0px)) max(10px, calc((100% - var(--hub-content, 28rem)) / 2 + 10px)) 8px;
   background: color-mix(in srgb, var(--bg-base) 82%, transparent);
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
@@ -401,10 +413,10 @@ button.hub-row:active, .hub-row.is-pressable:active { background: var(--hub-fill
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  padding: 16px 16px max(28px, env(safe-area-inset-bottom, 0px));
+  padding: 16px var(--hub-gutter, 16px) max(28px, env(safe-area-inset-bottom, 0px));
   overscroll-behavior: contain;
 }
-.hub-page-tabs { padding: 10px 16px 0; }
+.hub-page-tabs { padding: 10px var(--hub-gutter, 16px) 0; }
 
 /* ── Bottom sheets inside the hub ────────────────────────────────────────── */
 .hub-sheet {
@@ -558,7 +570,7 @@ textarea.hub-field { min-height: 92px; padding-top: 12px; padding-bottom: 12px; 
   transform: rotate(180deg);
   font-size: var(--label-size, 11px);
   font-weight: 800;
-  letter-spacing: 0.12em;
+  letter-spacing: var(--label-tracking, 0.12em);
   text-transform: uppercase;
   white-space: nowrap;
 }

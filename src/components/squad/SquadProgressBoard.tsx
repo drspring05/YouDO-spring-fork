@@ -73,10 +73,12 @@ interface Props {
 
 const WINDOW_EYEBROW: Record<PaceWindow, string> = { today: 'Today', week: 'This week', month: 'This month' };
 
-function CollectiveArrow() {
+function CollectiveArrow({ height }: { height: number }) {
+  // The shaft stretches with the room size; the head keeps its shape.
+  const tail = height - 2;
   return (
-    <svg width="14" height="40" viewBox="0 0 16 46" fill="none" aria-hidden>
-      <path d="M8 44V10M4.25 14.5L8 6.5L11.75 14.5" stroke="currentColor" strokeWidth="2.75" strokeLinecap="round" strokeLinejoin="round" />
+    <svg width="14" height={height} viewBox={`0 0 16 ${height}`} fill="none" aria-hidden>
+      <path d={`M8 ${tail}V10M4.25 14.5L8 6.5L11.75 14.5`} stroke="currentColor" strokeWidth="2.75" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -165,10 +167,13 @@ export default function SquadProgressBoard({
   const allComplete = reached === stats.length;
   const together = stats.reduce((sum, s) => sum + s.progress.focused, 0);
   const collective = collectiveBarPercent(stats);
-  // The label spans every row (64px each); the arrow only fits from 3 members up.
-  const showArrow = stats.length >= 3;
-  const labelRun = stats.length * 64 - 12 - (showArrow ? 46 : 0);
-  const labelSize = Math.max(9, Math.min(13, Math.floor(labelRun / 10.6)));
+  // The label and arrow span every row. A pair gets slightly taller rows so
+  // the arrow and the full label still fit; the type scales with room size.
+  const pair = stats.length === 2;
+  const rowPx = pair ? 72 : 64;
+  const arrowPx = pair ? 26 : 46;
+  const labelRun = stats.length * rowPx - arrowPx - 18;
+  const labelSize = Math.max(9, Math.min(13, Math.floor(labelRun / 10)));
 
   return (
     <div className="hub-group" data-testid="squad-board">
@@ -191,17 +196,22 @@ export default function SquadProgressBoard({
 
       <div
         className={`hub-board ${solo ? 'is-solo' : ''} ${allComplete ? 'is-all-complete' : ''}`}
-        style={{ gridTemplateRows: `repeat(${capsules.length}, var(--row))` }}
+        style={{ gridTemplateRows: `repeat(${capsules.length}, var(--row))`, ['--row' as string]: `${rowPx}px` }}
         role="group"
         aria-label={solo ? 'Your progress' : `Collective bar, ${collective}% overall. Lowest progress at the top, highest at the bottom.`}
       >
         {!solo && (
           <div
             className={`hub-board-label ${allComplete ? 'is-complete' : ''}`}
-            style={{ gridColumn: 1, gridRow: `1 / ${capsules.length + 1}`, ['--label-size' as string]: `${labelSize}px` }}
+            style={{
+              gridColumn: 1,
+              gridRow: `1 / ${capsules.length + 1}`,
+              ['--label-size' as string]: `${labelSize}px`,
+              ['--label-tracking' as string]: pair ? '0.06em' : '0.12em',
+            }}
             aria-hidden
           >
-            {showArrow && <CollectiveArrow />}
+            <CollectiveArrow height={arrowPx} />
             <span>Collective bar</span>
           </div>
         )}
