@@ -89,6 +89,7 @@ import { todayISO } from './lib/dates';
 import { defaultPacePrefs, sanitizePacePrefs, type PacePrefs } from './lib/paceBoard';
 import { syncPublicPaceRow, withdrawPublicPace } from './lib/pacePublish';
 import { reconcileBoardEvidence } from './lib/paceCloud';
+import { reconcileRoomEvidence } from './lib/roomFocus';
 import { reconcileBlueprintTasks } from './lib/blueprintStudio';
 import { topStudioSelection } from './lib/studioWorkspace';
 import {
@@ -1819,6 +1820,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         // Public ranking is rebuilt only after the private cloud copy succeeds.
         // An unavailable Board must never turn a successful backup into a failure.
         try { await reconcileBoardEvidence(); } catch { /* Retry on the next sync or Board visit. */ }
+      }
+      if (result.ok && syncOwner && syncOwner === userIdRef.current) {
+        // Rooms count synced focus with or without the Public Board; a no-op without a room.
+        void reconcileRoomEvidence();
       }
       return result;
     }).catch((error: unknown) => ({ ok: false, error: error instanceof Error ? error.message : 'Sync could not finish. Your device copy was preserved.' }));

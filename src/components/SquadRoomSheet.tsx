@@ -10,6 +10,7 @@ import { dismissRoomNotification } from '../lib/notifications';
 import { supabase } from '../lib/supabase';
 import { dispatchPrivateHubSync } from '../lib/privateHubSync';
 import { fetchPaceRowsForUserIds } from '../lib/paceCloud';
+import { fetchRoomPaceRows, reconcileRoomEvidence } from '../lib/roomFocus';
 import { fetchFocusStatuses, subscribeFocusStatuses, type FocusStatus } from '../lib/focusStatus';
 import { type PaceRow, type PaceWindow } from '../lib/paceBoard';
 import { todayISO } from '../lib/dates';
@@ -94,10 +95,16 @@ export default function SquadRoomSheet({ open, onClose, squadId, personalPace }:
     if (res) {
       setSquad(res.squad);
       setMembers(res.members);
-      const ids = res.members.filter((m) => m.status === 'accepted').map((m) => m.user_id);
-      const [paceRows, focus] = await Promise.all([fetchPaceRowsForUserIds(ids), fetchFocusStatuses(ids)]);
-      const map: Record<string, PaceRow> = {};
-      for (const row of paceRows) map[row.userId] = row;
+      const accepted = res.members.filter((m) => m.status === 'accepted');
+      const ids = accepted.map((m) => m.user_id);
+      const names = Object.fromEntries(accepted.map((m) => [m.user_id, m.profiles?.display_name ?? '']));
+      const [roomRows, focus] = await Promise.all([fetchRoomPaceRows(squadId, names), fetchFocusStatuses(ids)]);
+      let map: Record<string, PaceRow> = roomRows ?? {};
+      if (roomRows === null) {
+        // Server without room focus yet: fall back to Public Board totals.
+        map = {};
+        for (const row of await fetchPaceRowsForUserIds(ids)) map[row.userId] = row;
+      }
       setPaceByUserId(map);
       setStatuses(focus);
     } else {
@@ -111,6 +118,10 @@ export default function SquadRoomSheet({ open, onClose, squadId, personalPace }:
     setLoading(true);
     setActiveTab('board');
     void fetchSquad();
+    // Bring your own room copy up to date with your latest synced backup.
+    void reconcileRoomEvidence().then((result) => {
+      if (result.ok && result.status === 'current') void fetchSquad();
+    });
   }, [open, squadId, fetchSquad]);
 
   // Synced focus totals refresh while the board is open.
@@ -294,7 +305,7 @@ export default function SquadRoomSheet({ open, onClose, squadId, personalPace }:
                   <div className="hub-banner" role="note">
                     <Info size={16} className="mt-px shrink-0 text-primary" />
                     <span>
-                      Your focus isn’t counted here yet. Rooms use the focus you share on the Public Board. Join it in Settings → Public board.
+                      Your focus shows here after your next cloud sync. Rooms count it whether or not you joined the Public Board.
                     </span>
                   </div>
                 )}

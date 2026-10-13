@@ -381,9 +381,11 @@ function AppInner() {
   const initialHubSubTabSetRef = useRef(false);
 
   const defaultHubSubTab = useCallback((): 'social' | 'private' => {
+    // While the Private Hub is closed to this account, Hub opens on the Public Board.
+    if (!privateHubAccess.open) return 'social';
     if (privateHubAttention) return 'private';
     return activityPrefs.optedIn ? 'social' : 'private';
-  }, [privateHubAttention, activityPrefs.optedIn]);
+  }, [privateHubAccess.open, privateHubAttention, activityPrefs.optedIn]);
 
   useEffect(() => {
     if (!activityUser) {

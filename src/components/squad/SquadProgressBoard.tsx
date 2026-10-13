@@ -49,7 +49,7 @@ type BoardMember = {
   avatarUrl?: string;
   isSelf: boolean;
   barHours: number;
-  /** False when the member has no synced focus to count (not on the Public Board). */
+  /** False when the member has no synced focus to count yet. */
   sharing: boolean;
   progress: SquadBarProgress;
 };
@@ -82,7 +82,7 @@ function CollectiveArrow() {
 }
 
 function memberMeta(m: BoardMember) {
-  if (!m.sharing) return <span>Focus not shared yet</span>;
+  if (!m.sharing) return <span>Not synced yet</span>;
   const { progress } = m;
   if (progress.overMs > 0) {
     return (

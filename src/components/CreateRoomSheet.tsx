@@ -203,7 +203,7 @@ export default function CreateRoomSheet({ open, onClose, onSuccess, personalPace
           <HubSection
             title="Invite friends"
             aside={`${invites.length} of ${MAX_INVITES}`}
-            footer={`A room holds ${ROOM_MEMBER_LIMIT} people including you. Invites can also be sent later.`}
+            footer={`A room holds ${ROOM_MEMBER_LIMIT} people including you. Room-mates see each other’s focus time, never what they work on.`}
           >
             {invites.length > 0 && (
               <div className="mb-2 flex flex-wrap gap-1.5 px-1">

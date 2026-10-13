@@ -167,9 +167,9 @@ describe('room progress board', () => {
     expect(html).toContain('hub-capsule-extra');
   });
 
-  it('says a member has not shared focus instead of showing a misleading 0%', () => {
+  it('says a member has not synced instead of showing a misleading 0%', () => {
     const html = render([{ id: 'me', hours: 1 }, { id: 'quiet', hours: null }]);
-    expect(html).toContain('Focus not shared yet');
+    expect(html).toContain('Not synced yet');
     expect(html).toContain('—');
   });
 

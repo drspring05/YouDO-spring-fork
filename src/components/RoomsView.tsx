@@ -113,7 +113,7 @@ export default function RoomsView({ onOpenRoom, onCreateRoom, onNotificationsCha
       <HubSection
         title="Your rooms"
         aside={rooms.length > 0 ? `${rooms.length}` : undefined}
-        footer={rooms.length > 0 ? `Up to ${ROOM_MEMBER_LIMIT} people per room. Progress counts each member’s own daily bar.` : undefined}
+        footer={rooms.length > 0 ? `Up to ${ROOM_MEMBER_LIMIT} people per room. Room-mates see each other’s focus time, never what you work on.` : undefined}
       >
         {rooms.length === 0 ? (
           <div className="hub-group">
@@ -189,7 +189,7 @@ export default function RoomsView({ onOpenRoom, onCreateRoom, onNotificationsCha
       <HubSection
         title="Discover"
         aside={discoverRooms.length > 0 ? `${discoverRooms.length} open` : undefined}
-        footer={discoverRooms.length > 0 ? 'Open rooms. Ask to join and an admin decides.' : undefined}
+        footer={discoverRooms.length > 0 ? 'Open rooms. Ask to join and an admin decides. Room-mates see each other’s focus time.' : undefined}
       >
         <div className="hub-group">
           {discoverRooms.length === 0 ? (

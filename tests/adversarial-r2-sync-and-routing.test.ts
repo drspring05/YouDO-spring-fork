@@ -700,9 +700,10 @@ describe('Milestone 2 Requirement R2 — Empirical Adversarial Stress Suite', ()
       const appPath = path.resolve(__dirname, '../src/App.tsx');
       const content = fs.readFileSync(appPath, 'utf8');
 
-      // 1. Verify defaultHubSubTab checks privateHubAttention first
+      // 1. Verify defaultHubSubTab: Public Board while the Private Hub is closed to
+      // this account, then pending private attention, then the opt-in preference.
       const defaultHubSubTabRegex =
-        /const\s+defaultHubSubTab\s*=\s*useCallback\(\(\):\s*['"]social['"]\s*\|\s*['"]private['"]\s*=>\s*\{[\s\S]*?if\s*\(\s*privateHubAttention\s*\)\s*return\s*['"]private['"];[\s\S]*?return\s+activityPrefs\.optedIn\s*\?\s*['"]social['"]\s*:\s*['"]private['"];[\s\S]*?\}\s*,\s*\[\s*privateHubAttention\s*,\s*activityPrefs\.optedIn\s*\]\);/;
+        /const\s+defaultHubSubTab\s*=\s*useCallback\(\(\):\s*['"]social['"]\s*\|\s*['"]private['"]\s*=>\s*\{[\s\S]*?if\s*\(\s*!privateHubAccess\.open\s*\)\s*return\s*['"]social['"];[\s\S]*?if\s*\(\s*privateHubAttention\s*\)\s*return\s*['"]private['"];[\s\S]*?return\s+activityPrefs\.optedIn\s*\?\s*['"]social['"]\s*:\s*['"]private['"];[\s\S]*?\}\s*,\s*\[\s*privateHubAccess\.open\s*,\s*privateHubAttention\s*,\s*activityPrefs\.optedIn\s*\]\);/;
 
       expect(content).toMatch(defaultHubSubTabRegex);
 
