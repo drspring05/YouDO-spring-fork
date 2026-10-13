@@ -832,6 +832,23 @@ html.dark .ios-segmented > button[aria-selected='true'] { background: #636366; }
 .goal-mark.is-task[data-state='idle'] .activity-ring-track {
   stroke: color-mix(in srgb, var(--text-muted) 55%, transparent);
 }
+.goal-mark-col {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+.goal-mark-icon { position: relative; }
+.goal-mark.is-branch[data-state='idle'] { color: var(--text-muted); }
+.goal-mark-pct {
+  font-size: 11px;
+  line-height: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--primary);
+}
+.goal-mark.is-branch[data-state='idle'] + .goal-mark-pct { color: var(--text-muted); }
 .goal-mark-value {
   position: relative;
   font-size: 11px;

@@ -837,20 +837,18 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                   {isDone ? <Check size={17} strokeWidth={3} /> : <ActivityRing progress={pct} size={34} stroke={2.5} />}
                 </button>
               ) : (
-                <span
-                  className="goal-mark is-branch"
-                  data-state={isDone ? 'done' : pct > 0 ? 'active' : 'idle'}
-                  role="img"
-                  aria-label={isDone ? 'Complete' : `${pct}% complete`}
-                >
-                  {isDone ? (
-                    <Check size={17} strokeWidth={3} />
-                  ) : (
-                    <>
-                      <ActivityRing progress={pct} size={34} stroke={3} />
-                      <span className="goal-mark-value">{pct}<small>%</small></span>
-                    </>
-                  )}
+                <span className="goal-mark-col" role="img" aria-label={isDone ? 'Complete' : `${pct}% complete`}>
+                  <span className="goal-mark is-branch" data-state={isDone ? 'done' : pct > 0 ? 'active' : 'idle'}>
+                    {isDone ? (
+                      <Check size={17} strokeWidth={3} />
+                    ) : (
+                      <>
+                        <ActivityRing progress={pct} size={34} stroke={3} />
+                        <Layers size={14} className="goal-mark-icon" />
+                      </>
+                    )}
+                  </span>
+                  {!isDone && <span className="goal-mark-pct">{pct}%</span>}
                 </span>
               )}
 

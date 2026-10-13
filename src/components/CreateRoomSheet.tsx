@@ -138,7 +138,7 @@ export default function CreateRoomSheet({ open, onClose, onSuccess, personalPace
                 />
               </div>
               <div className="hub-row is-compact">
-                <div className="flex flex-1 gap-1.5 overflow-x-auto no-scrollbar py-1" role="radiogroup" aria-label="Room icon">
+                <div className="flex flex-1 gap-1.5 overflow-x-auto no-scrollbar p-1 -mx-1" role="radiogroup" aria-label="Room icon">
                   {ROOM_ICONS.map((glyph) => (
                     <button
                       key={glyph}
