@@ -470,7 +470,7 @@ button {
 }
 .app-header-row {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   flex-wrap: nowrap;
@@ -574,6 +574,12 @@ button {
 .quote-ticker-track-medium { animation-duration: 19s; }
 .quote-ticker-track-fast { animation-duration: 16s; }
 .quote-ticker:active .quote-ticker-track { animation-play-state: paused; }
+/* Quotes can be long, so the ticker keeps moving with reduced motion or
+   Reduced Effects (only slower); a frozen ticker would cut the quote off. */
+:root[data-reduced-effects='true'] .quote-ticker-track {
+  animation-duration: 30s !important;
+  animation-iteration-count: infinite !important;
+}
 .quote-ticker-item {
   margin: 0;
   flex-shrink: 0;
@@ -585,51 +591,7 @@ button {
 }
 .quote-ticker-item cite { font-style: normal; color: var(--text-secondary); }
 @media (prefers-reduced-motion: reduce) {
-  .quote-ticker-track { animation: none; }
-}
-
-/* The roomy v8 header (Settings → Appearance → Roomy Header): the date
-   above the title, the tally below it, the ring beside the icon and the
-   quote as a card. */
-.app-header-eyebrow {
-  margin: 0 0 2px;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  text-transform: uppercase;
-  color: var(--text-secondary);
-}
-.app-header-subtitle-roomy {
-  margin: 2px 0 0;
-  font-size: 15px;
-  line-height: 20px;
-  color: var(--text-secondary);
-  font-variant-numeric: tabular-nums;
-}
-.app-header-actions-roomy { padding: 0 0 4px; }
-.app-quote {
-  margin: 14px 0 0;
-  padding: 12px 14px;
-  border-radius: var(--radius);
-  background: var(--bg-surface);
-  box-shadow: var(--shadow-card);
-}
-.app-quote p {
-  margin: 0;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
-  font-size: 15px;
-  line-height: 20px;
-  color: var(--text-primary);
-}
-.app-quote cite {
-  display: block;
-  margin-top: 4px;
-  font-size: 13px;
-  font-style: normal;
-  color: var(--text-secondary);
+  .quote-ticker-track { animation-duration: 30s; }
 }
 
 /* Activity ring — Apple Fitness-style daily progress. */
@@ -914,8 +876,19 @@ html.dark .ios-segmented > button[aria-selected='true'] { background: #636366; }
   pointer-events: none;
 }
 
+/* The ring sits inside the card's edge so a clipping list can't cut it off
+   at the sides; the soft glow stays outside. */
 .card-session-active {
-  box-shadow: 0 0 0 2px var(--primary), 0 12px 30px -14px color-mix(in srgb, var(--primary) 55%, transparent) !important;
+  box-shadow: 0 12px 30px -14px color-mix(in srgb, var(--primary) 55%, transparent) !important;
+}
+.card-session-active::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border: 2px solid var(--primary);
+  border-radius: inherit;
+  pointer-events: none;
 }
 
 .field {
@@ -1880,10 +1853,13 @@ html.dark .settings-segment > button.bg-primary { background: #636366 !important
   transition: background 180ms ease;
 }
 
-.settings-data-row > div {
+/* Only the leading label block flexes; trailing controls (segmented
+   pickers, switches) keep their natural size so nothing spills past the card. */
+.settings-data-row > div:first-child {
   min-width: 0;
   flex: 1 1 auto;
 }
+.settings-data-row > div:not(:first-child) { flex: 0 0 auto; }
 
 .settings-data-row > svg:last-child,
 .settings-data-row > button:last-child {
@@ -1903,8 +1879,8 @@ html.dark .settings-segment > button.bg-primary { background: #636366 !important
 .settings-data-row h3 { font-size: 13px !important; line-height: 18px; }
 .settings-data-row p { font-size: 11.5px !important; line-height: 16px; }
 
-.settings-data-row > button,
-.settings-data-row > div + button {
+.settings-data-row > button:not(.control-switch),
+.settings-data-row > div + button:not(.control-switch) {
   min-height: 38px;
   padding-inline: 13px;
 }

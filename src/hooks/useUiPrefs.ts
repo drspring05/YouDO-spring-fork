@@ -7,8 +7,6 @@ import { reducedEffectsSnapshot } from './useReducedEffects';
  *
  * - `legacyStyle` brings back the v7 interface (its stylesheet, header, nav
  *   bar and task cards) in place of the Apple-style redesign.
- * - `roomyHeader` brings back the first v8 header (date above the title, the
- *   ring beside the icon, the quote as a card) in place of the compact one.
  * - `liquidGlass` is the liquid selection pill that travels between tabs and
  *   the swell-and-spring response on icon buttons, together.
  *
@@ -18,12 +16,11 @@ import { reducedEffectsSnapshot } from './useReducedEffects';
 export interface UiPrefs {
   legacyStyle: boolean;
   liquidGlass: boolean;
-  roomyHeader: boolean;
 }
 
 type PrefKey = keyof UiPrefs;
 
-const DEFAULTS: UiPrefs = { legacyStyle: false, liquidGlass: true, roomyHeader: false };
+const DEFAULTS: UiPrefs = { legacyStyle: false, liquidGlass: true };
 const EVENT = 'youdo-ui-prefs-change';
 const memory: Partial<UiPrefs> = {};
 
@@ -38,12 +35,11 @@ function read(key: PrefKey): boolean {
 
 let cached: UiPrefs | null = null;
 export function uiPrefsSnapshot(): UiPrefs {
-  const next: UiPrefs = { legacyStyle: read('legacyStyle'), liquidGlass: read('liquidGlass'), roomyHeader: read('roomyHeader') };
+  const next: UiPrefs = { legacyStyle: read('legacyStyle'), liquidGlass: read('liquidGlass') };
   if (
     cached &&
     cached.legacyStyle === next.legacyStyle &&
-    cached.liquidGlass === next.liquidGlass &&
-    cached.roomyHeader === next.roomyHeader
+    cached.liquidGlass === next.liquidGlass
   ) {
     return cached;
   }

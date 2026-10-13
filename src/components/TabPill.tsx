@@ -1,8 +1,11 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import { motionAllowed } from '../hooks/useUiPrefs';
-import { liquidTuning, useLiquidTuning } from '../lib/liquidTuning';
 import { StretchModel, springStep, stepLift } from '../lib/liquidMotion';
 import { useLiquidLens } from '../lib/liquidLens';
+
+/** How far the glass bends what is under it, in px, and its white wash. */
+const GLASS_BEND = 14;
+const GLASS_TINT = '7%';
 
 /*
  * The pill's motion — the travel spring, the held lift, the glass hand-off
@@ -194,7 +197,7 @@ export default function TabPill({ activeIndex, onSelect }: Props) {
     glass.style.opacity = visible ? presence.toFixed(3) : '0';
     glass.style.visibility = visible && presence > 0.002 ? 'visible' : 'hidden';
     glass.style.setProperty('--rim', (material * rimOf(presence)).toFixed(3));
-    lens.setBend(liquidTuning().glassBend * material);
+    lens.setBend(GLASS_BEND * material);
 
     // The accent follows the pill: full on the tab under it, fading to
     // nothing a tab's width away.
@@ -564,8 +567,6 @@ export default function TabPill({ activeIndex, onSelect }: Props) {
     };
   }, []);
 
-  const tuning = useLiquidTuning();
-
   return (
     <>
       <span ref={pillRef} className="tab-pill" aria-hidden="true" />
@@ -576,7 +577,7 @@ export default function TabPill({ activeIndex, onSelect }: Props) {
         style={{
           backdropFilter: `url(#${lens.id}) saturate(1.5) brightness(1.06)`,
           WebkitBackdropFilter: 'blur(1px) saturate(1.5)',
-          ['--glass-tint' as string]: `${Math.round(tuning.glassTint * 100)}%`,
+          ['--glass-tint' as string]: GLASS_TINT,
         }}
       />
       {lens.filter}

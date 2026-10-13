@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('../hooks/useUiPrefs', () => ({
-  useUiPrefs: () => [{ liquidGlass: false, legacyStyle: false, roomyHeader: false }],
+  useUiPrefs: () => [{ liquidGlass: false, legacyStyle: false }],
 }));
 
 import CommandBar from './CommandBar';

@@ -1,7 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import type { GoalNode, Task } from '../types';
-import { todayISO } from './dates';
+import { localISODate, todayISO } from './dates';
 import { isBacklogTask, isOpenBacklogTask, isTaskComplete } from './goalTree';
 import { STORAGE_KEYS } from './storageKeys';
 
@@ -449,10 +449,12 @@ export async function scheduleMorningBriefing(
     return;
   }
 
-  const data = extractBriefingData(tasks, goals, streakCount, streakBest, todayISO(), prefs.morningBriefing.selectedGoalId);
-  const { title, body, largeBody, summaryText } = buildMorningBriefingContent(data, prefs.morningBriefing);
+  // The briefing is usually scheduled the evening before it is shown, so it
+  // describes the delivery day: its days left, its tasks, its backlog.
   const nextAt = calculateNextBriefingTime(prefs.morningBriefing.time);
-  const fingerprint = `${prefs.morningBriefing.time}|${prefs.morningBriefing.selectedGoalId ?? 'auto'}|${nextAt.getTime()}`;
+  const data = extractBriefingData(tasks, goals, streakCount, streakBest, localISODate(nextAt), prefs.morningBriefing.selectedGoalId);
+  const { title, body, largeBody, summaryText } = buildMorningBriefingContent(data, prefs.morningBriefing);
+  const fingerprint = `${prefs.morningBriefing.time}|${prefs.morningBriefing.selectedGoalId ?? 'auto'}|${nextAt.getTime()}|${title}|${body}|${largeBody ?? ''}`;
 
   if (!options?.force && lastScheduledBriefingFingerprint === fingerprint) {
     return;

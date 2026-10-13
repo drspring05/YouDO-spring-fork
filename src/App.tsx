@@ -177,7 +177,7 @@ function AppInner() {
   } = useSessionStore();
 
   const [{ darkMode }] = useTheme();
-  const [{ legacyStyle, roomyHeader }] = useUiPrefs();
+  const [{ legacyStyle }] = useUiPrefs();
   const { user: activityUser } = useAuth();
   const { pacePrefs: activityPrefs } = useStore();
   useCommunityActivity(activityUser?.id, activityPrefs.optedIn);
@@ -1275,50 +1275,6 @@ function AppInner() {
           </div>
         </header>
         ) : (
-        roomyHeader ? (
-        <header className="app-header shrink-0">
-          <div className="app-header-row">
-            <div className="min-w-0">
-              <p className="app-header-eyebrow">
-                {view === 'tasks'
-                  ? new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })
-                  : 'YouDO'}
-              </p>
-              <h1 className="app-large-title">
-                {view === 'goals' ? 'Goals' : view === 'calendar' ? 'Calendar' : view === 'board' ? 'Hub' : 'Today'}
-              </h1>
-              {view === 'tasks' && (
-                <p
-                  className="app-header-subtitle-roomy"
-                  aria-label={`Today progress ${todayDone} of ${todayCount}, ${todayProgress} percent`}
-                >
-                  {todayCount === 0 ? 'Nothing planned yet' : `${todayDone} of ${todayCount} done · ${todayProgress}%`}
-                </p>
-              )}
-            </div>
-            <div className="app-header-actions app-header-actions-roomy">
-              {view === 'tasks' && todayCount > 0 && (
-                <ActivityRing progress={todayProgress} size={44} stroke={6} />
-              )}
-              <button
-                type="button"
-                onClick={() => openHelp()}
-                className="app-header-button glass"
-                aria-label="Open YouDO guide"
-                title="Guide"
-              >
-                <YouDoIcon size={20} />
-              </button>
-            </div>
-          </div>
-          {randomQuote && view === 'tasks' && (
-            <figure className="app-quote">
-              <p>“{randomQuote.text}”</p>
-              {randomQuote.author !== 'Unknown' && <cite>— {randomQuote.author}</cite>}
-            </figure>
-          )}
-        </header>
-        ) : (
         <header className="app-header shrink-0">
           <div className="app-header-row">
             {/* The date and the day's tally sit beside the large title, not above and below it. */}
@@ -1379,7 +1335,6 @@ function AppInner() {
             </blockquote>
           )}
         </header>
-        )
         )}
 
         {/* Main View Area */}

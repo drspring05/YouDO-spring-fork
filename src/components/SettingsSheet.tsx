@@ -29,7 +29,6 @@ import {
   Moon,
   Palette,
   Droplets,
-  PanelTop,
   Undo2,
   RefreshCw,
   Send,
@@ -47,7 +46,6 @@ import {
 } from 'lucide-react';
 import Overlay from './Overlay';
 import Toggle from './Toggle';
-import { LiquidGlassTuning } from './LiquidTuningPanel';
 import {
   getNotificationPreferences,
   saveNotificationPreferences,
@@ -176,7 +174,7 @@ export default function SettingsSheet({
 
   const [theme, setTheme] = useTheme();
   const [reducedEffects, setReducedEffects] = useReducedEffects();
-  const [{ legacyStyle, liquidGlass, roomyHeader }, setUiPref] = useUiPrefs();
+  const [{ legacyStyle, liquidGlass }, setUiPref] = useUiPrefs();
   const publicBoardRef = useRef<HTMLElement>(null);
   const [activeTab, setActiveTab] = useState<SettingsTab>(focusSection === 'public-board' ? 'board' : (initialTab ?? 'account'));
   const [highlightBoard, setHighlightBoard] = useState(focusSection === 'public-board');
@@ -1849,27 +1847,6 @@ export default function SettingsSheet({
               </div>
               <Toggle checked={liquidGlass} onChange={() => setUiPref('liquidGlass', !liquidGlass)} label="Liquid Glass" />
             </div>
-            {liquidGlass && !legacyStyle && (
-              <div className="settings-data-row px-4 pt-1 pb-4">
-                <LiquidGlassTuning />
-              </div>
-            )}
-
-            {!legacyStyle && (
-              <div className="settings-data-row p-4 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <div className="w-9 h-9 rounded-xl bg-primary-soft flex items-center justify-center text-primary shrink-0">
-                    <PanelTop size={16} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-xs font-semibold text-content-primary">Roomy Header</h3>
-                    <p className="text-[10.5px] text-content-secondary font-medium">Date above the title, ring beside the icon, quote as a card.</p>
-                  </div>
-                </div>
-                <Toggle checked={roomyHeader} onChange={() => setUiPref('roomyHeader', !roomyHeader)} label="Roomy header" />
-              </div>
-            )}
-
             <div className="settings-data-row p-4 flex items-center justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0 flex-1">
                 <div className="w-9 h-9 rounded-xl bg-secondary-soft flex items-center justify-center text-secondary shrink-0">
