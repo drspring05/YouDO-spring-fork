@@ -111,6 +111,15 @@ try {
   await as(5); await rows('select public.accept_squad_invite($1)', [OPEN]);
   check((await status(OPEN, 5))?.status === 'accepted', 'a place freed by leaving can be taken');
 
+  // Only the creator deletes a room, and everything in it goes too.
+  await as(2);
+  await fails('select public.delete_squad($1)', [OPEN], /Only the room creator/, 'members cannot delete the room');
+  await as(1);
+  await rows('select public.delete_squad($1)', [OPEN]);
+  await system();
+  check((await rows('select count(*)::int n from public.squads where id=$1', [OPEN]))[0].n === 0, 'the creator deletes the room');
+  check((await rows('select count(*)::int n from public.squad_members where squad_id=$1', [OPEN]))[0].n === 0, 'its members and requests go with it');
+
   // Anonymous callers get nothing.
   await as(null);
   await fails('select public.accept_squad_invite($1)', [OPEN], null, 'anonymous users cannot accept');

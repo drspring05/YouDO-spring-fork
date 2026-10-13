@@ -20,6 +20,7 @@ export const SUPABASE_SETUP_ORDER = [
   'account_sessions',
   'full_hub_rooms_setup',
   'hub_room_membership',
+  'hub_focus_status',
   'hub_waitlist_and_backers',
   'user_push_tokens',
   'push_dispatch',

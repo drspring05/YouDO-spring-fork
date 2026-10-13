@@ -92,4 +92,16 @@ end; $$;
 revoke execute on function public.approve_squad_join_request(uuid, uuid) from public, anon;
 grant execute on function public.approve_squad_join_request(uuid, uuid) to authenticated;
 
+-- Only the creator can delete a room; members, invites and messages go with it.
+create or replace function public.delete_squad(target_squad uuid)
+returns void language plpgsql security definer set search_path = '' as $$
+begin
+  if auth.uid() is null then raise exception 'Sign in required' using errcode = '42501'; end if;
+  delete from public.squads where id = target_squad and created_by = auth.uid();
+  if not found then raise exception 'Only the room creator can delete it' using errcode = '42501'; end if;
+end; $$;
+
+revoke execute on function public.delete_squad(uuid) from public, anon;
+grant execute on function public.delete_squad(uuid) to authenticated;
+
 commit;

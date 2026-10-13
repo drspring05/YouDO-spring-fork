@@ -36,6 +36,7 @@ import UpdateNotice from './components/UpdateNotice';
 import { useCommunityActivity } from './hooks/useCommunityActivity';
 import { useHubAttention } from './hooks/useHubAttention';
 import { usePrivateHubAccess } from './hooks/usePrivateHubAccess';
+import { useFocusStatusShare } from './hooks/useFocusStatusShare';
 import { ADMIN_QUEUE_EVENT, useAdminHubCounts } from './hooks/useAdminHubCounts';
 import { useAuth } from './contexts/AuthContext';
 import { closeTopOverlay } from './lib/overlayNavigation';
@@ -181,6 +182,8 @@ function AppInner() {
   const { pacePrefs: activityPrefs } = useStore();
   useCommunityActivity(activityUser?.id, activityPrefs.optedIn);
   const privateHubAccess = usePrivateHubAccess(activityUser?.id);
+  // Room-mates see when you are focusing (never what on).
+  useFocusStatusShare(activityUser?.id, activeSession, privateHubAccess.open);
   const {
     privatePending: hubPrivatePending,
     communityUnread: hubCommunityUnread,

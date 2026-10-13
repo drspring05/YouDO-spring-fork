@@ -555,6 +555,11 @@ export async function fetchMyRoomSummaries(userId: string): Promise<RoomSummary[
     .sort((a, b) => b.pendingRequests - a.pendingRequests || a.squad.name.localeCompare(b.squad.name));
 }
 
+/** The creator deletes a room for everyone (server-checked). */
+export async function deleteSquad(squadId: string): Promise<SquadActionResult> {
+  return runSquadAction('delete_squad', { target_squad: squadId }, 'Could not delete the room. Try again.');
+}
+
 /** Leave a room you belong to. */
 export async function leaveSquad(squadId: string, userId: string): Promise<boolean> {
   const { error } = await supabase.from('squad_members').delete().eq('squad_id', squadId).eq('user_id', userId);
