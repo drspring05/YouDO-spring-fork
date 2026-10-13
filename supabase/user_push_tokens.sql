@@ -39,17 +39,6 @@ as $$
   where updated_at < now() - interval '90 days';
 $$;
 
--- 6. Trigger to dispatch push when admin responds to a hashtag request
--- Requires pg_net extension or Supabase Database Webhook to /functions/v1/send-push
--- Webhook configuration:
--- Target: POST https://<project-ref>.supabase.co/functions/v1/send-push
--- Event: UPDATE on public.community_hashtag_requests
--- Condition: NEW.status = 'waiting' AND NEW.admin_response IS NOT NULL
--- Payload:
--- {
---   "userId": "<NEW.requester_id>",
---   "title": "Hashtag Support",
---   "body": "Admin replied to #<NEW.exam_name>: <NEW.admin_response>",
---   "data": { "type": "hashtag_reply", "hashtag": "<NEW.exam_name>" }
--- }
+-- 6. Pushes to these tokens are dispatched by database triggers in
+--    push_dispatch.sql, which call the send-push Edge Function with a shared secret.
 
