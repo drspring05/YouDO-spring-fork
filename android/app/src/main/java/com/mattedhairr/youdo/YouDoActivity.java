@@ -10,12 +10,18 @@ import androidx.core.view.WindowCompat;
 import androidx.core.splashscreen.SplashScreen;
 import com.getcapacitor.BridgeActivity;
 
-public class MainActivity extends BridgeActivity {
+/**
+ * The app's single screen. Home-screen entries are activity-aliases pointing
+ * here (see AndroidManifest.xml): ".MainActivity" is the default icon and keeps
+ * the component name older installs pinned to the home screen.
+ */
+public class YouDoActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         SplashScreen.installSplashScreen(this);
         registerPlugin(YouDoSessionNotificationPlugin.class);
         registerPlugin(YouDoAppUpdatePlugin.class);
+        registerPlugin(YouDoAppIconPlugin.class);
         super.onCreate(savedInstanceState);
 
         // Keep Android system bars and the software keyboard outside the WebView.
@@ -40,5 +46,13 @@ public class MainActivity extends BridgeActivity {
                 ViewCompat.requestApplyInsets(webViewParent);
             }
         }
+    }
+
+    @Override
+    public void onStop() {
+        super.onStop();
+        // Swapping the launcher entry while the app is in front can close it on
+        // some phones, so a chosen icon is applied once the app is in the background.
+        YouDoAppIconPlugin.applyPending(this);
     }
 }

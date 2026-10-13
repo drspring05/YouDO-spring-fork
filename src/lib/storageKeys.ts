@@ -16,6 +16,7 @@ export const STORAGE_KEYS = {
   reducedEffects: 'youdo-reduced-effects-v1',
   legacyStyle: 'youdo-legacy-style-v1',
   liquidGlass: 'youdo-liquid-glass-v1',
+  appIcon: 'youdo-app-icon-v1',
   streakMeta: 'youdo-streak-meta-v1',
   pacePrefs: 'youdo-pace-prefs-v1',
   paceRankSnapshot: 'youdo-pace-rank-snapshot-v1',

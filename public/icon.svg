@@ -1,19 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <defs>
-    <linearGradient id="field" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#0a84ff"/>
-      <stop offset="0.55" stop-color="#3f6cf2"/>
-      <stop offset="1" stop-color="#5e5ce6"/>
-    </linearGradient>
-    <radialGradient id="sheen" cx="30%" cy="18%" r="75%">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.28"/>
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
-    </radialGradient>
-  </defs>
-  <rect width="512" height="512" fill="url(#field)"/>
-  <rect width="512" height="512" fill="url(#sheen)"/>
-  <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="40" transform="translate(256 256) scale(0.82) translate(-256 -256)">
-    <path d="M136 136 L250 280 V380" stroke="#ffffff"/>
-    <path d="M376 136 L250 280 L204 226" stroke="#ffffff" stroke-opacity="0.82"/>
+  <rect width="512" height="512" rx="115.2" fill="#14120F"/>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.7" transform="translate(256 256) scale(16) translate(-12 -12)">
+    <path d="M4 4L11.5 13.5V20" stroke="#C9A46E"/>
+    <path d="M20 4L11.5 13.5L8.2 9.7" stroke="#8FB394"/>
   </g>
 </svg>

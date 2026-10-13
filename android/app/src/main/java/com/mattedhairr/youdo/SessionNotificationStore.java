@@ -230,7 +230,7 @@ final class SessionNotificationStore {
     }
 
     private static PendingIntent openAppIntent(Context ctx) {
-        Intent intent = new Intent(ctx, MainActivity.class);
+        Intent intent = new Intent(ctx, YouDoActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         int flags = PendingIntent.FLAG_UPDATE_CURRENT;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {

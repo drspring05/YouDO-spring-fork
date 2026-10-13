@@ -798,6 +798,52 @@ html.dark .ios-segmented > button[aria-selected='true'] { background: #636366; }
 }
 .accent-swatch:active { transform: scale(0.9); }
 
+/* Settings → App icon: the selected tile gets a check badge, never a ring,
+   so the marker is never mistaken for part of the icon. */
+.app-icon-picker {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+.app-icon-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  border-radius: 12px;
+}
+.app-icon-option:active .app-icon-option-tile { transform: scale(0.94); }
+.app-icon-option-tile {
+  position: relative;
+  display: block;
+  border-radius: 12px;
+  box-shadow: 0 0 0 0.5px var(--separator), 0 3px 10px -4px rgba(0, 0, 0, 0.45);
+  transition: transform 0.15s ease;
+}
+.app-icon-option-badge {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--on-primary);
+  box-shadow: 0 0 0 2px var(--bg-surface);
+}
+.app-icon-option-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+.app-icon-option[aria-checked='true'] .app-icon-option-label {
+  color: var(--primary);
+  font-weight: 600;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .fade-in,
   .guide-stagger,

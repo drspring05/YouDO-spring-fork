@@ -78,6 +78,7 @@ import UpdateAction from './UpdateAction';
 import { APP_VERSION } from '../lib/version';
 import SignedInDevices from './SignedInDevices';
 import SupportSheet from './SupportSheet';
+import AppIconPicker from './AppIconPicker';
 import CommunityHashtagProfileField from './community/CommunityHashtagProfileField';
 import type { CommunityHashtagContext } from '../lib/communityHashtags';
 import { parseSyncConflictRecord } from '../lib/syncConflictRecord';
@@ -1804,6 +1805,19 @@ export default function SettingsSheet({
                 })}
               </div>
             </div>}
+
+            <div className="settings-data-row p-4 flex flex-col items-stretch gap-3">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="w-9 h-9 rounded-xl bg-primary-soft flex items-center justify-center text-primary shrink-0">
+                  <Smartphone size={16} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-xs font-semibold text-content-primary">App Icon</h3>
+                  <p className="text-[10.5px] text-content-secondary font-medium">Pick the icon on your home screen</p>
+                </div>
+              </div>
+              <AppIconPicker />
+            </div>
 
             <div className="settings-data-row p-4 flex items-center justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0 flex-1">

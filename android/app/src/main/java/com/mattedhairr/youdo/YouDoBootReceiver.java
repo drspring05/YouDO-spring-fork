@@ -12,7 +12,7 @@ import android.content.Intent;
  * are cleared when the device reboots. Without this receiver the morning briefing
  * would never fire again after a power cycle until the user manually reopened YouDO.
  *
- * The receiver sends a silent background intent to MainActivity which triggers the
+ * The receiver sends a silent background intent to YouDoActivity which triggers the
  * app's foreground process; the JS layer's scheduleMorningBriefing useEffect then
  * re-schedules the alarm automatically.
  *
