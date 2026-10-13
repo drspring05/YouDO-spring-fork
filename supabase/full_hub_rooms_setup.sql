@@ -245,26 +245,31 @@ create policy "Users view members of their squads" on public.squad_members for s
   or public.is_squad_admin(squad_members.squad_id, auth.uid())
 );
 
+-- Same rule as hub_room_membership.sql, so rerunning this file never reopens
+-- self-joins as an accepted admin. Accepting goes through accept_squad_invite /
+-- approve_squad_join_request (hub_room_membership.sql).
 drop policy if exists "Users can join squads" on public.squad_members;
 create policy "Users can join squads" on public.squad_members for insert with check (
   (
-    auth.uid() = user_id
+    (select auth.uid()) = user_id and role = 'admin' and status = 'accepted'
+    and exists (select 1 from public.squads s where s.id = squad_members.squad_id and s.created_by = (select auth.uid()))
+  )
+  or (
+    (select auth.uid()) = user_id and role = 'member' and status = 'pending'
     and exists (
       select 1 from public.squads s
       where s.id = squad_members.squad_id
-        and (s.privacy in ('anyone_can_join', 'public') or s.created_by = auth.uid())
+        and s.privacy in ('anyone_can_join', 'public')
+        and s.allow_join_requests
+        and s.created_by <> (select auth.uid())
     )
   )
   or (
-    (
-      public.is_squad_admin(squad_members.squad_id, auth.uid())
-      or exists (
-        select 1 from public.squads s
-        where s.id = squad_members.squad_id
-          and s.created_by = auth.uid()
-      )
+    role = 'member' and status = 'invited' and user_id <> (select auth.uid())
+    and (
+      public.is_squad_admin(squad_members.squad_id, (select auth.uid()))
+      or exists (select 1 from public.squads s where s.id = squad_members.squad_id and s.created_by = (select auth.uid()))
     )
-    and status = 'invited'
   )
 );
 

@@ -1,3 +1,7 @@
+-- SUPERSEDED — do not run. full_hub_rooms_setup.sql contains all of this, and its
+-- "Users can join squads" policy here would reopen self-joins as an accepted admin
+-- (fixed in hub_room_membership.sql). Kept for history only.
+--
 -- Supabase Snippet Name: YouDO — Rooms Privacy, Username Invites & Board Name Removal
 -- File: supabase/rooms_privacy_and_invites.sql
 -- Milestone 1 (R1) Database Schema & Supabase Migrations

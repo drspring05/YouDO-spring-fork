@@ -42,6 +42,7 @@ export default function SquadSettingsSheet({ open, onClose, squad, members, onMe
   );
   const [privacySaving, setPrivacySaving] = useState(false);
   const [privacyMsg, setPrivacyMsg] = useState<string | null>(null);
+  const [requestError, setRequestError] = useState('');
 
   useEffect(() => {
     setCurrentPrivacy(normalizeSquadPrivacy(squad.privacy ?? (squad.allow_join_requests ? 'anyone_can_join' : 'invite_only')));
@@ -303,6 +304,9 @@ export default function SquadSettingsSheet({ open, onClose, squad, members, onMe
               <h3 className="text-[11px] font-semibold uppercase tracking-widest text-content-muted mb-2">
                 Join requests ({pendingMembers.length})
               </h3>
+              {requestError && (
+                <p role="alert" className="mb-2 text-[12px] text-error">{requestError}</p>
+              )}
               <div className="space-y-2">
                 {pendingMembers.map((m) => (
                   <div
@@ -322,7 +326,11 @@ export default function SquadSettingsSheet({ open, onClose, squad, members, onMe
                       <button
                         type="button"
                         onClick={() => {
-                          void acceptSquadJoinRequest(squad.id, m.user_id).then(() => onMembersChanged());
+                          setRequestError('');
+                          void acceptSquadJoinRequest(squad.id, m.user_id).then((result) => {
+                            if (!result.ok) setRequestError(result.error ?? 'Could not approve the request.');
+                            onMembersChanged();
+                          });
                         }}
                         className="h-8 w-8 rounded-lg bg-primary text-on-primary flex items-center justify-center"
                         aria-label="Accept"

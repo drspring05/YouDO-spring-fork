@@ -434,15 +434,34 @@ export async function fetchPendingSquadInvites(userId: string): Promise<PendingS
     .filter((inv) => inv.squads !== null);
 }
 
-export async function acceptSquadJoinRequest(squadId: string, memberUserId: string): Promise<boolean> {
-  const { error } = await supabase
-    .from('squad_members')
-    .update({ status: 'accepted' })
-    .eq('squad_id', squadId)
-    .eq('user_id', memberUserId)
-    .in('status', ['pending', 'invited']);
-  if (!error) dispatchPrivateHubSync('squads');
-  return !error;
+export interface SquadActionResult {
+  ok: boolean;
+  error?: string;
+}
+
+/**
+ * Accepting goes through server functions (hub_room_membership.sql): a plain
+ * update is refused by RLS without an error, which left Accept doing nothing.
+ */
+async function runSquadAction(fn: string, args: Record<string, string>, fallback: string): Promise<SquadActionResult> {
+  try {
+    const { error } = await supabase.rpc(fn, args);
+    if (error) return { ok: false, error: error.message || fallback };
+    dispatchPrivateHubSync('squads');
+    dispatchPrivateHubSync('pending');
+    return { ok: true };
+  } catch {
+    return { ok: false, error: fallback };
+  }
+}
+
+/** A room admin approves someone's request to join. */
+export function acceptSquadJoinRequest(squadId: string, memberUserId: string): Promise<SquadActionResult> {
+  return runSquadAction(
+    'approve_squad_join_request',
+    { target_squad: squadId, requester: memberUserId },
+    'Could not approve the request. Try again.',
+  );
 }
 
 export async function declineSquadJoinRequest(squadId: string, memberUserId: string): Promise<boolean> {
@@ -456,14 +475,9 @@ export async function declineSquadJoinRequest(squadId: string, memberUserId: str
   return !error;
 }
 
-export async function acceptSquadInvite(squadId: string, userId: string) {
-  const { error } = await supabase
-    .from('squad_members')
-    .update({ status: 'accepted' })
-    .eq('squad_id', squadId)
-    .eq('user_id', userId);
-  if (!error) dispatchPrivateHubSync('squads');
-  return !error;
+/** The signed-in member accepts an invite to a room. */
+export function acceptSquadInvite(squadId: string): Promise<SquadActionResult> {
+  return runSquadAction('accept_squad_invite', { target_squad: squadId }, 'Could not join the room. Try again.');
 }
 
 export async function fetchMySquads(userId: string): Promise<Squad[]> {

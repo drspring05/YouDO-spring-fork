@@ -21,6 +21,7 @@ import {
   type IncomingSquadJoinRequest,
   type PendingSquadInvite,
   type Squad,
+  type SquadActionResult,
 } from '../lib/squads';
 import { ProfileAvatarVisual } from '../lib/profileAvatar';
 import { PRIVATE_HUB_SYNC_EVENT } from '../lib/privateHubSync';
@@ -76,6 +77,15 @@ export default function NotificationsView({ onClose, onOpenProfile, onChanged }:
     setLoading(false);
     onChanged?.();
   }, [user, onChanged]);
+
+  // Accepting can be refused (room full, request withdrawn): say why instead of doing nothing.
+  const [actionError, setActionError] = useState('');
+  const runSquadAction = useCallback(async (action: Promise<SquadActionResult>) => {
+    setActionError('');
+    const result = await action;
+    if (!result.ok) setActionError(result.error ?? 'That did not work. Try again.');
+    await reload();
+  }, [reload]);
 
   useEffect(() => {
     void reload();
@@ -186,6 +196,11 @@ export default function NotificationsView({ onClose, onOpenProfile, onChanged }:
       </div>
 
       <div className="flex-1 overflow-y-auto px-1 pb-6 space-y-5">
+        {actionError && (
+          <p role="alert" className="rounded-[12px] border border-error/25 bg-error-soft/40 px-3 py-2 text-[12px] text-error">
+            {actionError}
+          </p>
+        )}
         {loading ? (
           <p className="text-center text-[12px] text-content-muted py-10">Loading…</p>
         ) : pendingTab === 'received' ? (
@@ -221,7 +236,7 @@ export default function NotificationsView({ onClose, onOpenProfile, onChanged }:
                         <div className="flex gap-2 mt-2.5">
                           <button
                             type="button"
-                            onClick={() => void acceptSquadJoinRequest(req.squad_id, req.user_id).then(() => reload())}
+                            onClick={() => void runSquadAction(acceptSquadJoinRequest(req.squad_id, req.user_id))}
                             className="flex-1 h-9 rounded-[10px] bg-primary text-on-primary text-[12px] font-bold"
                           >
                             Confirm
@@ -303,7 +318,7 @@ export default function NotificationsView({ onClose, onOpenProfile, onChanged }:
                           <div className="flex gap-2 mt-2.5">
                             <button
                               type="button"
-                              onClick={() => user && void acceptSquadInvite(invite.squad_id, user.id).then(() => reload())}
+                              onClick={() => void runSquadAction(acceptSquadInvite(invite.squad_id))}
                               className="flex-1 h-9 rounded-[10px] bg-primary text-on-primary text-[12px] font-bold"
                             >
                               Accept
