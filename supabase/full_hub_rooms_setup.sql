@@ -101,6 +101,9 @@ create table if not exists public.squad_members (
   primary key (squad_id, user_id)
 );
 
+-- Projects created before joined_at existed.
+alter table public.squad_members add column if not exists joined_at timestamptz not null default now();
+
 grant select, insert, update, delete on table public.squad_members to authenticated;
 
 -- ============================================================================

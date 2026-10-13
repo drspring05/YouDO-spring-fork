@@ -218,7 +218,7 @@ export default function SquadSettingsSheet({ open, onClose, squad, members, onMe
                 <Search size={16} aria-hidden />
                 <input
                   type="search"
-                  name="squad_invite_search"
+                  name="room_people_lookup"
                   data-protonpass-ignore="true"
                   data-1p-ignore="true"
                   data-lpignore="true"
@@ -228,7 +228,7 @@ export default function SquadSettingsSheet({ open, onClose, squad, members, onMe
                   autoCapitalize="none"
                   autoCorrect="off"
                   spellCheck={false}
-                  placeholder="Search @username"
+                  placeholder="Find people to invite"
                   aria-label="Search people to invite"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}

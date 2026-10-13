@@ -400,8 +400,8 @@ describe('Milestone 1 Empirical Challenger — UI Components & Flow Verification
       expect(html).toContain('2 of 4');
       expect(html).toContain('data-protonpass-ignore="true"');
       expect(html).toContain('data-1p-ignore="true"');
-      expect(html).toContain('name="squad_invite_search"');
-      expect(html).toContain('placeholder="Search @username"');
+      expect(html).toContain('name="room_people_lookup"');
+      expect(html).toContain('placeholder="Find people to invite"');
     });
 
     it('3.2: Non-admin member renders read-only privacy indicator without admin controls', () => {
