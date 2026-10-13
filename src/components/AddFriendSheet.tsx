@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Check, ChevronRight, Loader2, Search, UserPlus, X } from 'lucide-react';
 import Overlay from './Overlay';
-import { searchProfilesByUsernamePrefix, sendFriendRequest, type Profile } from '../lib/profiles';
+import { fetchAcceptedFriends, searchProfilesByUsernamePrefix, sendFriendRequest, type Profile } from '../lib/profiles';
 import { useAuth } from '../contexts/AuthContext';
 import { requestAccountAccess } from '../lib/storageKeys';
 import { hapticSuccess } from '../lib/haptics';
@@ -25,6 +25,7 @@ export default function AddFriendSheet({ open, onClose, onOpenProfile }: Props) 
   const [requestSent, setRequestSent] = useState(false);
   const [requestNote, setRequestNote] = useState('');
   const [sending, setSending] = useState(false);
+  const [friendIds, setFriendIds] = useState<Set<string>>(() => new Set());
 
   // Every visit starts from an empty search.
   useEffect(() => {
@@ -35,7 +36,15 @@ export default function AddFriendSheet({ open, onClose, onOpenProfile }: Props) 
     setRequestSent(false);
     setRequestNote('');
     setErrorMsg('');
-  }, [open]);
+    if (!user) return;
+    let cancelled = false;
+    void fetchAcceptedFriends(user.id).then((list) => {
+      if (!cancelled) setFriendIds(new Set(list.map((f) => f.id)));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, user]);
 
   useEffect(() => {
     if (!open) return;
@@ -194,6 +203,11 @@ export default function AddFriendSheet({ open, onClose, onOpenProfile }: Props) 
                         type="button"
                         className="hub-row"
                         onClick={() => {
+                          if (friendIds.has(profile.id)) {
+                            onClose();
+                            onOpenProfile(profile.id);
+                            return;
+                          }
                           setSelected(profile);
                           setErrorMsg('');
                         }}
@@ -203,6 +217,7 @@ export default function AddFriendSheet({ open, onClose, onOpenProfile }: Props) 
                           <span className="hub-row-title"><span className="hub-truncate">{profile.display_name}</span></span>
                           <span className="hub-row-subtitle hub-truncate block">@{profile.username}{profile.bio ? ` · ${profile.bio}` : ''}</span>
                         </span>
+                        {friendIds.has(profile.id) && <span className="hub-chip is-success">Friends</span>}
                         <ChevronRight size={18} className="hub-chevron" />
                       </button>
                     ))}
