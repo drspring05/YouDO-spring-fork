@@ -1338,7 +1338,7 @@ function AppInner() {
         )}
 
         {/* Main View Area */}
-        <main className={`overflow-x-hidden ${legacyStyle ? (view === 'board' || view === 'calendar' ? 'mt-2' : 'mt-3') : 'mt-4'}`}>
+        <main className={`overflow-x-hidden ${legacyStyle ? (view === 'board' || view === 'calendar' ? 'mt-2' : 'mt-3') : 'mt-2'}`}>
           <div
             key={`${view}-${goalPathIds.join('-')}`}
             className={`w-full overflow-x-hidden ${

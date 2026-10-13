@@ -466,7 +466,7 @@ button {
 /* ── Navigation header: iOS Large Title ──────────────────────────────────── */
 .app-header {
   padding-top: max(0.9rem, calc(var(--safe-area-top) + 0.5rem));
-  padding-bottom: 0.25rem;
+  padding-bottom: 0;
 }
 .app-header-row {
   display: flex;
@@ -521,6 +521,8 @@ button {
   gap: 10px;
   flex: 0 0 auto;
   padding: 5px;
+  /* Room for the progress ring without making the header taller than the title. */
+  margin-block: -5px;
 }
 .app-header-button {
   position: relative;
