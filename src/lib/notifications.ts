@@ -32,6 +32,8 @@ export interface NotificationPreferences {
     friendRequests: boolean;
     roomInvites: boolean;
     roomMessages: RoomNotificationMode;
+    /** Show the message text in direct message notifications. */
+    messagePreviews?: boolean;
   };
   publicHub: {
     enabled: boolean;
@@ -60,6 +62,7 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
     friendRequests: true,
     roomInvites: true,
     roomMessages: 'all',
+    messagePreviews: true,
   },
   publicHub: {
     enabled: true,

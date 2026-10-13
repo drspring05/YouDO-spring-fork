@@ -169,6 +169,8 @@ export default {
               notification: {
                 channel_id: payload.channel,
                 sound: 'default',
+                // Same tag = the notification is updated in place (one per chat).
+                ...(payload.data.tag ? { tag: payload.data.tag.slice(0, 64) } : {}),
               },
             },
           },

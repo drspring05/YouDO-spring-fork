@@ -6,6 +6,7 @@ import {
   type PushNotificationSchema,
 } from '@capacitor/push-notifications';
 import { supabase } from './supabase';
+import { requestOpenDm } from '../components/hub/openDm';
 
 let isInitialized = false;
 // The FCM token of this device, known once registration has fired this session.
@@ -66,7 +67,7 @@ export function setDeviceTokenForTests(token: string | null): void {
 export function initPushNotifications(
   userId?: string,
   callbacks?: {
-    onNavigate?: (route: 'today' | 'board' | 'social') => void;
+    onNavigate?: (route: 'today' | 'board' | 'social' | 'private') => void;
   }
 ): () => void {
   if (!Capacitor.isNativePlatform()) return () => {};
@@ -101,6 +102,10 @@ export function initPushNotifications(
         callbacks?.onNavigate?.('today');
       } else if (type === 'community' || type === 'admin_hub' || type === 'hashtag_reply') {
         callbacks?.onNavigate?.('social');
+      } else if (type === 'dm' || type === 'friend_request' || type === 'room_invite' || type === 'room_request' || type === 'room') {
+        callbacks?.onNavigate?.('private');
+        // A message opens its chat once the Private Hub is on screen.
+        if (type === 'dm' && typeof data?.from === 'string') requestOpenDm(data.from);
       }
     }
   );

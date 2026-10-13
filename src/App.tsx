@@ -3,8 +3,9 @@ import { AlertTriangle, Calendar, FileText, Flame, ListChecks, Plus, Clock, Clou
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
-import { ensureNotificationChannels, scheduleMorningBriefing } from './lib/notifications';
+import { ensureNotificationChannels, getNotificationPreferences, scheduleMorningBriefing } from './lib/notifications';
 import { initPushNotifications } from './lib/pushNotifications';
+import { syncPushPreferences } from './lib/pushPreferences';
 import type { GoalKind, GoalNode, Task, View, TaskSession } from './types';
 import { useNavigationSync } from './hooks/useNavigationSync';
 import { formatDDMMYYYY, hasGoalExecutionState, isBacklogTask, isGoalEndpoint, isOpenBacklogTask, isTaskComplete, isToday, pathNodes, pathTitles, todayISO, useStore, useSessionStore, findGoal } from './store';
@@ -918,6 +919,11 @@ function AppInner() {
     };
   }, [handleNavigateTab, tasks, goals, streakStatus]);
 
+  // The server decides what to push while the app is closed; keep it in step with Settings.
+  useEffect(() => {
+    if (activityUser?.id) void syncPushPreferences(activityUser.id, getNotificationPreferences());
+  }, [activityUser?.id]);
+
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
     const cleanup = initPushNotifications(activityUser?.id, {
@@ -928,6 +934,9 @@ function AppInner() {
         } else if (route === 'social' || route === 'board') {
           handleNavigateTab('board');
           setHubSubTab('social');
+        } else if (route === 'private') {
+          handleNavigateTab('board');
+          setHubSubTab('private');
         }
       },
     });

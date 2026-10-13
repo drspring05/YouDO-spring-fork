@@ -78,6 +78,7 @@ import { APP_VERSION } from '../lib/version';
 import SignedInDevices from './SignedInDevices';
 import SupportSheet from './SupportSheet';
 import AppIconPicker from './AppIconPicker';
+import { syncPushPreferences } from '../lib/pushPreferences';
 import CommunityHashtagProfileField from './community/CommunityHashtagProfileField';
 import type { CommunityHashtagContext } from '../lib/communityHashtags';
 import { parseSyncConflictRecord } from '../lib/syncConflictRecord';
@@ -267,6 +268,7 @@ export default function SettingsSheet({
       const next = updater(prev);
       saveNotificationPreferences(next);
       void refreshMorningBriefing(tasks, goals);
+      void syncPushPreferences(user?.id, next);
       return next;
     });
   };
@@ -2334,6 +2336,25 @@ export default function SettingsSheet({
                     label="Direct message notifications"
                   />
                 </div>
+
+                {notifPrefs.privateHub.directMessages && (
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-[11.5px] font-semibold text-content-primary">Show Message Text</h4>
+                      <p className="text-[10px] text-content-secondary">Off shows only who wrote, not what</p>
+                    </div>
+                    <Toggle
+                      checked={notifPrefs.privateHub.messagePreviews !== false}
+                      onChange={() =>
+                        updateNotifPrefs((p) => ({
+                          ...p,
+                          privateHub: { ...p.privateHub, messagePreviews: p.privateHub.messagePreviews === false },
+                        }))
+                      }
+                      label="Show message text in notifications"
+                    />
+                  </div>
+                )}
 
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0 flex-1">
