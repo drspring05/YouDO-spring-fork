@@ -911,24 +911,70 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                   </p>
                 )}
 
-                {isWorkItem && hasSteps && (
-                  <div className="goal-row-steps">
-                    {child.steps!.map((s, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        disabled={selected.size > 0 || locked}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleGoalStep(child.id, i);
-                        }}
-                        className="goal-row-step"
-                        data-done={Boolean(stepDone[i])}
-                        title={locked ? 'Save progress from the running sitting first' : s}
-                      >
-                        {s}
-                      </button>
-                    ))}
+                {/* Tasks: steps on the left, the plan actions on the right, right
+                    under the status chip. */}
+                {isWorkItem && (hasSteps || (!isDone && selected.size === 0)) && (
+                  <div className="goal-row-line">
+                    <div className="goal-row-steps">
+                      {hasSteps && child.steps!.map((s, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          disabled={selected.size > 0 || locked}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleGoalStep(child.id, i);
+                          }}
+                          className="goal-row-step"
+                          data-done={Boolean(stepDone[i])}
+                          title={locked ? 'Save progress from the running sitting first' : s}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                    {!isDone && selected.size === 0 && (
+                      <div className="goal-row-actions">
+                        {isActivelyScheduled ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onPushNode(child);
+                              }}
+                              className="goal-row-btn"
+                              title="Replan"
+                            >
+                              Replan
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (child.todayTaskId) onUnplan(child.todayTaskId);
+                              }}
+                              className="goal-row-btn is-danger"
+                              title="Unschedule"
+                            >
+                              Unplan
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onPushNode(child);
+                            }}
+                            className="goal-row-btn is-primary"
+                            title={isBacklogged ? 'Schedule backlogged task' : 'Schedule'}
+                          >
+                            Schedule
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -941,43 +987,10 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                         </span>
                       ) : isDone ? (
                         <span className="goal-row-meta" data-tone="done">Completed</span>
-                      ) : isActivelyScheduled ? (
-                        <>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onPushNode(child);
-                            }}
-                            className="goal-row-btn"
-                            title="Replan"
-                          >
-                            Replan
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (child.todayTaskId) onUnplan(child.todayTaskId);
-                            }}
-                            className="goal-row-btn is-danger"
-                            title="Unschedule"
-                          >
-                            Unplan
-                          </button>
-                        </>
                       ) : (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onPushNode(child);
-                          }}
-                          className="goal-row-btn is-primary"
-                          title={isBacklogged ? 'Schedule backlogged task' : 'Schedule'}
-                        >
-                          Schedule
-                        </button>
+                        <span className="goal-row-meta">
+                          {hasSteps ? `${stepDone.filter(Boolean).length} of ${child.steps!.length} steps` : 'No steps'}
+                        </span>
                       )}
                     </div>
                     <div className="goal-row-tools">
