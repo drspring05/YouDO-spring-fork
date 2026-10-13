@@ -20,6 +20,7 @@ import { requestAccountDeletion } from '../lib/accountDeletion';
 import { updateAccountProfile } from '../lib/accountProfile';
 import { keepCachedWorkspaceOffline, readCachedWorkspaceUser } from '../lib/offlineAuth';
 import { checkAccountAvailability, type AccountAvailability } from '../lib/accountAvailability';
+import { releasePushToken } from '../lib/pushNotifications';
 
 interface AuthActionResult {
   ok: boolean;
@@ -186,6 +187,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
       resetVisitSnapshotFreeze();
+      // Stop this account's pushes reaching the device while the session can still delete its row.
+      await releasePushToken(accountId);
       const { error } = await supabase.auth.signOut({ scope: 'local' });
       if (error) throw error;
       if (accountSwitchVersion.current !== switchVersion) throw new Error('Account changed during sign-out. The device workspace was kept for safety.');

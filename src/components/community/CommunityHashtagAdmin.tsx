@@ -15,7 +15,6 @@ import {
   reviewCommunityHashtagRequest,
   type CommunityHashtagRequest,
 } from '../../lib/communityHashtags';
-import { supabase } from '../../lib/supabase';
 import Overlay from '../Overlay';
 
 interface Props {
@@ -70,26 +69,7 @@ export default function CommunityHashtagAdmin({
         approvedTag.trim().replace(/\s+/g, '-'),
       );
 
-      // Directly invoke send-push Edge Function from code (no Supabase dashboard webhooks needed)
-      if (request.requesterId && (decision === 'wait' || decision === 'create')) {
-        const title = decision === 'create' ? 'Hashtag Approved!' : 'Hashtag Support';
-        const body = decision === 'create'
-          ? `Your request for #${request.examName} was approved!`
-          : `Admin replied to #${request.examName}: ${note || 'Tap to review and reply'}`;
-        void supabase.functions
-          .invoke('send-push', {
-            body: {
-              userId: request.requesterId,
-              title,
-              body,
-              data: { type: 'hashtag_reply', hashtag: request.examName },
-            },
-          })
-          .catch((err: unknown) => {
-            console.warn('Could not dispatch push notification:', err);
-          });
-      }
-
+      // The requester's push is sent by the database (supabase/push_dispatch.sql).
       setConfirmReject('');
       setOpen('');
       setLabel('');
