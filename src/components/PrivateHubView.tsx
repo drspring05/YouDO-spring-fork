@@ -23,6 +23,7 @@ import { fetchDmInboxPreviews, type DmInboxPreview } from '../lib/messages';
 import { subscribePrivateHubInbox } from '../lib/privateHubSync';
 import { HubAvatar, HubAvatarStack, HubEmpty, HubSection } from './hub/HubParts';
 import { formatHubTime } from './hub/hubTime';
+import { OPEN_DM_EVENT, takePendingDm } from './hub/openDm';
 
 /**
  * The Private Hub (DMs, rooms, friends, notifications), shown when the Admin Hub
@@ -164,6 +165,29 @@ export default function PrivateHubView({
       stopInbox();
     };
   }, [user, refreshFriends, refreshDmPreviews, refreshPendingCount]);
+
+  // "Message" from a profile elsewhere (Public Board, a room) lands here.
+  const openDmWith = useCallback(
+    async (userId: string) => {
+      const friend = friends.find((f) => f.id === userId) ?? (await fetchProfile(userId));
+      if (!friend) return;
+      setPrivateSubTab('dms');
+      setShowDmInbox({ id: friend.id, name: profileDisplayLabel(friend), avatar: friend.avatar_url ?? '' });
+    },
+    [friends],
+  );
+
+  useEffect(() => {
+    if (loadingProfile || needsUsernameClaim) return;
+    const pending = takePendingDm();
+    if (pending) void openDmWith(pending);
+    const onRequest = () => {
+      const next = takePendingDm();
+      if (next) void openDmWith(next);
+    };
+    window.addEventListener(OPEN_DM_EVENT, onRequest);
+    return () => window.removeEventListener(OPEN_DM_EVENT, onRequest);
+  }, [loadingProfile, needsUsernameClaim, openDmWith]);
 
   if (!user) return null;
 

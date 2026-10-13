@@ -18,6 +18,7 @@ import RoomActivity from './squad/RoomActivity';
 import RoomInfoSheet from './squad/RoomInfoSheet';
 import UserProfileSheet from './UserProfileSheet';
 import { HubNavBar } from './hub/HubParts';
+import { requestOpenDm } from './hub/openDm';
 import './chat/youDoChat.css';
 import ChatActionSheet from './chat/ChatActionSheet';
 import { useChatMessageGestures } from './chat/useChatMessageGestures';
@@ -498,6 +499,12 @@ export default function SquadRoomSheet({ open, onClose, squadId, personalPace }:
                 userId={selectedProfileUserId}
                 onClose={() => setSelectedProfileUserId(null)}
                 onFriendshipChange={() => void fetchSquad()}
+                onMessage={() => {
+                  const target = selectedProfileUserId;
+                  setSelectedProfileUserId(null);
+                  onClose();
+                  requestOpenDm(target);
+                }}
               />
             )}
           </>

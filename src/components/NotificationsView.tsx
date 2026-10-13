@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { ChevronLeft, ChevronRight, Check, DoorOpen, UserPlus } from 'lucide-react';
+import { Check, ChevronLeft, Loader2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import {
   acceptFriendRequest,
@@ -23,12 +23,12 @@ import {
   type Squad,
   type SquadActionResult,
 } from '../lib/squads';
-import { ProfileAvatarVisual } from '../lib/profileAvatar';
 import { PRIVATE_HUB_SYNC_EVENT } from '../lib/privateHubSync';
 import { dismissFriendRequestNotification, dismissRoomInviteNotification } from '../lib/notifications';
+import { HubAvatar, HubEmpty, HubSection } from './hub/HubParts';
+import { formatHubTime } from './hub/hubTime';
 
-type Screen = 'home' | 'pending';
-type PendingTab = 'received' | 'sent';
+type Tab = 'received' | 'sent';
 
 interface Props {
   onClose: () => void;
@@ -36,22 +36,47 @@ interface Props {
   onChanged?: () => void;
 }
 
-function timeAgo(iso: string): string {
-  const d = new Date(iso);
-  const diff = Date.now() - d.getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'Just now';
-  if (mins < 60) return `${mins}m`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 48) return `${hrs}h`;
-  return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+/** Accept / decline, side by side under the request. */
+function Choices({
+  primary,
+  secondary,
+  onPrimary,
+  onSecondary,
+  busy,
+}: {
+  primary: string;
+  secondary: string;
+  onPrimary: () => void;
+  onSecondary: () => void;
+  busy: boolean;
+}) {
+  return (
+    <span className="mt-2.5 flex gap-2">
+      <button type="button" className="hub-pill-button is-filled flex-1" disabled={busy} onClick={onPrimary}>
+        {busy ? <Loader2 size={15} className="animate-spin" /> : primary}
+      </button>
+      <button type="button" className="hub-pill-button is-quiet flex-1" disabled={busy} onClick={onSecondary}>
+        {secondary}
+      </button>
+    </span>
+  );
+}
+
+function RequestRow({ leading, children }: { leading: ReactNode; children: ReactNode }) {
+  return (
+    <div className="hub-row !items-start">
+      {leading}
+      <span className="hub-row-main">{children}</span>
+    </div>
+  );
 }
 
 export default function NotificationsView({ onClose, onOpenProfile, onChanged }: Props) {
   const { user } = useAuth();
-  const [screen, setScreen] = useState<Screen>('home');
-  const [pendingTab, setPendingTab] = useState<PendingTab>('received');
+  const [tab, setTab] = useState<Tab>('received');
   const [loading, setLoading] = useState(true);
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [actionError, setActionError] = useState('');
 
   const [friendIn, setFriendIn] = useState<FriendRequest[]>([]);
   const [friendOut, setFriendOut] = useState<OutgoingFriendRequest[]>([]);
@@ -61,7 +86,6 @@ export default function NotificationsView({ onClose, onOpenProfile, onChanged }:
 
   const reload = useCallback(async () => {
     if (!user) return;
-    setLoading(true);
     const [friends, outgoingFriends, squads, incoming, outgoing] = await Promise.all([
       fetchPendingRequests(user.id),
       fetchOutgoingFriendRequests(user.id),
@@ -78,14 +102,22 @@ export default function NotificationsView({ onClose, onOpenProfile, onChanged }:
     onChanged?.();
   }, [user, onChanged]);
 
-  // Accepting can be refused (room full, request withdrawn): say why instead of doing nothing.
-  const [actionError, setActionError] = useState('');
-  const runSquadAction = useCallback(async (action: Promise<SquadActionResult>) => {
-    setActionError('');
-    const result = await action;
-    if (!result.ok) setActionError(result.error ?? 'That did not work. Try again.');
-    await reload();
-  }, [reload]);
+  /** Every answer runs through here: one busy row at a time, and a refusal says why. */
+  const answer = useCallback(
+    async (key: string, action: () => Promise<SquadActionResult | boolean | unknown>) => {
+      setBusyKey(key);
+      setActionError('');
+      const result = await action();
+      if (result && typeof result === 'object' && 'ok' in result && !(result as SquadActionResult).ok) {
+        setActionError((result as SquadActionResult).error ?? 'That did not work. Try again.');
+      } else if (result === false) {
+        setActionError('That did not work. Try again.');
+      }
+      await reload();
+      setBusyKey(null);
+    },
+    [reload],
+  );
 
   useEffect(() => {
     void reload();
@@ -103,322 +135,192 @@ export default function NotificationsView({ onClose, onOpenProfile, onChanged }:
 
   const receivedCount = friendIn.length + squadInvites.length + squadJoinIn.length;
   const sentCount = friendOut.length + squadJoinOut.length;
-  const pendingTotal = receivedCount + sentCount;
-
-  const header = (title: string, back?: () => void) => (
-    <div className="grid grid-cols-[2.75rem_1fr_2.75rem] items-center px-2 py-1.5 border-b border-subtle mb-1">
-      <button
-        type="button"
-        onClick={(e) => {
-          if (back) back();
-          else onClose();
-          e.currentTarget.blur();
-        }}
-        className="flex items-center justify-center size-11 rounded-full text-content-primary transition-colors [-webkit-tap-highlight-color:transparent] active:bg-elevated focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-        aria-label={back ? 'Back' : 'Close notifications'}
-      >
-        <ChevronLeft size={22} />
-      </button>
-      <h1 className="text-[17px] font-bold text-content-primary text-center truncate px-1">{title}</h1>
-      <div aria-hidden className="size-11" />
-    </div>
-  );
-
-  if (screen === 'home') {
-    return (
-      <div className="flex flex-col min-h-[70vh] animate-in fade-in duration-200">
-        {header('Notifications')}
-
-        <div className="px-1 pt-2">
-          <button
-            type="button"
-            onClick={() => setScreen('pending')}
-            className="w-full flex items-center gap-3 p-4 rounded-[18px] bg-elevated border border-subtle hover:border-primary/30 active:scale-[0.99] transition-all text-left"
-          >
-            <div className="w-11 h-11 rounded-full bg-primary-soft border border-primary/20 flex items-center justify-center text-primary shrink-0">
-              <UserPlus size={20} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[15px] font-bold text-content-primary">Pending requests</p>
-              <p className="text-[12px] text-content-secondary mt-0.5">
-                {pendingTotal === 0
-                  ? 'No open requests'
-                  : receivedCount > 0
-                    ? `${receivedCount} need your response`
-                    : `${sentCount} waiting on others`}
-              </p>
-            </div>
-            {pendingTotal > 0 && (
-              <span className="min-w-[22px] h-[22px] px-1.5 rounded-full bg-error text-[11px] font-bold text-white flex items-center justify-center">
-                {pendingTotal > 9 ? '9+' : pendingTotal}
-              </span>
-            )}
-            <ChevronRight size={18} className="text-content-muted shrink-0" />
-          </button>
-
-          <p className="text-[11px] text-content-muted px-2 mt-6 leading-relaxed">
-            Friend requests, squad invites, and room join requests live here. Tap Pending requests to review sent and
-            received.
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <div className="flex flex-col min-h-[70vh] animate-in fade-in duration-200">
-      {header('Pending requests', () => setScreen('home'))}
-
-      <div className="px-1 mb-4">
-        <div className="flex rounded-[12px] border border-subtle bg-elevated p-1">
-          {(['received', 'sent'] as PendingTab[]).map((tab) => {
-            const active = pendingTab === tab;
-            const count = tab === 'received' ? receivedCount : sentCount;
-            return (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => setPendingTab(tab)}
-                className={`flex-1 h-9 rounded-[10px] text-[12px] font-bold capitalize transition-colors ${
-                  active ? 'bg-primary text-on-primary' : 'text-content-muted'
-                }`}
-              >
-                {tab}
-                {count > 0 && (
-                  <span className={`ml-1.5 text-[10px] ${active ? 'opacity-90' : 'text-content-muted'}`}>
-                    ({count})
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
+    <div className="hub pb-4">
+      <div className="mb-3 flex items-center gap-1">
+        <button type="button" className="hub-nav-back -ml-2" onClick={onClose} aria-label="Back to Private Hub">
+          <ChevronLeft size={26} strokeWidth={2.2} />
+        </button>
+        <h2 className="text-[22px] font-bold tracking-tight">Requests</h2>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-1 pb-6 space-y-5">
-        {actionError && (
-          <p role="alert" className="rounded-[12px] border border-error/25 bg-error-soft/40 px-3 py-2 text-[12px] text-error">
-            {actionError}
-          </p>
-        )}
-        {loading ? (
-          <p className="text-center text-[12px] text-content-muted py-10">Loading…</p>
-        ) : pendingTab === 'received' ? (
-          receivedCount === 0 ? (
-            <EmptyState message="Nothing waiting on you. Requests others send will show up here." />
-          ) : (
-            <>
-              {squadJoinIn.length > 0 && (
-                <Section title="Squad join requests">
-                  {squadJoinIn.map((req) => (
-                    <div key={`${req.squad_id}-${req.user_id}`} className="flex gap-3 py-3 border-b border-subtle/80 last:border-0">
-                      <button type="button" onClick={() => req.requester && onOpenProfile(req.requester.id)} className="shrink-0">
-                        <div className="w-12 h-12 rounded-full bg-primary-soft border border-primary/20 overflow-hidden flex items-center justify-center text-lg">
-                          {req.requester ? (
-                            <ProfileAvatarVisual
-                              avatarUrl={req.requester.avatar_url}
-                              displayName={req.requester.display_name}
-                              className="leading-none"
-                              imgClassName="w-full h-full object-cover"
-                            />
-                          ) : (
-                            '🎓'
-                          )}
-                        </div>
-                      </button>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[13px] leading-snug text-content-primary">
-                          <span className="font-bold">{req.requester?.display_name ?? 'Someone'}</span>
-                          {' '}wants to join{' '}
-                          <span className="font-bold">{req.squad.name}</span>
-                        </p>
-                        <p className="text-[10px] text-content-muted mt-1">{timeAgo(req.joined_at)}</p>
-                        <div className="flex gap-2 mt-2.5">
-                          <button
-                            type="button"
-                            onClick={() => void runSquadAction(acceptSquadJoinRequest(req.squad_id, req.user_id))}
-                            className="flex-1 h-9 rounded-[10px] bg-primary text-on-primary text-[12px] font-bold"
-                          >
-                            Confirm
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void declineSquadJoinRequest(req.squad_id, req.user_id).then(() => reload())}
-                            className="flex-1 h-9 rounded-[10px] border border-subtle text-[12px] font-semibold text-content-secondary"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </Section>
-              )}
+      <div className="hub-segmented mb-4" role="tablist" aria-label="Requests">
+        <button type="button" role="tab" aria-selected={tab === 'received'} onClick={() => setTab('received')}>
+          Received
+          {receivedCount > 0 && <span className="hub-count is-alert !h-[18px] !min-w-[18px] !text-[11px]">{receivedCount}</span>}
+        </button>
+        <button type="button" role="tab" aria-selected={tab === 'sent'} onClick={() => setTab('sent')}>
+          Sent
+          {sentCount > 0 && <span className="text-content-muted tabular-nums">{sentCount}</span>}
+        </button>
+      </div>
 
-              {friendIn.length > 0 && (
-                <Section title="Friend requests">
-                  {friendIn.map((req) => (
-                    <div key={req.id} className="flex gap-3 py-3 border-b border-subtle/80 last:border-0">
-                      <button type="button" onClick={() => onOpenProfile(req.requester.id)} className="shrink-0">
-                        <div className="w-12 h-12 rounded-full bg-primary-soft border border-primary/20 overflow-hidden flex items-center justify-center text-lg">
-                          <ProfileAvatarVisual
-                            avatarUrl={req.requester.avatar_url}
-                            displayName={req.requester.display_name}
-                            className="leading-none"
-                            imgClassName="w-full h-full object-cover"
-                          />
-                        </div>
-                      </button>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[13px] text-content-primary">
-                          <span className="font-bold">{req.requester.display_name}</span>
-                          <span className="text-content-secondary"> · @{req.requester.username}</span>
-                        </p>
-                        {req.request_message && (
-                          <p className="text-[11px] text-content-secondary mt-1 line-clamp-2">“{req.request_message}”</p>
-                        )}
-                        <p className="text-[10px] text-content-muted mt-1">{timeAgo(req.created_at)}</p>
-                        <div className="flex gap-2 mt-2.5">
-                          <button
-                            type="button"
-                            onClick={() => void acceptFriendRequest(req.id).then(() => reload())}
-                            className="flex-1 h-9 rounded-[10px] bg-primary text-on-primary text-[12px] font-bold"
-                          >
-                            Confirm
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void rejectFriendRequest(req.id).then(() => reload())}
-                            className="flex-1 h-9 rounded-[10px] border border-subtle text-[12px] font-semibold text-content-secondary"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </Section>
-              )}
+      {actionError && <div className="hub-banner is-error" role="alert">{actionError}</div>}
 
-              {squadInvites.length > 0 && (
-                <Section title="Squad invites">
+      {loading ? (
+        <div className="hub-group">
+          <div className="hub-row is-compact justify-center gap-2 text-[14px] text-content-muted" role="status">
+            <Loader2 size={15} className="animate-spin" /> Loading…
+          </div>
+        </div>
+      ) : tab === 'received' ? (
+        receivedCount === 0 ? (
+          <div className="hub-group">
+            <HubEmpty icon={<Check size={24} />} title="You’re all caught up" text="Friend requests, room invites and requests to join your rooms show up here." />
+          </div>
+        ) : (
+          <>
+            {squadJoinIn.length > 0 && (
+              <HubSection title="Asking to join your rooms">
+                <div className="hub-group">
+                  {squadJoinIn.map((req) => {
+                    const key = `join:${req.squad_id}:${req.user_id}`;
+                    const name = req.requester?.display_name ?? 'Someone';
+                    return (
+                      <RequestRow
+                        key={key}
+                        leading={
+                          <button type="button" className="shrink-0 rounded-full" onClick={() => req.requester && onOpenProfile(req.requester.id)} aria-label={`View ${name}'s profile`}>
+                            <HubAvatar url={req.requester?.avatar_url} name={name} />
+                          </button>
+                        }
+                      >
+                        <span className="block text-[15px] leading-snug">
+                          <strong className="font-semibold">{name}</strong> wants to join <strong className="font-semibold">{req.squad.description || '🔥'} {req.squad.name}</strong>
+                        </span>
+                        <span className="hub-row-subtitle block">{formatHubTime(req.joined_at)}</span>
+                        <Choices
+                          primary="Approve"
+                          secondary="Decline"
+                          busy={busyKey === key}
+                          onPrimary={() => void answer(key, () => acceptSquadJoinRequest(req.squad_id, req.user_id))}
+                          onSecondary={() => void answer(key, () => declineSquadJoinRequest(req.squad_id, req.user_id))}
+                        />
+                      </RequestRow>
+                    );
+                  })}
+                </div>
+              </HubSection>
+            )}
+
+            {squadInvites.length > 0 && (
+              <HubSection title="Room invites">
+                <div className="hub-group">
                   {squadInvites.map((invite) => {
                     const squad = invite.squads;
                     if (!squad) return null;
+                    const key = `invite:${invite.squad_id}`;
                     return (
-                      <div key={invite.squad_id} className="flex gap-3 py-3 border-b border-subtle/80 last:border-0">
-                        <div className="w-12 h-12 rounded-full bg-surface border border-subtle flex items-center justify-center text-xl shrink-0">
-                          {squad.description || '🔥'}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[13px] text-content-primary">
-                            Invite to <span className="font-bold">{squad.name}</span>
-                          </p>
-                          <p className="text-[11px] text-primary mt-0.5">🎯 {squad.bar_hours}h/day</p>
-                          <div className="flex gap-2 mt-2.5">
-                            <button
-                              type="button"
-                              onClick={() => void runSquadAction(acceptSquadInvite(invite.squad_id))}
-                              className="flex-1 h-9 rounded-[10px] bg-primary text-on-primary text-[12px] font-bold"
-                            >
-                              Accept
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => user && void rejectSquadInvite(invite.squad_id, user.id).then(() => reload())}
-                              className="flex-1 h-9 rounded-[10px] border border-subtle text-[12px] font-semibold"
-                            >
-                              Decline
-                            </button>
-                          </div>
-                        </div>
-                      </div>
+                      <RequestRow key={key} leading={<span className="hub-room-tile" aria-hidden>{squad.description || '🔥'}</span>}>
+                        <span className="block text-[15px] leading-snug">
+                          You’re invited to <strong className="font-semibold">{squad.name}</strong>
+                        </span>
+                        {squad.bar_hours ? <span className="hub-row-subtitle block">{squad.bar_hours}h a day</span> : null}
+                        <Choices
+                          primary="Join"
+                          secondary="Decline"
+                          busy={busyKey === key}
+                          onPrimary={() => void answer(key, () => acceptSquadInvite(invite.squad_id))}
+                          onSecondary={() => void answer(key, () => (user ? rejectSquadInvite(invite.squad_id, user.id) : Promise.resolve(false)))}
+                        />
+                      </RequestRow>
                     );
                   })}
-                </Section>
-              )}
-            </>
-          )
-        ) : sentCount === 0 ? (
-          <EmptyState message="You haven’t sent any requests yet. Join a squad from Rooms or add a friend from DMs." />
-        ) : (
-          <>
-            {squadJoinOut.length > 0 && (
-              <Section title="Squad join requests">
-                {squadJoinOut.map((squad) => (
-                  <div key={squad.id} className="flex gap-3 py-3 border-b border-subtle/80 last:border-0 items-center">
-                    <div className="w-12 h-12 rounded-full bg-surface border border-subtle flex items-center justify-center text-xl shrink-0">
-                      {squad.description || '🔥'}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-bold text-content-primary truncate">{squad.name}</p>
-                      <p className="text-[11px] text-secondary font-medium flex items-center gap-1 mt-0.5">
-                        <DoorOpen size={12} /> Request sent · waiting on admin
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        user && void cancelOutgoingSquadJoinRequest(squad.id, user.id).then(() => reload())
-                      }
-                      className="text-[11px] font-semibold text-content-muted px-2 py-1 rounded-lg border border-subtle"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ))}
-              </Section>
+                </div>
+              </HubSection>
             )}
 
-            {friendOut.length > 0 && (
-              <Section title="Friend requests">
-                {friendOut.map((req) => (
-                  <div key={req.id} className="flex gap-3 py-3 border-b border-subtle/80 last:border-0 items-center">
-                    <button type="button" onClick={() => onOpenProfile(req.receiver.id)} className="shrink-0">
-                      <div className="w-12 h-12 rounded-full bg-primary-soft border border-primary/20 overflow-hidden flex items-center justify-center text-lg">
-                        <ProfileAvatarVisual
-                          avatarUrl={req.receiver.avatar_url}
-                          displayName={req.receiver.display_name}
-                          className="leading-none"
-                          imgClassName="w-full h-full object-cover"
+            {friendIn.length > 0 && (
+              <HubSection title="Friend requests">
+                <div className="hub-group">
+                  {friendIn.map((req) => {
+                    const key = `friend:${req.id}`;
+                    return (
+                      <RequestRow
+                        key={key}
+                        leading={
+                          <button type="button" className="shrink-0 rounded-full" onClick={() => onOpenProfile(req.requester.id)} aria-label={`View ${req.requester.display_name}'s profile`}>
+                            <HubAvatar url={req.requester.avatar_url} name={req.requester.display_name} />
+                          </button>
+                        }
+                      >
+                        <span className="hub-row-title">
+                          <span className="hub-truncate flex-1">{req.requester.display_name}</span>
+                          <span className="hub-row-time">{formatHubTime(req.created_at)}</span>
+                        </span>
+                        <span className="hub-row-subtitle block">@{req.requester.username}</span>
+                        {req.request_message && (
+                          <span className="mt-1.5 block rounded-[10px] bg-[var(--bg-fill)] px-3 py-2 text-[14px] leading-snug text-content-primary">
+                            {req.request_message}
+                          </span>
+                        )}
+                        <Choices
+                          primary="Accept"
+                          secondary="Decline"
+                          busy={busyKey === key}
+                          onPrimary={() => void answer(key, () => acceptFriendRequest(req.id))}
+                          onSecondary={() => void answer(key, () => rejectFriendRequest(req.id))}
                         />
-                      </div>
-                    </button>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[13px] text-content-primary">
-                        Request sent to <span className="font-bold">{req.receiver.display_name}</span>
-                      </p>
-                      <p className="text-[10px] text-content-muted mt-1">{timeAgo(req.created_at)}</p>
-                    </div>
-                    <span className="text-[10px] font-bold text-content-muted uppercase tracking-wide">Pending</span>
-                  </div>
-                ))}
-              </Section>
+                      </RequestRow>
+                    );
+                  })}
+                </div>
+              </HubSection>
             )}
           </>
-        )}
-      </div>
-    </div>
-  );
-}
+        )
+      ) : sentCount === 0 ? (
+        <div className="hub-group">
+          <HubEmpty icon={<Check size={24} />} title="Nothing pending" text="Requests you send to friends and rooms wait here until they answer." />
+        </div>
+      ) : (
+        <>
+          {squadJoinOut.length > 0 && (
+            <HubSection title="Rooms you asked to join">
+              <div className="hub-group">
+                {squadJoinOut.map((squad) => {
+                  const key = `out:${squad.id}`;
+                  return (
+                    <div key={key} className="hub-row">
+                      <span className="hub-room-tile" aria-hidden>{squad.description || '🔥'}</span>
+                      <span className="hub-row-main">
+                        <span className="hub-row-title"><span className="hub-truncate">{squad.name}</span></span>
+                        <span className="hub-row-subtitle block">Waiting for an admin</span>
+                      </span>
+                      <button
+                        type="button"
+                        className="hub-pill-button is-quiet"
+                        disabled={busyKey === key}
+                        onClick={() => void answer(key, () => (user ? cancelOutgoingSquadJoinRequest(squad.id, user.id) : Promise.resolve(false)))}
+                      >
+                        {busyKey === key ? <Loader2 size={14} className="animate-spin" /> : 'Withdraw'}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </HubSection>
+          )}
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div>
-      <h2 className="text-[11px] font-bold uppercase tracking-[0.12em] text-content-muted mb-1 px-1">{title}</h2>
-      <div className="rounded-[16px] border border-subtle bg-elevated/60 px-3">{children}</div>
-    </div>
-  );
-}
-
-function EmptyState({ message }: { message: string }) {
-  return (
-    <div className="py-14 px-6 text-center">
-      <div className="w-14 h-14 rounded-full bg-elevated border border-subtle flex items-center justify-center mx-auto mb-3 text-content-muted">
-        <Check size={22} />
-      </div>
-      <p className="text-[13px] font-semibold text-content-primary">You&apos;re all caught up</p>
-      <p className="text-[11px] text-content-muted mt-2 leading-relaxed max-w-[260px] mx-auto">{message}</p>
+          {friendOut.length > 0 && (
+            <HubSection title="Friend requests">
+              <div className="hub-group">
+                {friendOut.map((req) => (
+                  <button key={req.id} type="button" className="hub-row" onClick={() => onOpenProfile(req.receiver.id)}>
+                    <HubAvatar url={req.receiver.avatar_url} name={req.receiver.display_name} />
+                    <span className="hub-row-main">
+                      <span className="hub-row-title"><span className="hub-truncate">{req.receiver.display_name}</span></span>
+                      <span className="hub-row-subtitle block">Sent {formatHubTime(req.created_at)}</span>
+                    </span>
+                    <span className="hub-chip">Pending</span>
+                  </button>
+                ))}
+              </div>
+            </HubSection>
+          )}
+        </>
+      )}
     </div>
   );
 }

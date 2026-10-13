@@ -382,8 +382,8 @@ export async function sendFriendRequest(
   message: string,
 ): Promise<{ ok: boolean; error?: string }> {
   if (requesterId === receiverId) return { ok: false, error: 'Cannot send request to yourself.' };
+  // The note is optional; the column defaults to an empty string.
   const trimmed = message.trim();
-  if (!trimmed) return { ok: false, error: 'Add a short note explaining why you want to connect.' };
   if (trimmed.length > 280) return { ok: false, error: 'Message must be 280 characters or fewer.' };
   const { error } = await supabase
     .from('friendships')

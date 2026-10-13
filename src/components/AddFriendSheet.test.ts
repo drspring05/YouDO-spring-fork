@@ -36,7 +36,7 @@ describe('AddFriendSheet password manager opt-out and search input', () => {
     expect(html).toContain('autoComplete="off"');
 
     // Assert non-trigger placeholder
-    expect(html).toContain('placeholder="Search study partner handle (e.g. @alex)..."');
+    expect(html).toContain('placeholder="Search by @username"');
 
     // Assert invalid p-4.5 is absent
     expect(html).not.toContain('p-4.5');

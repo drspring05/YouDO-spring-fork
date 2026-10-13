@@ -12,7 +12,7 @@ export function HubAvatar({
 }: {
   url?: string | null;
   name?: string;
-  size?: 'md' | 'sm' | 'xs';
+  size?: 'lg' | 'md' | 'sm' | 'xs';
   dot?: 'unread' | 'live';
 }) {
   return (

@@ -6,6 +6,7 @@ import UserProfileSheet from './UserProfileSheet';
 import HubAuthGate from './HubAuthGate';
 import PrivateHubUnderDevelopment from './PrivateHubUnderDevelopment';
 import PrivateHubView from './PrivateHubView';
+import { requestOpenDm } from './hub/openDm';
 
 export default function HubView({
   onOpenBoardSettings,
@@ -107,14 +108,21 @@ export default function HubView({
         userId={profileUserId}
         boardPreview={profileBoardPreview}
         boardPaceWindow={profileBoardWindow}
+        privateHubEnabled={privateHubOpen}
         onClose={() => {
           setProfileUserId(null);
           setProfileBoardPreview(null);
         }}
-        onMessage={() => {
-          setProfileUserId(null);
-          onSwitchToPrivate?.();
-        }}
+        onMessage={
+          privateHubOpen
+            ? () => {
+                const target = profileUserId;
+                setProfileUserId(null);
+                onSwitchToPrivate?.();
+                if (target) requestOpenDm(target);
+              }
+            : undefined
+        }
       />
     </div>
   );
