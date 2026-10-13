@@ -124,7 +124,16 @@ export default {
         );
       }
 
-      const serviceAccount = JSON.parse(serviceAccountJson);
+      // Parse errors can quote the secret, so report only that it is malformed.
+      let serviceAccount: { client_email: string; private_key: string; project_id?: string };
+      try {
+        serviceAccount = JSON.parse(serviceAccountJson);
+      } catch {
+        return Response.json(
+          { ok: false, error: 'FIREBASE_SERVICE_ACCOUNT is not valid JSON. Paste the downloaded key file through the dashboard.' },
+          { status: 500 }
+        );
+      }
       const projectId = serviceAccount.project_id || 'youdo-aspirants-app';
 
       // Supabase admin client to query user_push_tokens
