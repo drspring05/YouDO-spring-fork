@@ -273,3 +273,25 @@
 .studio-drilldown-row span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .studio-drilldown-row.is-invalid { opacity: .38; cursor: not-allowed; }
 
+/* Blueprint Studio three-level window: one rail per outer level tucked away
+   on the left. Tapping a rail collapses the deepest level to bring it back. */
+.studio-depth-rails {
+  display: flex;
+  gap: 3px;
+  padding: 4px 0;
+}
+.studio-depth-rail {
+  position: relative;
+  width: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 38%, transparent);
+  transition: background 0.2s ease;
+}
+/* A wider, invisible hit area around the thin rail. */
+.studio-depth-rail::before {
+  content: '';
+  position: absolute;
+  inset: 0 -6px;
+}
+.studio-depth-rail:active,
+.studio-depth-rail:hover { background: var(--primary); }

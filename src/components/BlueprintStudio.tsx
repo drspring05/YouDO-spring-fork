@@ -215,7 +215,7 @@ export function BlueprintStudioContent({
         </div>
 
         {/* Floating Action Bar */}
-        <StudioActionBar controller={controller} />
+        <StudioActionBar controller={controller} searchActive={Boolean(searchQuery?.trim())} />
 
         {/* Modals Sheet Layer */}
         <StudioModals controller={controller} />
