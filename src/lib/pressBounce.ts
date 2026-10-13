@@ -17,9 +17,11 @@ import { motionAllowed, uiPrefsSnapshot } from '../hooks/useUiPrefs';
  * and any button whose only content is an icon (back, close, account, more…)
  * up to 72px. Buttons with text labels keep their usual press style.
  *
- * While one is held, the page does not scroll from it: Android otherwise
- * claims the first sideways or upward drag as a scroll, cancels the press,
- * and the button snaps home under a finger that is still on it.
+ * Floating controls (tab bar, glass buttons, the header icon) keep the page
+ * from scrolling while held: Android otherwise claims the first drag as a
+ * scroll and cancels the press. Icon buttons inside scrolling content never
+ * do that: a drag that starts on one scrolls the page as usual and the
+ * button simply lets go.
  *
  * On with Settings → Appearance → Liquid Glass. Constants are BitChord's
  * GlassPress, which is the same response on its glass buttons.
@@ -36,6 +38,10 @@ const MAX_ICON_BUTTON = 72;
 
 const SELECTOR = 'button, a[href], [role="button"]';
 const ALWAYS = '[data-bounce], .glass, .fab, .tab-bar-orb, .app-header-button';
+/** Floating chrome that may hold the page still while pressed. */
+const HOLDS_SCROLL = '.glass, .fab, .tab-bar-orb, .app-header-button';
+/** A drag this long on an in-content button is a scroll, not a press. */
+const SCROLL_SLOP = 8;
 
 interface PressState {
   scale: Spring;
@@ -119,12 +125,17 @@ function onPointerDown(event: PointerEvent) {
   const startX = event.clientX;
   const startY = event.clientY;
   const id = event.pointerId;
+  const holdsScroll = el.matches(HOLDS_SCROLL);
 
   const move = (e: PointerEvent) => {
     if (e.pointerId !== id) return;
     const dx = e.clientX - startX;
     const dy = e.clientY - startY;
     const distance = Math.hypot(dx, dy);
+    if (!holdsScroll && distance > SCROLL_SLOP) {
+      release(e);
+      return;
+    }
     // Approaches MAX_FOLLOW and never passes it: the first few px of drag
     // move the button almost one for one, the rest barely at all.
     const k = distance > 0 ? (MAX_FOLLOW * (1 - Math.exp(-distance / (MAX_FOLLOW * 3)))) / distance : 0;
@@ -154,7 +165,7 @@ function onPointerDown(event: PointerEvent) {
     state.oy.target = 0;
     run(el, state);
   };
-  window.addEventListener('touchmove', holdScroll, { capture: true, passive: false });
+  if (holdsScroll) window.addEventListener('touchmove', holdScroll, { capture: true, passive: false });
   window.addEventListener('pointermove', move, true);
   window.addEventListener('pointerup', release, true);
   window.addEventListener('pointercancel', release, true);

@@ -142,6 +142,10 @@ export default function TodayBriefingSheet({
   const bubbleOnRef = useRef(bubbleOn);
   bubbleOnRef.current = bubbleOn;
   const lens = useLiquidLens();
+  // SVG refraction is drawn on the CPU and re-runs every frame of a drag, which
+  // stutters on phones. Touch screens get a GPU blur glass with the same rim.
+  const [refract] = useState(() => typeof window !== 'undefined' && !window.matchMedia?.('(pointer: coarse)').matches);
+  const refractRef = useRef(refract);
   const lensRef = useRef<HTMLSpanElement>(null);
   const faceRef = useRef<HTMLSpanElement>(null);
   /** The knob's springs: lift per axis, glass, the return home, and the speed stretch. */
@@ -261,7 +265,7 @@ export default function TodayBriefingSheet({
       lensRef.current.style.opacity = material.toFixed(3);
       lensRef.current.style.visibility = material > 0.002 ? 'visible' : 'hidden';
     }
-    lens.setBend(BUBBLE_LENS_BEND * material);
+    if (refractRef.current) lens.setBend(BUBBLE_LENS_BEND * material);
     if (fillRef.current) {
       fillRef.current.style.width = `${THUMB_W + TRACK_PAD + p * travel}px`;
       fillRef.current.style.opacity = String(0.45 + glow * 0.55);
@@ -688,7 +692,10 @@ export default function TodayBriefingSheet({
                 <span
                   ref={lensRef}
                   className="briefing-bubble-lens pointer-events-none absolute inset-0 rounded-full"
-                  style={{ backdropFilter: `url(#${lens.id}) saturate(1.6) brightness(1.08)` }}
+                  style={{
+                    backdropFilter: refract ? `url(#${lens.id}) saturate(1.6) brightness(1.08)` : 'blur(3px) saturate(1.6) brightness(1.08)',
+                    WebkitBackdropFilter: refract ? undefined : 'blur(3px) saturate(1.6) brightness(1.08)',
+                  }}
                   aria-hidden
                 />
               )}
@@ -713,7 +720,7 @@ export default function TodayBriefingSheet({
           >
             Slide to continue
           </p>
-          {bubbleOn && lens.filter}
+          {bubbleOn && refract && lens.filter}
         </div>
       </div>
     </Overlay>

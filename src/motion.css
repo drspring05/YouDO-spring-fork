@@ -137,15 +137,15 @@ html[data-liquid-glass='true'] :is(button.glass, .fab, .tab-bar-orb, [data-bounc
 .briefing-bubble-lens {
   visibility: hidden;
   opacity: 0;
-  background: color-mix(in srgb, #0a84ff 42%, transparent);
+  background: color-mix(in srgb, var(--primary) 42%, transparent);
   box-shadow:
     inset 0 0 0 0.5px rgba(255, 255, 255, 0.5),
     inset 1.5px 2px 1px -1.5px rgba(255, 255, 255, 0.9),
     inset -1.5px -2px 1px -1.5px rgba(255, 255, 255, 0.45),
-    0 4px 16px -4px color-mix(in srgb, #0a84ff 55%, transparent);
+    0 4px 16px -4px color-mix(in srgb, var(--primary) 55%, transparent);
 }
 html.light-dusky .briefing-bubble-lens {
-  background: color-mix(in srgb, #007aff 38%, transparent);
+  background: color-mix(in srgb, var(--primary) 38%, transparent);
 }
 /* The track no longer clips (the bubble stands past it), so its sheen keeps
    the track's round ends on its own. */

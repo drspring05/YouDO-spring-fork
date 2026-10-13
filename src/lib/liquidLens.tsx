@@ -79,7 +79,12 @@ export function useLiquidLens() {
     fe.setAttribute('href', lensMap(width, height, rim));
   };
 
+  const lastBend = useRef('');
   const setBend = (px: number) => {
+    // Rewriting the same value still invalidates the filter, so skip it.
+    const key = px.toFixed(2);
+    if (key === lastBend.current) return;
+    lastBend.current = key;
     // Each channel bends a little less than the last: a faint prism at the rim.
     bends.current.forEach((node, i) => node?.setAttribute('scale', (px * 2 * (1 - 0.08 * i)).toFixed(2)));
   };
