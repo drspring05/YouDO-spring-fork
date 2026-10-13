@@ -7,12 +7,17 @@ import { AuthProvider } from './contexts/AuthContext';
 import AuthGate from './components/AuthGate';
 import '@fontsource-variable/inter/opsz.css';
 import './index.css';
+import { installUiStyle } from './uiStyle';
+import { installPressBounce } from './lib/pressBounce';
 import ExperiencePreferences from './components/ExperiencePreferences';
 import { registerWebUpdates } from './lib/webUpdate';
 
 if (Capacitor.isNativePlatform()) {
   document.documentElement.dataset.nativeShell = 'true';
 }
+
+installUiStyle();
+installPressBounce();
 
 interface ErrorBoundaryState {
   hasError: boolean;

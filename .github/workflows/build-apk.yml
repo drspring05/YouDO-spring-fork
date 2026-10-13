@@ -10,6 +10,7 @@ on:
       - 'hotfix-*'
       - 'codex/release-*'
       - 'codex/hotfix-*'
+      - 'claude/**'
   workflow_dispatch:
 
 jobs:

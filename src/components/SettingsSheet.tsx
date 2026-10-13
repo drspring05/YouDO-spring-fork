@@ -1,3 +1,4 @@
+import { useUiPrefs } from '../hooks/useUiPrefs';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Browser } from '@capacitor/browser';
 import { Capacitor } from '@capacitor/core';
@@ -26,6 +27,9 @@ import {
   MonitorSmartphone,
   Moon,
   Palette,
+  Droplets,
+  PanelTop,
+  Undo2,
   RefreshCw,
   Send,
   ShieldCheck,
@@ -42,6 +46,7 @@ import {
 } from 'lucide-react';
 import Overlay from './Overlay';
 import Toggle from './Toggle';
+import { LiquidGlassTuning } from './LiquidTuningPanel';
 import {
   getNotificationPreferences,
   saveNotificationPreferences,
@@ -99,8 +104,9 @@ interface Props {
 }
 
 function SectionLabel({ children, icon }: { children: React.ReactNode; icon?: React.ReactNode }) {
+  const [{ legacyStyle }] = useUiPrefs();
   return (
-    <h2 className="settings-section-label uppercase mb-2 flex items-center gap-1.5">
+    <h2 className={legacyStyle ? 'settings-section-label text-[10px] font-bold uppercase tracking-[0.16em] text-content-muted mb-2.5 px-1 flex items-center gap-1.5' : 'settings-section-label uppercase mb-2 flex items-center gap-1.5'}>
       {icon}
       <span>{children}</span>
     </h2>
@@ -164,6 +170,7 @@ export default function SettingsSheet({
 
   const [theme, setTheme] = useTheme();
   const [reducedEffects, setReducedEffects] = useReducedEffects();
+  const [{ legacyStyle, liquidGlass, roomyHeader }, setUiPref] = useUiPrefs();
   const publicBoardRef = useRef<HTMLElement>(null);
   const [activeTab, setActiveTab] = useState<SettingsTab>(focusSection === 'public-board' ? 'board' : (initialTab ?? 'account'));
   const [highlightBoard, setHighlightBoard] = useState(focusSection === 'public-board');
@@ -528,12 +535,14 @@ export default function SettingsSheet({
   return (
     <Overlay open={open} onClose={onClose} align="full">
     <div
-      className="settings-shell app-frame h-full w-full max-w-md mx-auto bg-base page-slide-in flex flex-col overflow-hidden"
+      className={legacyStyle ? 'settings-shell app-frame h-full w-full max-w-md mx-auto bg-base page-slide-in flex flex-col overflow-hidden border-x border-subtle' : 'settings-shell app-frame h-full w-full max-w-md mx-auto bg-base page-slide-in flex flex-col overflow-hidden'}
     >
       {/* ── 1. Clean Top Bar ── */}
       <div
-        className="settings-header flex items-center gap-2 px-3 shrink-0"
-        style={{ paddingTop: 'max(0.75rem, var(--safe-area-top))', paddingBottom: '0.75rem' }}
+        className={legacyStyle ? 'settings-header flex items-center gap-3 px-4 border-b border-subtle shrink-0 bg-elevated' : 'settings-header flex items-center gap-2 px-3 shrink-0'}
+        style={legacyStyle
+          ? { paddingTop: 'max(1rem, var(--safe-area-top))', paddingBottom: '0.875rem' }
+          : { paddingTop: 'max(0.75rem, var(--safe-area-top))', paddingBottom: '0.75rem' }}
       >
         <button
           onClick={
@@ -541,27 +550,28 @@ export default function SettingsSheet({
               ? () => setTrashOpen(false)
               : onClose
           }
-          className="glass rounded-full transition-opacity active:opacity-60 flex items-center justify-center"
+          className={legacyStyle ? 'p-2 -ml-1.5 rounded-xl text-content-secondary hover:text-content-primary hover:bg-surface transition-colors active:scale-95 flex items-center justify-center' : 'glass rounded-full transition-opacity active:opacity-60 flex items-center justify-center'}
           aria-label="Back"
         >
-          <ArrowLeft size={21} strokeWidth={2.2} />
+          {legacyStyle ? <ArrowLeft size={20} /> : <ArrowLeft size={21} strokeWidth={2.2} />}
         </button>
         <div className="min-w-0">
-          <h1 className="font-display text-[28px] leading-[34px] font-bold text-content-primary tracking-tight">
+          {legacyStyle && <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-primary">YouDO</p>}
+          <h1 className={legacyStyle ? 'text-[18px] leading-5 font-bold text-content-primary tracking-tight' : 'font-display text-[28px] leading-[34px] font-bold text-content-primary tracking-tight'}>
             {trashOpen ? 'Recently Deleted' : 'Settings'}
           </h1>
-          {!trashOpen && <p className="text-[13px] text-content-secondary">Your workspace, focus rules and privacy</p>}
+          {!trashOpen && <p className={legacyStyle ? 'mt-0.5 text-[11px] text-content-muted' : 'text-[13px] text-content-secondary'}>Your workspace, focus rules and privacy</p>}
         </div>
       </div>
 
       {/* ── 2. Tab Navigation Strip ── */}
       {!trashOpen && (
-        <div className="settings-tab-bar shrink-0 px-4 pt-2 pb-3">
+        <div className={legacyStyle ? 'settings-tab-bar shrink-0 px-3 pt-2 pb-2.5 bg-elevated/95 backdrop-blur-md border-b border-subtle' : 'settings-tab-bar shrink-0 px-4 pt-2 pb-3'}>
           <div
             ref={tabBarRef}
             role="tablist"
             aria-label="Settings categories"
-            className="ios-segmented relative overflow-x-auto overscroll-x-contain no-scrollbar scroll-smooth touch-pan-x"
+            className={legacyStyle ? 'relative flex items-center gap-1 overflow-x-auto overscroll-x-contain no-scrollbar scroll-smooth touch-pan-x p-1 bg-surface/90 rounded-2xl border border-subtle/80 shadow-inner' : 'ios-segmented relative overflow-x-auto overscroll-x-contain no-scrollbar scroll-smooth touch-pan-x'}
           >
             {tabs.map((tab, idx) => {
               const isActive = activeTab === tab.id;
@@ -580,9 +590,17 @@ export default function SettingsSheet({
                   tabIndex={isActive ? 0 : -1}
                   onKeyDown={(e) => handleTabKeyDown(e, idx)}
                   onClick={() => handleTabClick(tab.id)}
-                  className={`shrink-0 flex-none px-3.5 py-1.5 !flex-none whitespace-nowrap select-none ${isActive ? 'font-semibold' : 'font-medium'}`}
+                  className={legacyStyle
+                    ? `shrink-0 flex-none px-3.5 py-1.5 rounded-xl text-[12px] tracking-tight whitespace-nowrap transition-all duration-200 flex items-center justify-center gap-1.5 select-none active:scale-[0.98] ${
+                        isActive
+                          ? 'bg-primary text-on-primary shadow-sm shadow-primary/25 font-bold'
+                          : 'text-content-secondary hover:text-content-primary hover:bg-white/5 font-semibold'
+                      }`
+                    : `shrink-0 flex-none px-3.5 py-1.5 !flex-none whitespace-nowrap select-none ${isActive ? 'font-semibold' : 'font-medium'}`}
                 >
-                  <Icon size={14} className={isActive ? 'text-primary' : 'text-content-secondary'} />
+                  {legacyStyle
+                    ? <Icon size={13} className={isActive ? 'text-on-primary' : 'text-content-muted'} />
+                    : <Icon size={14} className={isActive ? 'text-primary' : 'text-content-secondary'} />}
                   <span>{tab.label}</span>
                   {tab.badge && (
                     <span
@@ -1722,7 +1740,7 @@ export default function SettingsSheet({
               </div>
             </div>
 
-            <div className="settings-data-row p-4 flex flex-col items-stretch gap-3">
+            {!legacyStyle && <div className="settings-data-row p-4 flex flex-col items-stretch gap-3">
               <div className="flex items-center gap-3 min-w-0 flex-1">
                 <div className="w-9 h-9 rounded-xl bg-primary-soft flex items-center justify-center text-primary shrink-0">
                   <Palette size={16} />
@@ -1753,7 +1771,7 @@ export default function SettingsSheet({
                   );
                 })}
               </div>
-            </div>
+            </div>}
 
             <div className="settings-data-row p-4 flex items-center justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -1780,6 +1798,58 @@ export default function SettingsSheet({
                 </div>
               </div>
               <Toggle checked={reducedEffects} onChange={() => setReducedEffects(!reducedEffects)} label="Reduced effects" />
+            </div>
+
+            <div className="settings-data-row p-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="w-9 h-9 rounded-xl bg-primary-soft flex items-center justify-center text-primary shrink-0">
+                  <Droplets size={16} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-xs font-semibold text-content-primary">Liquid Glass</h3>
+                  <p className="text-[10.5px] text-content-secondary font-medium">
+                    {reducedEffects
+                      ? 'Paused while Reduced Effects is on.'
+                      : legacyStyle
+                        ? 'Bouncy icon buttons. The glass tab pill is part of the new look.'
+                        : 'A glass pill that glides between tabs, and bouncy icon buttons.'}
+                  </p>
+                </div>
+              </div>
+              <Toggle checked={liquidGlass} onChange={() => setUiPref('liquidGlass', !liquidGlass)} label="Liquid Glass" />
+            </div>
+            {liquidGlass && !legacyStyle && (
+              <div className="settings-data-row px-4 pt-1 pb-4">
+                <LiquidGlassTuning />
+              </div>
+            )}
+
+            {!legacyStyle && (
+              <div className="settings-data-row p-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="w-9 h-9 rounded-xl bg-primary-soft flex items-center justify-center text-primary shrink-0">
+                    <PanelTop size={16} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-xs font-semibold text-content-primary">Roomy Header</h3>
+                    <p className="text-[10.5px] text-content-secondary font-medium">Date above the title, ring beside the icon, quote as a card.</p>
+                  </div>
+                </div>
+                <Toggle checked={roomyHeader} onChange={() => setUiPref('roomyHeader', !roomyHeader)} label="Roomy header" />
+              </div>
+            )}
+
+            <div className="settings-data-row p-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="w-9 h-9 rounded-xl bg-secondary-soft flex items-center justify-center text-secondary shrink-0">
+                  <Undo2 size={16} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-xs font-semibold text-content-primary">Classic Look</h3>
+                  <p className="text-[10.5px] text-content-secondary font-medium">The v7 design: its header, nav bar and task cards.</p>
+                </div>
+              </div>
+              <Toggle checked={legacyStyle} onChange={() => setUiPref('legacyStyle', !legacyStyle)} label="Classic look" />
             </div>
           </div>
         </section>

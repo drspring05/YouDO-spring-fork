@@ -475,6 +475,122 @@ button {
   gap: 12px;
   flex-wrap: nowrap;
 }
+.app-title-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.app-large-title {
+  margin: 0;
+  flex: 0 0 auto;
+  font-family: var(--font-display);
+  font-size: 34px;
+  line-height: 41px;
+  font-weight: 700;
+  letter-spacing: -0.022em;
+  color: var(--text-primary);
+}
+.app-title-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-top: 3px;
+}
+.app-header-date {
+  font-size: 13px;
+  line-height: 17px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.app-header-subtitle {
+  font-size: 13px;
+  line-height: 17px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.app-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+  padding: 5px;
+}
+.app-header-button {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+}
+.app-header-button:active { transform: scale(0.92); }
+/* The day's ring sits just outside the icon button and moves with it. */
+.app-header-ring {
+  position: absolute;
+  inset: -5px;
+  pointer-events: none;
+}
+
+/* The quote: one sleek line that scrolls past, paused under a finger. */
+@keyframes quote-ticker {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.quote-ticker {
+  --quote-bg: var(--bg-surface);
+  position: relative;
+  margin: 10px 0 0;
+  overflow: hidden;
+  background: var(--quote-bg);
+  border-radius: 999px;
+  box-shadow: var(--shadow-card);
+  padding-block: 7px;
+}
+.quote-ticker::before,
+.quote-ticker::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1.5rem;
+  z-index: 1;
+  pointer-events: none;
+}
+.quote-ticker::before { left: 0; background: linear-gradient(90deg, var(--quote-bg), transparent); }
+.quote-ticker::after { right: 0; background: linear-gradient(270deg, var(--quote-bg), transparent); }
+.quote-ticker-track {
+  display: flex;
+  width: max-content;
+  animation: quote-ticker 22s linear infinite;
+}
+.quote-ticker-track-steady { animation-duration: 22s; }
+.quote-ticker-track-medium { animation-duration: 19s; }
+.quote-ticker-track-fast { animation-duration: 16s; }
+.quote-ticker:active .quote-ticker-track { animation-play-state: paused; }
+.quote-ticker-item {
+  margin: 0;
+  flex-shrink: 0;
+  padding-right: 3rem;
+  font-size: 13px;
+  line-height: 16px;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+.quote-ticker-item cite { font-style: normal; color: var(--text-secondary); }
+@media (prefers-reduced-motion: reduce) {
+  .quote-ticker-track { animation: none; }
+}
+
+/* The roomy v8 header (Settings → Appearance → Roomy Header): the date
+   above the title, the tally below it, the ring beside the icon and the
+   quote as a card. */
 .app-header-eyebrow {
   margin: 0 0 2px;
   font-size: 13px;
@@ -483,38 +599,14 @@ button {
   text-transform: uppercase;
   color: var(--text-secondary);
 }
-.app-large-title {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: 34px;
-  line-height: 41px;
-  font-weight: 700;
-  letter-spacing: -0.022em;
-  color: var(--text-primary);
-}
-.app-header-subtitle {
+.app-header-subtitle-roomy {
   margin: 2px 0 0;
   font-size: 15px;
   line-height: 20px;
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
 }
-.app-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex: 0 0 auto;
-  padding-bottom: 4px;
-}
-.app-header-button {
-  width: 44px;
-  height: 44px;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-}
-.app-header-button:active { transform: scale(0.92); }
-
+.app-header-actions-roomy { padding: 0 0 4px; }
 .app-quote {
   margin: 14px 0 0;
   padding: 12px 14px;

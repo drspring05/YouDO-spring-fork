@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { Calendar, Clock, FileText, Link2, Play, Pause, Square, StickyNote, Trash2, CheckCircle2, Check } from 'lucide-react';
+import { useUiPrefs } from '../hooks/useUiPrefs';
 import type { Priority, Task, ActiveSession, TaskSession } from '../types';
 import { isBacklogTask, isTaskComplete } from '../store';
 import { hapticSessionStart, hapticSessionPause, hapticAmbient } from '../lib/haptics';
@@ -7,6 +8,9 @@ import Overlay from './Overlay';
 import { computeNetFocusMs } from '../lib/sessionStats';
 import { sessionClockLabel, sessionClockRange } from '../lib/sessionClock';
 import ActivityRing from './ActivityRing';
+
+// The v7 TaskCard is only fetched when Classic Look is on, to keep it out of the initial bundle.
+const LegacyTaskCard = lazy(() => import('../legacy/LegacyTaskCard'));
 
 interface Props {
   task: Task;
@@ -60,7 +64,7 @@ function fmtCountdown(deadline: string | null): string {
   return `${hours}h left`;
 }
 
-export default function TaskCard({
+function ModernTaskCard({
   task, stepDone, activeSession, onAdvance, onDelete,
   onDragStart, onDragEnter, onDragEnd, isDragging, dragOver, originNodes, softRemove,
   onCardClick, onJumpToGoal, onOpenDescription,
@@ -505,3 +509,15 @@ export default function TaskCard({
   );
 }
 
+
+/** The redesign, or the v7 TaskCard under Settings → Appearance → Classic look. */
+export default function TaskCard(props: Props) {
+  const [{ legacyStyle }] = useUiPrefs();
+  return legacyStyle ? (
+    <Suspense fallback={null}>
+      <LegacyTaskCard {...props} />
+    </Suspense>
+  ) : (
+    <ModernTaskCard {...props} />
+  );
+}

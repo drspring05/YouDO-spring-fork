@@ -1,0 +1,152 @@
+/*
+ * Liquid motion: the travelling tab pill and the icon-button bounce.
+ * Loaded alongside whichever interface stylesheet is active (see uiStyle.ts),
+ * so these rules hold in both the redesign and the legacy look.
+ */
+
+/* ── Tab pill ── */
+.tab-bar-tabs.has-pill {
+  position: relative;
+  touch-action: none;
+}
+/* The pill replaces each tab's own fading highlight. */
+.tab-bar-tabs.has-pill .tab-bar-item::before { display: none; }
+.tab-bar-tabs.has-pill .tab-bar-item {
+  z-index: 1;
+  /* The accent rides with the pill (TabPill sets --pill-mix each frame). */
+  color: color-mix(in srgb, var(--primary) calc(var(--pill-mix, 0) * 100%), var(--text-primary));
+}
+.tab-bar-tabs.has-pill .tab-bar-item:active { transform: none; }
+
+.tab-pill,
+.tab-pill-lens {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 999px;
+  pointer-events: none;
+  transform-origin: center;
+  will-change: transform, opacity;
+}
+.tab-pill {
+  z-index: 0;
+  background: var(--bg-fill-strong);
+}
+.tab-pill-lens {
+  z-index: 2;
+  visibility: hidden;
+  opacity: 0;
+  background: color-mix(in srgb, #ffffff var(--glass-tint, 7%), transparent);
+  /* The rim and its contact shadow fade with --rim, ahead of the refraction. */
+  box-shadow:
+    inset 0 0 0 0.5px rgba(255, 255, 255, calc(0.42 * var(--rim, 1))),
+    inset 1.5px 2px 1px -1.5px rgba(255, 255, 255, calc(0.85 * var(--rim, 1))),
+    inset -1.5px -2px 1px -1.5px rgba(255, 255, 255, calc(0.45 * var(--rim, 1))),
+    0 2px 12px -2px rgba(0, 0, 0, calc(0.3 * var(--rim, 1)));
+}
+html.light-dusky .tab-pill-lens {
+  background: color-mix(in srgb, #ffffff calc(var(--glass-tint, 7%) + 15%), transparent);
+  box-shadow:
+    inset 0 0 0 0.5px rgba(0, 0, 0, calc(0.08 * var(--rim, 1))),
+    inset 1.5px 2px 1px -1.5px rgba(255, 255, 255, var(--rim, 1)),
+    inset -1.5px -2px 1px -1.5px rgba(255, 255, 255, calc(0.7 * var(--rim, 1))),
+    0 2px 12px -2px rgba(0, 0, 0, calc(0.22 * var(--rim, 1)));
+}
+.liquid-lens-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* ── Icon-button bounce ── */
+/* The spring owns the press while it runs: drop each button's own shrink. */
+.is-bouncing {
+  --tw-scale-x: 1 !important;
+  --tw-scale-y: 1 !important;
+}
+.app-header-button.is-bouncing:active,
+.tab-bar-orb.is-bouncing:active,
+.fab.is-bouncing:active,
+.accent-swatch.is-bouncing:active,
+.settings-stepper-button.is-bouncing:active,
+.app-masthead-brand.is-bouncing:active {
+  transform: none;
+}
+/* A held icon button keeps the finger: without this Android claims the drag
+   as a scroll, cancels the press and the button snaps home on its own. */
+html[data-liquid-glass='true'] :is(button, [role='button']):has(> svg:only-child),
+html[data-liquid-glass='true'] :is(button.glass, .fab, .tab-bar-orb, [data-bounce]) {
+  touch-action: none;
+}
+
+/* ── Settings: previews and sliders for the liquid effects ── */
+.liquid-tuning { display: flex; flex-direction: column; gap: 10px; }
+.liquid-tuning.is-disabled { opacity: 0.45; pointer-events: none; }
+.liquid-preview {
+  position: relative;
+  overflow: hidden;
+  border-radius: 22px;
+  padding: 26px 12px;
+  isolation: isolate;
+}
+/* Something busy behind the glass, so the blur and the lens have work to show. */
+.liquid-preview-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    repeating-linear-gradient(115deg, transparent 0 14px, rgba(255, 255, 255, 0.16) 14px 22px),
+    radial-gradient(circle at 18% 30%, #ff9f0a 0 18%, transparent 42%),
+    radial-gradient(circle at 78% 70%, #5e5ce6 0 20%, transparent 46%),
+    radial-gradient(circle at 55% 15%, #30d158 0 12%, transparent 34%),
+    linear-gradient(135deg, #0a84ff, #bf5af2);
+}
+.liquid-preview-bar { margin-inline: auto; max-width: 22rem; }
+.liquid-hint { font-size: 11px; color: var(--text-muted); text-align: center; }
+.liquid-sliders { display: flex; flex-direction: column; gap: 12px; padding-top: 4px; }
+.liquid-slider { display: flex; flex-direction: column; gap: 6px; }
+.liquid-slider-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.liquid-slider-value { color: var(--text-secondary); font-variant-numeric: tabular-nums; font-weight: 500; }
+.liquid-slider input[type='range'] {
+  width: 100%;
+  height: 28px;
+  accent-color: var(--primary);
+  touch-action: pan-y;
+}
+.liquid-reset {
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary);
+  padding: 6px 2px;
+}
+.liquid-reset:disabled { opacity: 0.35; }
+
+/* ── Briefing slider: the knob's blue glass bubble ── */
+.briefing-bubble-lens {
+  visibility: hidden;
+  opacity: 0;
+  background: color-mix(in srgb, #0a84ff 42%, transparent);
+  box-shadow:
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.5),
+    inset 1.5px 2px 1px -1.5px rgba(255, 255, 255, 0.9),
+    inset -1.5px -2px 1px -1.5px rgba(255, 255, 255, 0.45),
+    0 4px 16px -4px color-mix(in srgb, #0a84ff 55%, transparent);
+}
+html.light-dusky .briefing-bubble-lens {
+  background: color-mix(in srgb, #007aff 38%, transparent);
+}
+/* The track no longer clips (the bubble stands past it), so its sheen keeps
+   the track's round ends on its own. */
+.briefing-slider-sheen { border-radius: inherit; }

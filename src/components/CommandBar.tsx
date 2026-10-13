@@ -1,6 +1,11 @@
-import { useRef } from 'react';
+import { lazy, Suspense, useRef } from 'react';
 import { Calendar, CalendarDays, CheckCircle2, Copy, FolderInput, RotateCcw, Settings, Target, Trash2, Users, X } from 'lucide-react';
 import type { View } from '../types';
+import TabPill from './TabPill';
+import { useUiPrefs } from '../hooks/useUiPrefs';
+
+// The v7 CommandBar is only fetched when Classic Look is on, to keep it out of the initial bundle.
+const LegacyCommandBar = lazy(() => import('../legacy/LegacyCommandBar'));
 
 interface BatchMode {
   count: number;
@@ -43,7 +48,7 @@ interface Props {
   hubPrivateAttention?: boolean;
 }
 
-export default function CommandBar({
+function ModernCommandBar({
   view,
   onNavigate,
   onSettings,
@@ -62,6 +67,7 @@ export default function CommandBar({
 }: Props) {
   const remainingToday = Math.max(0, todayCount - todayDone);
   const hubTouchStartY = useRef<number | null>(null);
+  const [{ liquidGlass }] = useUiPrefs();
 
   const tabs: { id: View; label: string; icon: typeof Target; badge?: number; quietBadge?: boolean }[] = [
     { id: 'tasks', label: 'Today', icon: CheckCircle2, badge: remainingToday > 0 ? remainingToday : undefined },
@@ -131,7 +137,13 @@ export default function CommandBar({
           </>
         ) : (
           <>
-            <div className="tab-bar-tabs">
+            <div className={`tab-bar-tabs ${liquidGlass ? 'has-pill' : ''}`}>
+              {liquidGlass && (
+                <TabPill
+                  activeIndex={tabs.findIndex((tab) => tab.id === view)}
+                  onSelect={(index) => onNavigate(tabs[index].id)}
+                />
+              )}
               {tabs.map((tab) => {
                 const Icon = tab.icon;
                 const active = view === tab.id;
@@ -273,5 +285,17 @@ export default function CommandBar({
         </button>
       )}
     </nav>
+  );
+}
+
+/** The redesign, or the v7 CommandBar under Settings → Appearance → Classic look. */
+export default function CommandBar(props: Props) {
+  const [{ legacyStyle }] = useUiPrefs();
+  return legacyStyle ? (
+    <Suspense fallback={null}>
+      <LegacyCommandBar {...props} />
+    </Suspense>
+  ) : (
+    <ModernCommandBar {...props} />
   );
 }
