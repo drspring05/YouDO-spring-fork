@@ -1,13 +1,10 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+import { PUSH_SECRET_HEADER, isAuthorizedCaller, isStaleTokenError, parsePushRequest } from './guard.ts';
 
-interface PushPayload {
-  userId?: string;
-  userIds?: string[];
-  title: string;
-  body: string;
-  data?: Record<string, string>;
-}
+// Called only by the database through pg_net (supabase/push_dispatch.sql),
+// which sends the shared PUSH_WEBHOOK_SECRET. Apps never call this function:
+// a client could otherwise send any text to any user.
 
 // In-memory token cache to prevent repeated OAuth token exchanges
 let cachedAccessToken: string | null = null;
@@ -107,14 +104,16 @@ export default {
       return Response.json({ ok: false, error: 'Method not allowed' }, { status: 405 });
     }
 
+    if (!isAuthorizedCaller(request.headers.get(PUSH_SECRET_HEADER), Deno.env.get('PUSH_WEBHOOK_SECRET'))) {
+      return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
     try {
-      const payload = (await request.json().catch(() => null)) as PushPayload | null;
-      if (!payload || (!payload.userId && !payload.userIds?.length) || !payload.title) {
-        return Response.json(
-          { ok: false, error: 'Missing required push notification fields' },
-          { status: 400 }
-        );
+      const parsed = parsePushRequest(await request.json().catch(() => null));
+      if (!parsed.ok) {
+        return Response.json({ ok: false, error: parsed.error }, { status: 400 });
       }
+      const payload = parsed.request;
 
       // Read Firebase service account from environment secret
       const serviceAccountJson = Deno.env.get('FIREBASE_SERVICE_ACCOUNT');
@@ -133,12 +132,10 @@ export default {
       const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
       const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-      const targetUserIds = payload.userIds ?? (payload.userId ? [payload.userId] : []);
-
       const { data: tokenRows, error: tokenError } = await supabase
         .from('user_push_tokens')
         .select('user_id, token')
-        .in('user_id', targetUserIds);
+        .in('user_id', payload.userIds);
 
       if (tokenError || !tokenRows || tokenRows.length === 0) {
         return Response.json({ ok: true, sent: 0, reason: 'No registered push tokens found' });
@@ -157,11 +154,11 @@ export default {
               title: payload.title,
               body: payload.body,
             },
-            data: payload.data ?? {},
+            data: payload.data,
             android: {
               priority: 'high',
               notification: {
-                channel_id: 'public-hub',
+                channel_id: payload.channel,
                 sound: 'default',
               },
             },
@@ -184,8 +181,7 @@ export default {
           successCount++;
         } else {
           const errBody = await fcmResponse.json().catch(() => ({}));
-          const errorCode = errBody?.error?.details?.[0]?.errorCode || errBody?.error?.status;
-          if (errorCode === 'UNREGISTERED' || errorCode === 'INVALID_ARGUMENT') {
+          if (isStaleTokenError(fcmResponse.status, errBody)) {
             staleTokens.push(row.token);
           }
         }

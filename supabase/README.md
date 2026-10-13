@@ -17,6 +17,8 @@ files in this directory.
 - **YouDO — Admin Hashtag Management** → `community_hashtag_admin.sql`
 - **YouDO — Managed App Quotes** → `app_quotes.sql`
 - **YouDO — Account Sessions** → `account_sessions.sql`
+- **YouDO — Push Tokens** → `user_push_tokens.sql`
+- **YouDO — Push Dispatch** → `push_dispatch.sql`
 - **YouDO — Optimize Auth RLS Policies** → `optimize_auth_rls_policies.sql`
 - **YouDO — Manage Community Staff** → `operations/manage_community_staff.sql`
 - **YouDO — Diagnostic — App Usage** → `operations/inspect_app_usage.sql`
@@ -94,6 +96,22 @@ See `docs/community-rooms.md` for compatibility and remaining device gates.
 Older apps must update to use the current Board. The unused compatibility bridge
 was never deployed and was removed from the repository; Git history retains it.
 This cleanup does not change the live database or private focus history/backups.
+
+## Push notifications
+
+Apply `push_dispatch.sql` after `user_push_tokens.sql` and `community_hashtags.sql`.
+Pushes are sent by database triggers through `pg_net`; apps never call the
+`send-push` Edge Function, which rejects any request without the shared
+`x-push-secret` header. One-time setup per project (values are never committed):
+
+1. SQL Editor: `select vault.create_secret('https://<project-ref>.supabase.co', 'project_url');`
+2. SQL Editor: `select vault.create_secret('<random 64-char secret>', 'push_webhook_secret');`
+3. `supabase secrets set PUSH_WEBHOOK_SECRET=<same secret>` (and `FIREBASE_SERVICE_ACCOUNT`).
+4. `supabase functions deploy send-push`.
+
+Without the Vault secrets, triggers skip the push with a warning and the user's
+action still succeeds. `claim_push_token` moves a device to the account signed in
+on it, so an earlier account's notifications stop arriving after a switch.
 
 The update notice now uses all release bullets and scrolls them within its panel;
 the three-bullet limit described above applied to v7.5.14 and older clients.

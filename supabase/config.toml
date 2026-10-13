@@ -2,4 +2,6 @@
 verify_jwt = true
 
 [functions.send-push]
+# pg_net calls carry no user JWT. The function itself rejects every request
+# without the PUSH_WEBHOOK_SECRET header (see supabase/push_dispatch.sql).
 verify_jwt = false
