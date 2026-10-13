@@ -1,12 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Collapsed focus-session card: task, live time, one big play/pause button. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:gravity="center_vertical"
-    android:minHeight="48dp"
+    android:minHeight="56dp"
     android:orientation="horizontal"
-    android:paddingStart="0dp"
-    android:paddingEnd="0dp"
     android:paddingTop="2dp"
     android:paddingBottom="2dp">
 
@@ -18,36 +17,56 @@
         android:paddingEnd="12dp">
 
         <TextView
-            android:id="@+id/notif_status"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:ellipsize="end"
-            android:letterSpacing="0.08"
-            android:maxLines="1"
-            android:textAllCaps="true"
-            android:textColor="@color/notif_brand_gold"
-            android:textSize="11sp"
-            android:textStyle="bold" />
-
-        <TextView
             android:id="@+id/notif_title"
-            style="@style/TextAppearance.Compat.Notification.Title"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:ellipsize="end"
             android:maxLines="1"
-            android:paddingTop="2dp"
             android:textColor="@color/notif_title_color"
-            android:textSize="15sp"
+            android:textSize="16sp"
             android:textStyle="bold" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingTop="3dp">
+
+            <TextView
+                android:id="@+id/notif_status"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:letterSpacing="0.08"
+                android:maxLines="1"
+                android:textAllCaps="true"
+                android:textColor="@color/notif_brand_gold"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="  ·  "
+                android:textColor="@color/notif_muted_color"
+                android:textSize="12sp" />
+
+            <Chronometer
+                android:id="@+id/notif_elapsed"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFeatureSettings="tnum"
+                android:textColor="@color/notif_secondary_color"
+                android:textSize="13sp" />
+        </LinearLayout>
     </LinearLayout>
 
     <ImageView
         android:id="@+id/notif_action"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
         android:background="@drawable/notif_action_bg"
         android:contentDescription="@string/app_name"
-        android:padding="11dp"
+        android:padding="14dp"
         android:src="@drawable/ic_notify_pause" />
 </LinearLayout>

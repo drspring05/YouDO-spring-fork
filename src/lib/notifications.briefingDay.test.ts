@@ -54,7 +54,7 @@ describe('morning briefing content', () => {
 
     const notification = schedule.mock.calls[0][0].notifications[0];
     expect(notification.schedule.at.getDate()).toBe(13);
-    expect(notification.largeBody).toContain('GATE 2027 (79 days left)');
+    expect(notification.largeBody).toContain('GATE 2027 · 79 days left');
   });
 
   it('reschedules when the content changes even if the delivery time does not', async () => {

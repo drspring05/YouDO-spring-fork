@@ -358,15 +358,15 @@ export function buildMorningBriefingContent(
 
     if (topGoal) {
       if (Number.isNaN(topGoal.daysLeft)) {
-        parts.push(`🎯 ${topGoal.title} (In progress)`);
+        parts.push(`${topGoal.title} · in progress`);
       } else if (topGoal.daysLeft > 1) {
-        parts.push(`🎯 ${topGoal.title} (${topGoal.daysLeft} days left)`);
+        parts.push(`${topGoal.title} · ${topGoal.daysLeft} days left`);
       } else if (topGoal.daysLeft === 1) {
-        parts.push(`🎯 ${topGoal.title} (Deadline tomorrow!)`);
+        parts.push(`${topGoal.title} · due tomorrow`);
       } else if (topGoal.daysLeft === 0) {
-        parts.push(`🎯 ${topGoal.title} (Due today!)`);
+        parts.push(`${topGoal.title} · due today`);
       } else {
-        parts.push(`🎯 ${topGoal.title} (${Math.abs(topGoal.daysLeft)}d overdue)`);
+        parts.push(`${topGoal.title} · ${Math.abs(topGoal.daysLeft)} days overdue`);
       }
     }
   }
@@ -374,24 +374,25 @@ export function buildMorningBriefingContent(
   // Today's planned tasks
   if (prefs.includeTodayPlan) {
     if (data.todayTasksCount > 0) {
-      parts.push(`📋 ${data.todayTasksCount} task${data.todayTasksCount === 1 ? '' : 's'} scheduled for today`);
+      parts.push(`${data.todayTasksCount} task${data.todayTasksCount === 1 ? '' : 's'} planned today`);
     } else {
-      parts.push(`📋 No tasks scheduled yet · Time to plan!`);
+      parts.push('Nothing planned yet · pick your first task from Goals');
     }
   }
 
   // Backlog tasks
   if (prefs.includeBacklog && data.openBacklogCount > 0) {
-    parts.push(`⚠️ ${data.openBacklogCount} uncompleted task${data.openBacklogCount === 1 ? '' : 's'} in backlog`);
+    parts.push(`${data.openBacklogCount} open in backlog`);
   }
 
   // Streak status
   if (prefs.includeStreak && data.streakCount > 0) {
-    parts.push(`🔥 ${data.streakCount}-day streak · Keep it burning!`);
+    parts.push(`${data.streakCount}-day streak`);
   }
 
-  const title = '🌅 Good morning! Daily Focus Briefing';
-  const fullText = parts.length > 0 ? parts.join('\n') : 'Ready to conquer today? Open YouDO to review your targets.';
+  // Calm and plain on the lock screen: no emojis, one fact per line.
+  const title = 'Good morning';
+  const fullText = parts.length > 0 ? parts.join('\n') : 'Open YouDO to plan your day.';
   const body = fullText;
   const largeBody = fullText;
   const summaryText = 'Daily Morning Briefing';

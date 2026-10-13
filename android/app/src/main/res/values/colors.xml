@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- YouDO Brand Notification Palette (Light theme) -->
-    <color name="notif_brand_gold">#007AFF</color>
-    <color name="notif_brand_sage">#248A3D</color>
+    <color name="notif_brand_gold">#8C6A3A</color>
+    <color name="notif_brand_sage">#4E7A57</color>
     <color name="notif_title_color">#000000</color>
     <color name="notif_secondary_color">#3C3C43</color>
     <color name="notif_muted_color">#8E8E93</color>

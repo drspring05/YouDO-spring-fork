@@ -351,10 +351,10 @@ describe('Notification Integration & Read-State Synchronization', () => {
       const { title, body } = buildMorningBriefingContent(data);
 
       expect(title).toContain('Good morning');
-      expect(body).toContain('🎯 State PSC Exam (15 days left)');
-      expect(body).toContain('📋 1 task scheduled for today');
-      expect(body).toContain('⚠️ 2 uncompleted tasks in backlog');
-      expect(body).toContain('🔥 12-day streak');
+      expect(body).toContain('State PSC Exam · 15 days left');
+      expect(body).toContain('1 task planned today');
+      expect(body).toContain('2 open in backlog');
+      expect(body).toContain('12-day streak');
     });
   });
 });

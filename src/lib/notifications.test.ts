@@ -245,10 +245,10 @@ describe('notifications library', () => {
       const { title, body } = buildMorningBriefingContent(data);
 
       expect(title).toContain('Good morning');
-      expect(body).toContain('🎯 UPSC CSE Prelims (14 days left)');
-      expect(body).toContain('📋 1 task scheduled for today');
-      expect(body).toContain('⚠️ 1 uncompleted task in backlog');
-      expect(body).toContain('🔥 5-day streak');
+      expect(body).toContain('UPSC CSE Prelims · 14 days left');
+      expect(body).toContain('1 task planned today');
+      expect(body).toContain('1 open in backlog');
+      expect(body).toContain('5-day streak');
     });
 
     it('respects sub-toggles to omit specific sections if user turns them off', () => {
@@ -265,7 +265,7 @@ describe('notifications library', () => {
       expect(body).not.toContain('UPSC CSE Prelims');
       expect(body).not.toContain('backlog');
       expect(body).not.toContain('streak');
-      expect(body).toContain('1 task scheduled for today');
+      expect(body).toContain('1 task planned today');
     });
     it('includes largeBody and summaryText for clean Android expansion without clipping', () => {
       const data = extractBriefingData(mockTasks, mockGoals, 5, 8, '2026-10-09');
@@ -318,7 +318,7 @@ describe('notifications library', () => {
       expect(data.activeGoals[0].daysLeft).toBe(20);
 
       const content = buildMorningBriefingContent(data);
-      expect(content.body).toContain('🎯 Main UPSC Exam (20 days left)');
+      expect(content.body).toContain('Main UPSC Exam · 20 days left');
       expect(content.body).not.toContain('Sub-chapter 1 Milestone');
       expect(content.body).not.toContain('Deep child task');
     });
@@ -361,7 +361,7 @@ describe('notifications library', () => {
         ...DEFAULT_NOTIFICATION_PREFERENCES.morningBriefing,
         selectedGoalId: 'auto',
       });
-      expect(contentAuto.body).toContain('🎯 Goal Alpha (Near Deadline) (3 days left)');
+      expect(contentAuto.body).toContain('Goal Alpha (Near Deadline) · 3 days left');
 
       // Explicit selection: Goal Beta
       const dataSelected = extractBriefingData([], multipleRootGoals, 0, 0, '2026-10-09', 'goal-beta');
@@ -370,7 +370,7 @@ describe('notifications library', () => {
         ...DEFAULT_NOTIFICATION_PREFERENCES.morningBriefing,
         selectedGoalId: 'goal-beta',
       });
-      expect(contentSelected.body).toContain('🎯 Goal Beta (Selected Goal) (15 days left)');
+      expect(contentSelected.body).toContain('Goal Beta (Selected Goal) · 15 days left');
       expect(contentSelected.body).not.toContain('Goal Alpha');
 
       // Fallback: if selected goal is invalid or missing, falls back to nearest deadline
@@ -380,7 +380,7 @@ describe('notifications library', () => {
         ...DEFAULT_NOTIFICATION_PREFERENCES.morningBriefing,
         selectedGoalId: 'nonexistent-id',
       });
-      expect(contentFallback.body).toContain('🎯 Goal Alpha (Near Deadline) (3 days left)');
+      expect(contentFallback.body).toContain('Goal Alpha (Near Deadline) · 3 days left');
     });
 
     it('resolves root goal endDate from child milestone if root has no explicit endDate', () => {
@@ -423,7 +423,7 @@ describe('notifications library', () => {
       expect(data.activeGoals[0].daysLeft).toBe(31);
 
       const content = buildMorningBriefingContent(data);
-      expect(content.body).toContain('🎯 Chartered Financial Analyst Exam (31 days left)');
+      expect(content.body).toContain('Chartered Financial Analyst Exam · 31 days left');
       expect(content.body).not.toContain('Level 1 Milestone');
       expect(content.body).not.toContain('Final Examination Milestone');
     });
@@ -455,7 +455,7 @@ describe('notifications library', () => {
         ...DEFAULT_NOTIFICATION_PREFERENCES.morningBriefing,
         selectedGoalId: 'goal-open',
       });
-      expect(content.body).toContain('🎯 Continuous Habit Mastery (In progress)');
+      expect(content.body).toContain('Continuous Habit Mastery · in progress');
       expect(content.body).not.toContain('Dated Target');
     });
   });
