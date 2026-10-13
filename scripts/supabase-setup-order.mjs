@@ -4,6 +4,7 @@
 // matters. Not listed on purpose:
 // - full_hub_rooms_rollback.sql: removes the Private Hub.
 // - rooms_privacy_and_invites.sql: fully contained in full_hub_rooms_setup.sql.
+// - drop_private_hub_access.sql: one-off cleanup of the retired Private Hub switch.
 // - add_pace_window_keys.sql, user_backup_snapshots.sql: patches for old projects,
 //   already part of their canonical setup files.
 export const SUPABASE_SETUP_ORDER = [
@@ -25,6 +26,5 @@ export const SUPABASE_SETUP_ORDER = [
   'hub_waitlist_and_backers',
   'user_push_tokens',
   'push_dispatch',
-  'private_hub_access',
   'optimize_auth_rls_policies',
 ];

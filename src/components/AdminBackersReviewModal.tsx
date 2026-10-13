@@ -14,7 +14,7 @@ import {
   fetchPendingHubBackers,
   reviewHubBacker,
   type PendingBackerItem,
-} from '../lib/hubWaitlist';
+} from '../lib/backers';
 
 interface Props {
   open: boolean;

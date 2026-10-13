@@ -35,7 +35,7 @@ import { checkDeviceClock, clearClockIncident } from './lib/deviceClock';
 import UpdateNotice from './components/UpdateNotice';
 import { useCommunityActivity } from './hooks/useCommunityActivity';
 import { useHubAttention } from './hooks/useHubAttention';
-import { usePrivateHubAccess } from './hooks/usePrivateHubAccess';
+import { useIsCommunityAdmin } from './hooks/useIsCommunityAdmin';
 import { useFocusStatusShare } from './hooks/useFocusStatusShare';
 import { ADMIN_QUEUE_EVENT, useAdminHubCounts } from './hooks/useAdminHubCounts';
 import { useAuth } from './contexts/AuthContext';
@@ -181,9 +181,9 @@ function AppInner() {
   const { user: activityUser } = useAuth();
   const { pacePrefs: activityPrefs } = useStore();
   useCommunityActivity(activityUser?.id, activityPrefs.optedIn);
-  const privateHubAccess = usePrivateHubAccess(activityUser?.id);
+  const isCommunityAdmin = useIsCommunityAdmin(activityUser?.id);
   // Room-mates see when you are focusing (never what on).
-  useFocusStatusShare(activityUser?.id, activeSession, privateHubAccess.open);
+  useFocusStatusShare(activityUser?.id, activeSession);
   const {
     privatePending: hubPrivatePending,
     communityUnread: hubCommunityUnread,
@@ -194,8 +194,8 @@ function AppInner() {
     refreshPrivate: refreshHubPrivate,
     refreshDmInbox: refreshHubDmInbox,
     refreshSquadChat: refreshHubSquadChat,
-  } = useHubAttention(activityUser?.id, activityPrefs.optedIn, privateHubAccess.open);
-  const { queue: adminQueue } = useAdminHubCounts(privateHubAccess.isAdmin);
+  } = useHubAttention(activityUser?.id, activityPrefs.optedIn);
+  const { queue: adminQueue } = useAdminHubCounts(isCommunityAdmin);
   const [adminHubOpen, setAdminHubOpen] = useState(false);
   const { clockBlocked, clockReady, setClockBlocked } = useClockIntegrity();
   const [clockVerifyBusy, setClockVerifyBusy] = useState(false);
@@ -381,11 +381,9 @@ function AppInner() {
   const initialHubSubTabSetRef = useRef(false);
 
   const defaultHubSubTab = useCallback((): 'social' | 'private' => {
-    // While the Private Hub is closed to this account, Hub opens on the Public Board.
-    if (!privateHubAccess.open) return 'social';
     if (privateHubAttention) return 'private';
     return activityPrefs.optedIn ? 'social' : 'private';
-  }, [privateHubAccess.open, privateHubAttention, activityPrefs.optedIn]);
+  }, [privateHubAttention, activityPrefs.optedIn]);
 
   useEffect(() => {
     if (!activityUser) {
@@ -1747,7 +1745,6 @@ function AppInner() {
               <HubView
                 onOpenBoardSettings={openBoardSettings}
                 activeTab={hubSubTab}
-                privateHubOpen={privateHubAccess.open}
                 personalPace={streakMeta.barHours}
                 onSwitchToPrivate={() => setHubSubTab('private')}
                 onSwitchToPublic={() => setHubSubTab('social')}
@@ -1803,7 +1800,7 @@ function AppInner() {
           showHubNavDot={showHubNavDot}
           hubCommunityUnread={hubCommunityUnread}
           hubPrivateAttention={privateHubAttention}
-          onOpenAdminHub={privateHubAccess.isAdmin ? openAdminHub : undefined}
+          onOpenAdminHub={isCommunityAdmin ? openAdminHub : undefined}
           adminPending={adminQueue.total}
           todayCount={todayCount}
           todayDone={todayDone}
@@ -1889,7 +1886,7 @@ function AppInner() {
             focusSection={settingsFocus ?? undefined}
             streakBarHours={streakMeta.barHours}
             onStreakBarHoursChange={setStreakBarHours}
-            onOpenAdminHub={privateHubAccess.isAdmin ? openAdminHub : undefined}
+            onOpenAdminHub={isCommunityAdmin ? openAdminHub : undefined}
             adminPending={adminQueue.total}
           />
         </Suspense>

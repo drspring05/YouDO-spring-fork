@@ -4,14 +4,12 @@ import BoardView from './BoardView';
 import type { PaceRow, PaceWindow } from '../lib/paceBoard';
 import UserProfileSheet from './UserProfileSheet';
 import HubAuthGate from './HubAuthGate';
-import PrivateHubUnderDevelopment from './PrivateHubUnderDevelopment';
 import PrivateHubView from './PrivateHubView';
 import { requestOpenDm } from './hub/openDm';
 
 export default function HubView({
   onOpenBoardSettings,
   activeTab = 'social',
-  privateHubOpen = false,
   personalPace,
   onSwitchToPrivate,
   onSwitchToPublic,
@@ -24,8 +22,6 @@ export default function HubView({
 }: {
   onOpenBoardSettings: () => void;
   activeTab?: 'social' | 'private';
-  /** From the Admin Hub switch: members see the hub only once it is on; admins always do. */
-  privateHubOpen?: boolean;
   personalPace?: number;
   onSwitchToPrivate?: () => void;
   onSwitchToPublic?: () => void;
@@ -59,18 +55,14 @@ export default function HubView({
     return (
       <div className="w-full">
         <div key={activeTab} className="hub-screen-transition overflow-x-hidden">
-          {activeTab === 'social' ? (
-            <HubAuthGate
-              tab={activeTab}
-              isOffline={!isOnline}
-              onSwitchTab={(target) => {
-                if (target === 'private') onSwitchToPrivate?.();
-                else onSwitchToPublic?.();
-              }}
-            />
-          ) : (
-            <PrivateHubUnderDevelopment onSwitchToPublic={onSwitchToPublic} />
-          )}
+          <HubAuthGate
+            tab={activeTab}
+            isOffline={!isOnline}
+            onSwitchTab={(target) => {
+              if (target === 'private') onSwitchToPrivate?.();
+              else onSwitchToPublic?.();
+            }}
+          />
         </div>
       </div>
     );
@@ -88,7 +80,7 @@ export default function HubView({
               if (paceWindow) setProfileBoardWindow(paceWindow);
             }}
           />
-        ) : privateHubOpen ? (
+        ) : (
           <PrivateHubView
             personalPace={personalPace}
             onSwitchToPublic={onSwitchToPublic}
@@ -99,8 +91,6 @@ export default function HubView({
             dmsTabAttention={dmsTabAttention}
             roomsTabAttention={roomsTabAttention}
           />
-        ) : (
-          <PrivateHubUnderDevelopment onSwitchToPublic={onSwitchToPublic} />
         )}
       </div>
 
@@ -108,21 +98,16 @@ export default function HubView({
         userId={profileUserId}
         boardPreview={profileBoardPreview}
         boardPaceWindow={profileBoardWindow}
-        privateHubEnabled={privateHubOpen}
         onClose={() => {
           setProfileUserId(null);
           setProfileBoardPreview(null);
         }}
-        onMessage={
-          privateHubOpen
-            ? () => {
-                const target = profileUserId;
-                setProfileUserId(null);
-                onSwitchToPrivate?.();
-                if (target) requestOpenDm(target);
-              }
-            : undefined
-        }
+        onMessage={() => {
+          const target = profileUserId;
+          setProfileUserId(null);
+          onSwitchToPrivate?.();
+          if (target) requestOpenDm(target);
+        }}
       />
     </div>
   );

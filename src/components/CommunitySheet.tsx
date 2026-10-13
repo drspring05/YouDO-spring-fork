@@ -38,7 +38,6 @@ import { clearChatCache } from '../lib/communityChat';
 import { fetchAdminCommunityHashtags, fetchAdminHashtagRequests, type AdminCommunityHashtag, type CommunityHashtagRequest } from '../lib/communityHashtags';
 import { fetchAdminAppQuotes, type AdminAppQuote } from '../lib/appQuotes';
 import { dismissAdminNotification } from '../lib/notifications';
-import { fetchPrivateHubAccess, setPrivateHubEnabled, type PrivateHubAccess } from '../lib/privateHubAccess';
 import UserProfileSheet from './UserProfileSheet';
 import AdminBackersReviewModal from './AdminBackersReviewModal';
 import { HubNavBar } from './hub/HubParts';
@@ -73,14 +72,7 @@ export default function CommunitySheet({ open, onClose, userId, rows, initialCon
   const featureBusy = useRef(false);
   // The room and the Admin Hub are separate places: the sheet opens in one of them.
   const mode: 'room' | 'admin' = startInAdmin ? 'admin' : 'room';
-  const [hubAccess, setHubAccess] = useState<PrivateHubAccess | null>(null);
   const [backersOpen, setBackersOpen] = useState(false);
-  useEffect(() => {
-    if (!open || mode !== 'admin') return;
-    let cancelled = false;
-    void fetchPrivateHubAccess().then((access) => { if (!cancelled) setHubAccess(access); });
-    return () => { cancelled = true; };
-  }, [open, mode]);
   const [draft, setDraft] = useState('');
   const [replyToId, setReplyToId] = useState<string | null>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
@@ -234,23 +226,6 @@ export default function CommunitySheet({ open, onClose, userId, rows, initialCon
       const ok = await saveCommunitySettings(next);
       setStatus(ok ? 'Control saved.' : 'Could not update that control. Try again.');
       if (ok) { hapticTick(); await refresh(); }
-    } finally {
-      featureBusy.current = false;
-      setSavingFeature(false);
-    }
-  };
-  const togglePrivateHub = async () => {
-    if (!hubAccess || featureBusy.current || busy) return;
-    featureBusy.current = true;
-    setSavingFeature(true);
-    setStatus('');
-    try {
-      const next = await setPrivateHubEnabled(!hubAccess.enabled);
-      setHubAccess(next);
-      hapticTick();
-      setStatus(next.enabled ? 'Private Hub is open to members.' : 'Private Hub is closed to members. Admins can still preview it.');
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'Could not change the Private Hub switch.');
     } finally {
       featureBusy.current = false;
       setSavingFeature(false);
@@ -426,16 +401,7 @@ export default function CommunitySheet({ open, onClose, userId, rows, initialCon
         </nav>
         {!adminLoaded && adminTab !== 'controls' && <p role="status" className="community-empty">{refreshError ? 'Moderation records could not be loaded.' : 'Loading moderation records…'}</p>}
         <div hidden={adminTab !== 'controls'} className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-        <section className="mb-5 rounded-[24px] border border-subtle bg-surface overflow-hidden shadow-sm" aria-label="Private Hub">
-          <div className="flex items-center justify-between gap-3 p-5 border-b border-subtle/50">
-            <div className="min-w-0 flex-1">
-              <p className="text-[13px] font-bold text-content-primary">Private Hub</p>
-              <p className="text-[11px] text-content-muted mt-1">
-                {hubAccess === null ? 'Checking…' : hubAccess.enabled ? 'Open to every member' : 'Closed to members · admins can preview'}
-              </p>
-            </div>
-            <Toggle disabled={busy || savingFeature || hubAccess === null} checked={hubAccess?.enabled ?? false} onChange={() => void togglePrivateHub()} label="Toggle Private Hub for members" />
-          </div>
+        <section className="mb-5 rounded-[24px] border border-subtle bg-surface overflow-hidden shadow-sm" aria-label="Supporters">
           <button type="button" onClick={() => setBackersOpen(true)} className="flex w-full items-center justify-between gap-3 p-5 text-left">
             <span className="min-w-0 flex-1">
               <span className="block text-[13px] font-bold text-content-primary">Backer claims</span>

@@ -4,11 +4,10 @@ import { focusShareFromSession, focusShareKey, setFocusStatus } from '../lib/foc
 
 /**
  * Shares "focusing / paused / idle" with room-mates when a session starts,
- * pauses, resumes or stops — not on every heartbeat. Only while the Private
- * Hub is open to this account. A failed write is retried on the next change
- * or when the app comes back to the foreground.
+ * pauses, resumes or stops — not on every heartbeat. A failed write is
+ * retried on the next change or when the app comes back to the foreground.
  */
-export function useFocusStatusShare(userId: string | undefined, session: ActiveSession | null | undefined, enabled: boolean) {
+export function useFocusStatusShare(userId: string | undefined, session: ActiveSession | null | undefined) {
   const sent = useRef<string | null>(null);
   const share = focusShareFromSession(session);
   const key = focusShareKey(share);
@@ -18,7 +17,7 @@ export function useFocusStatusShare(userId: string | undefined, session: ActiveS
   }, [userId]);
 
   useEffect(() => {
-    if (!userId || !enabled || sent.current === key) return;
+    if (!userId || sent.current === key) return;
     let cancelled = false;
     void setFocusStatus(share).then((ok) => {
       if (!cancelled && ok) sent.current = key;
@@ -28,10 +27,10 @@ export function useFocusStatusShare(userId: string | undefined, session: ActiveS
     };
     // `share` is derived from `key`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, enabled, key]);
+  }, [userId, key]);
 
   useEffect(() => {
-    if (!userId || !enabled) return;
+    if (!userId) return;
     const retry = () => {
       if (document.visibilityState !== 'visible' || sent.current === key) return;
       void setFocusStatus(share).then((ok) => {
@@ -41,5 +40,5 @@ export function useFocusStatusShare(userId: string | undefined, session: ActiveS
     document.addEventListener('visibilitychange', retry);
     return () => document.removeEventListener('visibilitychange', retry);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, enabled, key]);
+  }, [userId, key]);
 }

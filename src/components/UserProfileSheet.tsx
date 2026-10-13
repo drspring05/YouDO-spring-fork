@@ -29,8 +29,6 @@ interface Props {
   boardPreview?: PaceRow | null;
   boardPaceWindow?: PaceWindow;
   onClose: () => void;
-  /** False while the Private Hub is closed to this viewer: no friend or message actions. */
-  privateHubEnabled?: boolean;
 }
 
 export default function UserProfileSheet({
@@ -41,7 +39,6 @@ export default function UserProfileSheet({
   onClose,
   onMessage,
   onFriendshipChange,
-  privateHubEnabled = true,
 }: Props) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(false);
@@ -56,7 +53,7 @@ export default function UserProfileSheet({
   const isSelf = Boolean(user?.id && userId && user.id === userId);
   const privateHandle = normalizeUsername(profile?.username);
   const displayName = profile?.display_name ?? paceRow?.displayName ?? boardPreview?.displayName ?? 'Aspirant';
-  const canUsePrivateHub = privateHubEnabled && Boolean(privateHandle);
+  const canUsePrivateHub = Boolean(privateHandle);
 
   const isOpen = open !== undefined ? open : Boolean(userId);
 
@@ -271,7 +268,7 @@ export default function UserProfileSheet({
                 </div>
               )}
 
-              {!isSelf && user && privateHubEnabled && !privateHandle && paceRow && (
+              {!isSelf && user && !privateHandle && paceRow && (
                 <p className="text-[11px] text-center text-content-secondary leading-relaxed rounded-[14px] border border-dashed border-subtle bg-elevated/40 px-3.5 py-2.5">
                   Private Hub messaging &amp; requests unlock when this user claims a username handle.
                 </p>

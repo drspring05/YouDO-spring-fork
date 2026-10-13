@@ -17,6 +17,7 @@ import {
   Flame,
   Hash,
   History,
+  Heart,
   Info,
   KeyRound,
   LogIn,
@@ -76,6 +77,7 @@ import { checkAppUpdateStatus, type AppRelease } from '../lib/appUpdate';
 import UpdateAction from './UpdateAction';
 import { APP_VERSION } from '../lib/version';
 import SignedInDevices from './SignedInDevices';
+import SupportSheet from './SupportSheet';
 import CommunityHashtagProfileField from './community/CommunityHashtagProfileField';
 import type { CommunityHashtagContext } from '../lib/communityHashtags';
 import { parseSyncConflictRecord } from '../lib/syncConflictRecord';
@@ -231,6 +233,7 @@ export default function SettingsSheet({
   };
 
   const [trashOpen, setTrashOpen] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(false);
   const [trashRestoreError, setTrashRestoreError] = useState<string | null>(null);
   const [streakBarHelpOpen, setStreakBarHelpOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -449,7 +452,7 @@ export default function SettingsSheet({
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (trashOpen || editProfileOpen || securityOpen || restoreOpen) return;
+    if (trashOpen || editProfileOpen || securityOpen || restoreOpen || supportOpen) return;
     if (e.touches.length !== 1) return;
 
     const target = e.target as HTMLElement | null;
@@ -2845,6 +2848,25 @@ export default function SettingsSheet({
               </div>
               <ChevronRight size={16} className="shrink-0 text-content-muted" />
             </button>
+
+            <button
+              type="button"
+              onClick={() => setSupportOpen(true)}
+              className="settings-data-row w-full p-4 flex flex-nowrap items-center justify-between gap-3 text-left hover:bg-white/2 transition"
+            >
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                <div className="size-9 shrink-0 rounded-xl bg-primary-soft text-primary grid place-items-center">
+                  <Heart size={16} />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-xs font-semibold text-content-primary">Support YouDO</h3>
+                  <p className="text-[10.5px] text-content-secondary font-medium leading-relaxed">
+                    Optional UPI support and the Founding Backer badge
+                  </p>
+                </div>
+              </div>
+              <ChevronRight size={16} className="shrink-0 text-content-muted" />
+            </button>
           </div>
           <p className="mt-2 px-1 text-[10px] leading-relaxed text-content-muted">
             For a bug, mention what you were doing, what happened and what you expected. Remove personal information from screenshots.
@@ -2855,6 +2877,7 @@ export default function SettingsSheet({
       </div>
       )}
     </div>
+    <SupportSheet open={supportOpen} onClose={() => setSupportOpen(false)} />
     </Overlay>
   );
 }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchAdminHubCounts, type AdminHubCounts } from '../lib/community';
-import { fetchPendingHubBackers } from '../lib/hubWaitlist';
+import { fetchPendingHubBackers } from '../lib/backers';
 import { dismissAdminNotification, dispatchAdminNotification } from '../lib/notifications';
 
 export interface AdminQueue extends AdminHubCounts {

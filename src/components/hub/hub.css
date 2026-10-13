@@ -49,12 +49,14 @@
   color: var(--text-primary);
   transition: background-color 0.2s var(--hub-ease), box-shadow 0.2s var(--hub-ease);
 }
-.hub-segmented > button[aria-selected='true'] {
+.hub-segmented > button[aria-selected='true'],
+.hub-segmented > button[aria-checked='true'] {
   font-weight: 600;
   background: var(--bg-elevated);
   box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12), 0 3px 1px rgba(0, 0, 0, 0.04), 0 0 0 0.5px rgba(0, 0, 0, 0.04);
 }
-html.dark .hub-segmented > button[aria-selected='true'] { background: #636366; }
+html.dark .hub-segmented > button[aria-selected='true'],
+html.dark .hub-segmented > button[aria-checked='true'] { background: #636366; }
 .hub-segmented-dot {
   width: 7px;
   height: 7px;
@@ -327,6 +329,7 @@ button.hub-row:active, .hub-row.is-pressable:active { background: var(--hub-fill
   background: var(--hub-tint-soft);
   color: var(--primary);
 }
+.hub-empty-icon.is-success { background: var(--hub-success-soft); color: var(--secondary); }
 .hub-empty-title { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; color: var(--text-primary); }
 .hub-empty-text { max-width: 270px; font-size: 14px; line-height: 20px; color: var(--text-secondary); }
 .hub-empty .hub-pill-button { margin-top: 12px; }
@@ -694,3 +697,36 @@ textarea.hub-field { min-height: 92px; padding-top: 12px; padding-bottom: 12px; 
   .hub-sheet { animation: none; }
 }
 html[data-reduced-effects='true'] .hub-live-dot::after { animation: none; }
+
+/* ── Support sheet ───────────────────────────────────────────────────────── */
+.hub-support-intro {
+  margin: 4px 4px 18px;
+  font-size: 15px;
+  line-height: 21px;
+  color: var(--text-secondary);
+}
+/* Scanners need dark modules on white, in both themes. */
+.hub-support-qr {
+  display: grid;
+  place-items: center;
+  padding: 18px 0 14px;
+}
+.hub-support-qr svg {
+  width: min(196px, 58vw);
+  height: auto;
+  padding: 12px;
+  border-radius: 16px;
+  background: #ffffff;
+  color: #000000;
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.08);
+}
+.hub-support-upi {
+  display: block;
+  margin-top: 1px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  user-select: all;
+  -webkit-user-select: all;
+}
