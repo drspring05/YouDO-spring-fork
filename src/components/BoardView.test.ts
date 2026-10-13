@@ -69,7 +69,7 @@ describe('BoardView responsive layout & hygiene', () => {
     expect(html).not.toContain('sitting was excluded');
   });
 
-  it('renders admin button and badge cleanly without overflow when admin items exist', () => {
+  it('keeps admin tools off the Board: the Admin Hub opens from the Settings button', () => {
     const html = renderToStaticMarkup(
       createElement(BoardView, {
         onOpenBoardSettings: vi.fn(),
@@ -83,84 +83,13 @@ describe('BoardView responsive layout & hygiene', () => {
           staffIds: [],
           banned: false,
         },
-        initialAdminCounts: {
-          reports: 1,
-          appeals: 0,
-          hashtagRequests: 0,
-          chatReplies: 0,
-          total: 1,
-        },
       }),
     );
 
-    expect(html).toContain('board-admin-link');
-    expect(html).toContain('board-admin-badge');
-    expect(html).not.toContain('board-admin-badge-dot');
-    expect(html).toContain('>1<');
-    expect(html).toContain('Open community admin, 1 unreviewed items');
-    expect(html).toContain('1 pending admin items');
-    // Ensure no negative coordinates that protrude past container
-    expect(html).not.toContain('-right-');
-    expect(html).not.toContain('-top-');
-    expect(html).not.toContain('-mr-');
-  });
-
-  it('renders 9+ badge boundary for two-digit admin counts without overflow', () => {
-    const html = renderToStaticMarkup(
-      createElement(BoardView, {
-        onOpenBoardSettings: vi.fn(),
-        initialCommunity: {
-          available: true,
-          dayKey: '2026-10-10',
-          isAdmin: true,
-          canJoin: true,
-          canPost: true,
-          settings: { roomEnabled: true, appreciationsEnabled: true, announcement: '' },
-          staffIds: [],
-          banned: false,
-        },
-        initialAdminCounts: {
-          reports: 5,
-          appeals: 3,
-          hashtagRequests: 4,
-          chatReplies: 0,
-          total: 12,
-        },
-      }),
-    );
-
-    expect(html).toContain('board-admin-badge');
-    expect(html).toContain('>9+<');
-    expect(html).toContain('Open community admin, 12 unreviewed items');
-  });
-
-  it('renders clean admin button without badge when total unreviewed items is 0', () => {
-    const html = renderToStaticMarkup(
-      createElement(BoardView, {
-        onOpenBoardSettings: vi.fn(),
-        initialCommunity: {
-          available: true,
-          dayKey: '2026-10-10',
-          isAdmin: true,
-          canJoin: true,
-          canPost: true,
-          settings: { roomEnabled: true, appreciationsEnabled: true, announcement: '' },
-          staffIds: [],
-          banned: false,
-        },
-        initialAdminCounts: {
-          reports: 0,
-          appeals: 0,
-          hashtagRequests: 0,
-          chatReplies: 0,
-          total: 0,
-        },
-      }),
-    );
-
-    expect(html).toContain('board-admin-link');
+    expect(html).toContain('board-community-link');
+    expect(html).not.toContain('board-admin-link');
     expect(html).not.toContain('board-admin-badge');
-    expect(html).toContain('aria-label="Open community admin"');
+    expect(html).not.toContain('with-admin');
   });
 
   it('safely passes onOpenProfile callback which supports null row for off-board chat authors', () => {

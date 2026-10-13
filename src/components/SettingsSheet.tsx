@@ -10,6 +10,7 @@ import {
   Check,
   CheckCircle2,
   ChevronRight,
+  Gauge,
   Clock,
   Download,
   Edit2,
@@ -101,6 +102,9 @@ interface Props {
   initialTab?: SettingsTab;
   streakBarHours: number;
   onStreakBarHoursChange: (hours: number) => void;
+  /** Admins only: the Admin Hub row (the backup to holding the Settings button). */
+  onOpenAdminHub?: () => void;
+  adminPending?: number;
 }
 
 function SectionLabel({ children, icon }: { children: React.ReactNode; icon?: React.ReactNode }) {
@@ -137,6 +141,8 @@ export default function SettingsSheet({
   initialTab,
   streakBarHours,
   onStreakBarHoursChange,
+  onOpenAdminHub,
+  adminPending = 0,
 }: Props) {
   const {
     exportBackup,
@@ -716,6 +722,31 @@ export default function SettingsSheet({
           tabIndex={activeTab === 'account' ? 0 : -1}
           className={activeTab === 'account' ? 'space-y-5 fade-in outline-none' : 'hidden'}
         >
+          {onOpenAdminHub && (
+            <section>
+              <button
+                type="button"
+                onClick={onOpenAdminHub}
+                className="settings-card flex w-full items-center gap-3 rounded-2xl border border-subtle bg-elevated p-4 text-left"
+                aria-label={adminPending > 0 ? `Admin Hub, ${adminPending} ${adminPending === 1 ? 'item' : 'items'} waiting` : 'Admin Hub'}
+              >
+                <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary-soft text-primary">
+                  <Gauge size={16} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-semibold text-content-primary">Admin Hub</span>
+                  <span className="mt-0.5 block text-[11px] text-content-muted">Tip: hold the Settings button to open it from anywhere</span>
+                </span>
+                {adminPending > 0 && (
+                  <span className="grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-on-primary" aria-hidden>
+                    {adminPending > 99 ? '99+' : adminPending}
+                  </span>
+                )}
+                <ChevronRight size={16} className="shrink-0 text-content-muted" />
+              </button>
+            </section>
+          )}
+
           {/* ── SECTION 1: ACCOUNT & SYNC ── */}
           <section>
           <SectionLabel icon={<ShieldCheck size={13} className="text-secondary" />}>ACCOUNT &amp; SYNC</SectionLabel>

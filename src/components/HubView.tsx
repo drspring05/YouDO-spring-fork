@@ -5,15 +5,26 @@ import type { PaceRow, PaceWindow } from '../lib/paceBoard';
 import UserProfileSheet from './UserProfileSheet';
 import HubAuthGate from './HubAuthGate';
 import PrivateHubUnderDevelopment from './PrivateHubUnderDevelopment';
+import PrivateHubView from './PrivateHubView';
 
 export default function HubView({
   onOpenBoardSettings,
   activeTab = 'social',
+  privateHubOpen = false,
+  personalPace,
   onSwitchToPrivate,
   onSwitchToPublic,
+  pendingCount,
+  refreshPendingCount,
+  refreshDmInbox,
+  refreshSquadChat,
+  dmsTabAttention,
+  roomsTabAttention,
 }: {
   onOpenBoardSettings: () => void;
   activeTab?: 'social' | 'private';
+  /** From the Admin Hub switch: members see the hub only once it is on; admins always do. */
+  privateHubOpen?: boolean;
   personalPace?: number;
   onSwitchToPrivate?: () => void;
   onSwitchToPublic?: () => void;
@@ -75,6 +86,17 @@ export default function HubView({
               setProfileBoardPreview(row ?? null);
               if (paceWindow) setProfileBoardWindow(paceWindow);
             }}
+          />
+        ) : privateHubOpen ? (
+          <PrivateHubView
+            personalPace={personalPace}
+            onSwitchToPublic={onSwitchToPublic}
+            pendingCount={pendingCount}
+            refreshPendingCount={refreshPendingCount}
+            refreshDmInbox={refreshDmInbox}
+            refreshSquadChat={refreshSquadChat}
+            dmsTabAttention={dmsTabAttention}
+            roomsTabAttention={roomsTabAttention}
           />
         ) : (
           <PrivateHubUnderDevelopment onSwitchToPublic={onSwitchToPublic} />

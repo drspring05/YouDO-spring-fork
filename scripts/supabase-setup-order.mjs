@@ -22,5 +22,6 @@ export const SUPABASE_SETUP_ORDER = [
   'hub_waitlist_and_backers',
   'user_push_tokens',
   'push_dispatch',
+  'private_hub_access',
   'optimize_auth_rls_policies',
 ];

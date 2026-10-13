@@ -1137,6 +1137,47 @@ input[type='datetime-local'] {
   color: var(--text-primary);
 }
 .tab-bar-orb:active { transform: scale(0.92); }
+/* Admins: holding Settings fills a ring (after a short pause, so taps never flash it), then opens the Admin Hub. */
+.admin-hold-ring {
+  position: absolute;
+  inset: 5px;
+  width: calc(100% - 10px);
+  height: calc(100% - 10px);
+  transform: rotate(-90deg);
+  pointer-events: none;
+}
+.admin-hold-ring circle {
+  fill: none;
+  stroke: var(--primary);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  animation: admin-hold-fill 580ms linear 120ms forwards;
+}
+@keyframes admin-hold-fill { to { stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .admin-hold-ring circle { animation: none; stroke-dashoffset: 0; opacity: 0.6; }
+}
+/* Admin items waiting: a number, top-left, so it never reads as the sync warning dot. */
+.admin-orb-badge {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 0 0 2px var(--bg-surface);
+  pointer-events: none;
+}
 .tab-bar-sheet { border-radius: 30px; padding: 8px; }
 
 @media (max-width: 340px) {

@@ -35,6 +35,8 @@ import { checkDeviceClock, clearClockIncident } from './lib/deviceClock';
 import UpdateNotice from './components/UpdateNotice';
 import { useCommunityActivity } from './hooks/useCommunityActivity';
 import { useHubAttention } from './hooks/useHubAttention';
+import { usePrivateHubAccess } from './hooks/usePrivateHubAccess';
+import { ADMIN_QUEUE_EVENT, useAdminHubCounts } from './hooks/useAdminHubCounts';
 import { useAuth } from './contexts/AuthContext';
 import { closeTopOverlay } from './lib/overlayNavigation';
 import { FALLBACK_APP_QUOTES, fetchAppQuotes, loadCachedAppQuotes, type AppQuote } from './lib/appQuotes';
@@ -51,6 +53,7 @@ const BlueprintStudio = lazy(() => import('./components/BlueprintStudio'));
 const CalendarView = lazy(() => import('./components/CalendarView'));
 const HubView = lazy(() => import('./components/HubView'));
 const SettingsSheet = lazy(() => import('./components/SettingsSheet'));
+const AdminHubSheet = lazy(() => import('./components/AdminHubSheet'));
 
 const pickQuote = (quotes: AppQuote[]): AppQuote | null => quotes.length
   ? quotes[Math.floor(Math.random() * quotes.length)]
@@ -177,6 +180,7 @@ function AppInner() {
   const { user: activityUser } = useAuth();
   const { pacePrefs: activityPrefs } = useStore();
   useCommunityActivity(activityUser?.id, activityPrefs.optedIn);
+  const privateHubAccess = usePrivateHubAccess(activityUser?.id);
   const {
     privatePending: hubPrivatePending,
     communityUnread: hubCommunityUnread,
@@ -187,7 +191,9 @@ function AppInner() {
     refreshPrivate: refreshHubPrivate,
     refreshDmInbox: refreshHubDmInbox,
     refreshSquadChat: refreshHubSquadChat,
-  } = useHubAttention(activityUser?.id, activityPrefs.optedIn);
+  } = useHubAttention(activityUser?.id, activityPrefs.optedIn, privateHubAccess.open);
+  const { queue: adminQueue } = useAdminHubCounts(privateHubAccess.isAdmin);
+  const [adminHubOpen, setAdminHubOpen] = useState(false);
   const { clockBlocked, clockReady, setClockBlocked } = useClockIntegrity();
   const [clockVerifyBusy, setClockVerifyBusy] = useState(false);
   const [clockVerifyError, setClockVerifyError] = useState<string | null>(null);
@@ -332,6 +338,11 @@ function AppInner() {
         }
       }
       window.dispatchEvent(new Event('youdo:blueprint-back-request'));
+      return true;
+    }
+    if (adminHubOpen) {
+      setAdminHubOpen(false);
+      window.dispatchEvent(new Event(ADMIN_QUEUE_EVENT));
       return true;
     }
     if (settingsOpen) {
@@ -549,6 +560,23 @@ function AppInner() {
   const closeSettings = useCallback(() => {
     setSettingsOpen(false);
     setSettingsFocus(null);
+    if (window.history.state?.modal) window.history.back();
+  }, []);
+
+  /** Hold Settings, or Settings → Admin Hub. From Settings it takes over its back-button entry. */
+  const openAdminHub = useCallback(() => {
+    if (settingsOpen) {
+      setSettingsOpen(false);
+      setSettingsFocus(null);
+    } else {
+      pushModalState();
+    }
+    setAdminHubOpen(true);
+  }, [settingsOpen, pushModalState]);
+
+  const closeAdminHub = useCallback(() => {
+    setAdminHubOpen(false);
+    window.dispatchEvent(new Event(ADMIN_QUEUE_EVENT));
     if (window.history.state?.modal) window.history.back();
   }, []);
 
@@ -1759,6 +1787,7 @@ function AppInner() {
               <HubView
                 onOpenBoardSettings={openBoardSettings}
                 activeTab={hubSubTab}
+                privateHubOpen={privateHubAccess.open}
                 personalPace={streakMeta.barHours}
                 onSwitchToPrivate={() => setHubSubTab('private')}
                 onSwitchToPublic={() => setHubSubTab('social')}
@@ -1814,6 +1843,8 @@ function AppInner() {
           showHubNavDot={showHubNavDot}
           hubCommunityUnread={hubCommunityUnread}
           hubPrivateAttention={privateHubAttention}
+          onOpenAdminHub={privateHubAccess.isAdmin ? openAdminHub : undefined}
+          adminPending={adminQueue.total}
           todayCount={todayCount}
           todayDone={todayDone}
           goalsCount={goals.length}
@@ -1898,7 +1929,14 @@ function AppInner() {
             focusSection={settingsFocus ?? undefined}
             streakBarHours={streakMeta.barHours}
             onStreakBarHoursChange={setStreakBarHours}
+            onOpenAdminHub={privateHubAccess.isAdmin ? openAdminHub : undefined}
+            adminPending={adminQueue.total}
           />
+        </Suspense>
+      )}
+      {adminHubOpen && activityUser && (
+        <Suspense fallback={null}>
+          <AdminHubSheet userId={activityUser.id} onClose={closeAdminHub} />
         </Suspense>
       )}
 

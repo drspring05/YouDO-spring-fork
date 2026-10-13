@@ -1,8 +1,13 @@
-import { lazy, Suspense, useRef } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { Calendar, CalendarDays, CheckCircle2, Copy, FolderInput, RotateCcw, Settings, Target, Trash2, Users, X } from 'lucide-react';
 import type { View } from '../types';
 import TabPill from './TabPill';
 import { useUiPrefs } from '../hooks/useUiPrefs';
+import { hapticTick } from '../lib/haptics';
+
+/** Holding the Settings button this long opens the Admin Hub (admins only). */
+export const ADMIN_HOLD_MS = 700;
+const ADMIN_HOLD_SLOP = 10;
 
 // The v7 CommandBar is only fetched when Classic Look is on, to keep it out of the initial bundle.
 const LegacyCommandBar = lazy(() => import('../legacy/LegacyCommandBar'));
@@ -46,6 +51,62 @@ interface Props {
   hubCommunityUnread?: number;
   /** Any private-side activity (notifications, DMs, room requests). */
   hubPrivateAttention?: boolean;
+  /** Admins only: holding Settings opens the Admin Hub. */
+  onOpenAdminHub?: () => void;
+  /** Admin items waiting to be handled; shown as a number on the Settings button. */
+  adminPending?: number;
+}
+
+/** Press-and-hold on the Settings button; a normal tap still opens Settings. */
+function useAdminHold(onOpenAdminHub: (() => void) | undefined) {
+  const [holding, setHolding] = useState(false);
+  const hold = useRef<{ timer: number; x: number; y: number } | null>(null);
+  const fired = useRef(false);
+
+  const cancel = () => {
+    if (hold.current) window.clearTimeout(hold.current.timer);
+    hold.current = null;
+    setHolding(false);
+  };
+  useEffect(() => cancel, []);
+
+  if (!onOpenAdminHub) return { holding: false, handlers: {}, consumeClick: () => false };
+
+  return {
+    holding,
+    consumeClick: () => {
+      if (!fired.current) return false;
+      fired.current = false;
+      return true;
+    },
+    handlers: {
+      onPointerDown: (event: ReactPointerEvent) => {
+        if (!event.isPrimary || event.button !== 0) return;
+        fired.current = false;
+        cancel();
+        hold.current = {
+          x: event.clientX,
+          y: event.clientY,
+          timer: window.setTimeout(() => {
+            hold.current = null;
+            fired.current = true;
+            setHolding(false);
+            hapticTick();
+            onOpenAdminHub();
+          }, ADMIN_HOLD_MS),
+        };
+        setHolding(true);
+      },
+      onPointerMove: (event: ReactPointerEvent) => {
+        const start = hold.current;
+        if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > ADMIN_HOLD_SLOP) cancel();
+      },
+      onPointerUp: cancel,
+      onPointerCancel: cancel,
+      onPointerLeave: cancel,
+      onContextMenu: (event: ReactMouseEvent) => event.preventDefault(),
+    },
+  };
 }
 
 function ModernCommandBar({
@@ -64,10 +125,14 @@ function ModernCommandBar({
   showHubNavDot = false,
   hubCommunityUnread = 0,
   hubPrivateAttention = false,
+  onOpenAdminHub,
+  adminPending = 0,
 }: Props) {
   const remainingToday = Math.max(0, todayCount - todayDone);
   const hubTouchStartY = useRef<number | null>(null);
   const [{ liquidGlass }] = useUiPrefs();
+  const adminHold = useAdminHold(onOpenAdminHub);
+  const showAdminBadge = Boolean(onOpenAdminHub) && adminPending > 0;
 
   const tabs: { id: View; label: string; icon: typeof Target; badge?: number; quietBadge?: boolean }[] = [
     { id: 'tasks', label: 'Today', icon: CheckCircle2, badge: remainingToday > 0 ? remainingToday : undefined },
@@ -270,12 +335,25 @@ function ModernCommandBar({
       {!batch && !paste && (
         <button
           type="button"
-          onClick={onSettings}
-          className="glass tab-bar-orb"
-          title="Settings"
-          aria-label="Settings"
+          onClick={() => {
+            if (!adminHold.consumeClick()) onSettings();
+          }}
+          {...adminHold.handlers}
+          className={`glass tab-bar-orb ${adminHold.holding ? 'is-admin-holding' : ''}`}
+          title={onOpenAdminHub ? 'Settings · hold for Admin Hub' : 'Settings'}
+          aria-label={showAdminBadge ? `Settings, ${adminPending} admin ${adminPending === 1 ? 'item' : 'items'} waiting` : 'Settings'}
         >
           <Settings size={24} strokeWidth={1.9} />
+          {adminHold.holding && (
+            <svg className="admin-hold-ring" viewBox="0 0 40 40" aria-hidden>
+              <circle cx="20" cy="20" r="18" pathLength={100} />
+            </svg>
+          )}
+          {showAdminBadge && (
+            <span className="admin-orb-badge" aria-hidden>
+              {adminPending > 9 ? '9+' : adminPending}
+            </span>
+          )}
           {syncAttention && (
             <span
               className="absolute right-3.5 top-3.5 size-2.5 rounded-full bg-warning ring-2 ring-[var(--bg-surface)]"

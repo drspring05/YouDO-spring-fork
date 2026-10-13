@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Activity, AlertTriangle, ArrowLeft, Check, ChevronDown, Flag, Gauge, Heart, MessageCircle, RefreshCw, Reply, Send, ShieldCheck, UserRoundCheck, UserRoundX, X } from 'lucide-react';
+import { Activity, AlertTriangle, ArrowLeft, Check, ChevronDown, ChevronRight, Flag, Gauge, Heart, MessageCircle, RefreshCw, Reply, Send, ShieldCheck, UserRoundCheck, UserRoundX, X } from 'lucide-react';
 import type { PaceRow } from '../lib/paceBoard';
 import {
   canSubmitCommunityAppeal,
@@ -38,7 +38,9 @@ import { clearChatCache } from '../lib/communityChat';
 import { fetchAdminCommunityHashtags, fetchAdminHashtagRequests, type AdminCommunityHashtag, type CommunityHashtagRequest } from '../lib/communityHashtags';
 import { fetchAdminAppQuotes, type AdminAppQuote } from '../lib/appQuotes';
 import { dismissAdminNotification } from '../lib/notifications';
+import { fetchPrivateHubAccess, setPrivateHubEnabled, type PrivateHubAccess } from '../lib/privateHubAccess';
 import UserProfileSheet from './UserProfileSheet';
+import AdminBackersReviewModal from './AdminBackersReviewModal';
 
 interface Props {
   open: boolean;
@@ -68,10 +70,16 @@ export default function CommunitySheet({ open, onClose, userId, rows, initialCon
   const [adminTab, setAdminTab] = useState<'review' | 'hashtags' | 'controls' | 'quotes' | 'history'>('review');
   const [savingFeature, setSavingFeature] = useState(false);
   const featureBusy = useRef(false);
-  const [mode, setMode] = useState<'room' | 'admin'>(startInAdmin ? 'admin' : 'room');
+  // The room and the Admin Hub are separate places: the sheet opens in one of them.
+  const mode: 'room' | 'admin' = startInAdmin ? 'admin' : 'room';
+  const [hubAccess, setHubAccess] = useState<PrivateHubAccess | null>(null);
+  const [backersOpen, setBackersOpen] = useState(false);
   useEffect(() => {
-    setMode(startInAdmin ? 'admin' : 'room');
-  }, [startInAdmin, open]);
+    if (!open || mode !== 'admin') return;
+    let cancelled = false;
+    void fetchPrivateHubAccess().then((access) => { if (!cancelled) setHubAccess(access); });
+    return () => { cancelled = true; };
+  }, [open, mode]);
   const [draft, setDraft] = useState('');
   const [replyToId, setReplyToId] = useState<string | null>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
@@ -230,6 +238,23 @@ export default function CommunitySheet({ open, onClose, userId, rows, initialCon
       setSavingFeature(false);
     }
   };
+  const togglePrivateHub = async () => {
+    if (!hubAccess || featureBusy.current || busy) return;
+    featureBusy.current = true;
+    setSavingFeature(true);
+    setStatus('');
+    try {
+      const next = await setPrivateHubEnabled(!hubAccess.enabled);
+      setHubAccess(next);
+      hapticTick();
+      setStatus(next.enabled ? 'Private Hub is open to members.' : 'Private Hub is closed to members. Admins can still preview it.');
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Could not change the Private Hub switch.');
+    } finally {
+      featureBusy.current = false;
+      setSavingFeature(false);
+    }
+  };
   const moderate = async (target: string, action: 'mute_24h' | 'mute_7d' | 'ban' | 'restore') => {
     setBusy(true);
     const ok = await moderateCommunityMember(target, action, 'Board community moderation');
@@ -256,30 +281,12 @@ export default function CommunitySheet({ open, onClose, userId, rows, initialCon
   return <Overlay open={open} onClose={onClose} align="full">
     <div className="community-shell app-frame mx-auto flex h-full w-full max-w-md flex-col overflow-hidden border-x border-subtle bg-base">
       <header className={`flex shrink-0 items-center gap-2 bg-elevated px-3 pt-[max(0.75rem,var(--safe-area-top))] ${mode === 'room' && context.chatV2 ? 'pb-1' : 'border-b border-subtle pb-3'}`}>
-        <button type="button" onClick={onClose} className="grid size-9 place-items-center rounded-xl text-content-secondary hover:bg-surface" aria-label="Close community"><ArrowLeft size={19} /></button>
+        <button type="button" onClick={onClose} className="grid size-9 place-items-center rounded-xl text-content-secondary hover:bg-surface" aria-label={mode === 'admin' ? 'Close Admin Hub' : 'Close community'}><ArrowLeft size={19} /></button>
         <span className="grid size-9 place-items-center rounded-xl border border-primary/20 bg-primary-soft text-primary">{mode === 'admin' ? <Gauge size={17} /> : <MessageCircle size={17} />}</span>
         <div className="min-w-0 flex-1">
-          <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-primary">Board community</p>
-          <h2 className="text-[16px] font-bold text-content-primary truncate">{mode === 'admin' ? 'Community admin' : 'Community'}</h2>
+          <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-primary">{mode === 'admin' ? 'YouDO' : 'Board community'}</p>
+          <h2 className="text-[16px] font-bold text-content-primary truncate">{mode === 'admin' ? 'Admin Hub' : 'Community'}</h2>
         </div>
-        {context.isAdmin && (
-          <button
-            type="button"
-            onClick={() => setMode(mode === 'admin' ? 'room' : 'admin')}
-            className={`relative flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-xs font-bold transition border ${
-              mode === 'admin'
-                ? 'border-primary/30 bg-primary-soft text-primary'
-                : 'border-subtle bg-surface hover:bg-surface-elevated text-secondary'
-            }`}
-            aria-label={mode === 'admin' ? 'Switch to Community chat room' : 'Switch to Community Admin Hub'}
-          >
-            <Gauge size={13} />
-            <span>{mode === 'admin' ? 'Room' : 'Admin'}</span>
-            {mode === 'room' && (reports.length + appeals.length + hashtagRequests.length > 0) && (
-              <span className="size-2 rounded-full bg-warning ring-2 ring-elevated animate-pulse" />
-            )}
-          </button>
-        )}
         <button type="button" disabled={refreshing} onClick={() => void refresh()} className="grid size-9 place-items-center rounded-xl text-content-muted" aria-label="Refresh"><RefreshCw size={15} /></button>
       </header>
 
@@ -397,6 +404,24 @@ export default function CommunitySheet({ open, onClose, userId, rows, initialCon
         </nav>
         {!adminLoaded && adminTab !== 'controls' && <p role="status" className="community-empty">{refreshError ? 'Moderation records could not be loaded.' : 'Loading moderation records…'}</p>}
         <div hidden={adminTab !== 'controls'} className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <section className="mb-5 rounded-[24px] border border-subtle bg-surface overflow-hidden shadow-sm" aria-label="Private Hub">
+          <div className="flex items-center justify-between gap-3 p-5 border-b border-subtle/50">
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] font-bold text-content-primary">Private Hub</p>
+              <p className="text-[11px] text-content-muted mt-1">
+                {hubAccess === null ? 'Checking…' : hubAccess.enabled ? 'Open to every member' : 'Closed to members · admins can preview'}
+              </p>
+            </div>
+            <Toggle disabled={busy || savingFeature || hubAccess === null} checked={hubAccess?.enabled ?? false} onChange={() => void togglePrivateHub()} label="Toggle Private Hub for members" />
+          </div>
+          <button type="button" onClick={() => setBackersOpen(true)} className="flex w-full items-center justify-between gap-3 p-5 text-left">
+            <span className="min-w-0 flex-1">
+              <span className="block text-[13px] font-bold text-content-primary">Backer claims</span>
+              <span className="block text-[11px] text-content-muted mt-1">Verify or reject UPI support claims</span>
+            </span>
+            <ChevronRight size={16} className="shrink-0 text-content-muted" />
+          </button>
+        </section>
         <section className="rounded-[24px] border border-subtle bg-surface overflow-hidden shadow-sm">
           <div className="flex items-center justify-between gap-3 p-5 border-b border-subtle/50">
             <div className="min-w-0 flex-1">
@@ -497,6 +522,9 @@ export default function CommunitySheet({ open, onClose, userId, rows, initialCon
           boardPreview={rows.find((r) => r.userId === selectedProfileUserId) ?? null}
           onClose={() => setSelectedProfileUserId(null)}
         />
+      )}
+      {mode === 'admin' && context.isAdmin && (
+        <AdminBackersReviewModal open={backersOpen} onClose={() => setBackersOpen(false)} />
       )}
     </div>
   </Overlay>;

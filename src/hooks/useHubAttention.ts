@@ -14,9 +14,9 @@ import {
 } from '../lib/squads';
 import { fetchPendingRequests } from '../lib/profiles';
 
-const IS_PRIVATE_HUB_GATED = true;
-
-export function useHubAttention(userId: string | undefined, publicBoardOptedIn = false) {
+/** `privateHubOpen` comes from the Admin Hub switch: closed, no private syncs, badges or realtime run. */
+export function useHubAttention(userId: string | undefined, publicBoardOptedIn = false, privateHubOpen = false) {
+  const privateHubGated = !privateHubOpen;
   const [friendPending, setFriendPending] = useState(0);
   const [squadInboxPending, setSquadInboxPending] = useState(0);
   const [roomsOutgoingPending, setRoomsOutgoingPending] = useState(0);
@@ -24,10 +24,10 @@ export function useHubAttention(userId: string | undefined, publicBoardOptedIn =
   const [dmUnread, setDmUnread] = useState(0);
   const [communityUnread, setCommunityUnread] = useState(0);
 
-  const privatePending = IS_PRIVATE_HUB_GATED ? 0 : friendPending + squadInboxPending;
+  const privatePending = privateHubGated ? 0 : friendPending + squadInboxPending;
 
   const refreshPrivate = useCallback(async () => {
-    if (!userId || IS_PRIVATE_HUB_GATED) return;
+    if (!userId || privateHubGated) return;
     const [friends, invites, joins, outgoing] = await Promise.all([
       fetchPendingRequests(userId),
       fetchPendingSquadInvites(userId),
@@ -37,20 +37,20 @@ export function useHubAttention(userId: string | undefined, publicBoardOptedIn =
     setFriendPending(friends.length);
     setSquadInboxPending(invites.length + joins.length);
     setRoomsOutgoingPending(outgoing.length);
-  }, [userId]);
+  }, [userId, privateHubGated]);
 
   const refreshDmInbox = useCallback(async () => {
-    if (!userId || IS_PRIVATE_HUB_GATED) return;
+    if (!userId || privateHubGated) return;
     const previews = await fetchDmInboxPreviews(userId);
     let total = 0;
     for (const p of Object.values(previews)) total += p.unreadCount;
     setDmUnread(total);
-  }, [userId]);
+  }, [userId, privateHubGated]);
 
   const refreshSquadChat = useCallback(async () => {
-    if (!userId || IS_PRIVATE_HUB_GATED) return;
+    if (!userId || privateHubGated) return;
     setSquadChatUnread(await squadRoomsHaveUnreadChat(userId));
-  }, [userId]);
+  }, [userId, privateHubGated]);
 
   const refreshCommunity = useCallback(async () => {
     if (!userId || !publicBoardOptedIn) {
@@ -70,14 +70,14 @@ export function useHubAttention(userId: string | undefined, publicBoardOptedIn =
   }, [userId, publicBoardOptedIn]);
 
   const refreshAll = useCallback(() => {
-    if (!IS_PRIVATE_HUB_GATED) {
+    if (!privateHubGated) {
       void refreshPrivate();
       void refreshDmInbox();
       void refreshSquadChat();
     }
     if (publicBoardOptedIn) void refreshCommunity();
     else setCommunityUnread(0);
-  }, [refreshPrivate, refreshDmInbox, refreshSquadChat, refreshCommunity, publicBoardOptedIn]);
+  }, [refreshPrivate, refreshDmInbox, refreshSquadChat, refreshCommunity, publicBoardOptedIn, privateHubGated]);
 
   useEffect(() => {
     if (!userId) {
@@ -94,9 +94,18 @@ export function useHubAttention(userId: string | undefined, publicBoardOptedIn =
       setCommunityUnread(0);
     }
 
+    if (privateHubGated) {
+      // Closing the hub must not leave its last badges behind.
+      setFriendPending(0);
+      setSquadInboxPending(0);
+      setRoomsOutgoingPending(0);
+      setSquadChatUnread(false);
+      setDmUnread(0);
+    }
+
     refreshAll();
 
-    const stopRealtime = IS_PRIVATE_HUB_GATED
+    const stopRealtime = privateHubGated
       ? () => {}
       : subscribePrivateHubRealtime(userId, {
           onPending: () => void refreshPrivate(),
@@ -104,7 +113,7 @@ export function useHubAttention(userId: string | undefined, publicBoardOptedIn =
           onSquads: () => void refreshSquadChat(),
         });
 
-    const stopPoll = IS_PRIVATE_HUB_GATED
+    const stopPoll = privateHubGated
       ? () => {}
       : startPrivateHubForegroundSync(refreshAll);
 
@@ -124,7 +133,7 @@ export function useHubAttention(userId: string | undefined, publicBoardOptedIn =
       : undefined;
 
     const onPrivateSync = (e: Event) => {
-      if (IS_PRIVATE_HUB_GATED) return;
+      if (privateHubGated) return;
       const reason = (e as CustomEvent<{ reason?: PrivateHubSyncReason }>).detail?.reason ?? 'all';
       if (reason === 'pending' || reason === 'all') void refreshPrivate();
       if (reason === 'dms' || reason === 'all') void refreshDmInbox();
@@ -140,7 +149,7 @@ export function useHubAttention(userId: string | undefined, publicBoardOptedIn =
       if (communityPollTimer !== undefined) window.clearInterval(communityPollTimer);
       window.removeEventListener(PRIVATE_HUB_SYNC_EVENT, onPrivateSync);
     };
-  }, [userId, publicBoardOptedIn, refreshAll, refreshCommunity, refreshPrivate, refreshDmInbox, refreshSquadChat]);
+  }, [userId, publicBoardOptedIn, refreshAll, refreshCommunity, refreshPrivate, refreshDmInbox, refreshSquadChat, privateHubGated]);
 
   const publicHubUnread = publicBoardOptedIn ? communityUnread : 0;
 

@@ -59,7 +59,7 @@ export default function PrivateHubUnderDevelopment({ onSwitchToPublic }: Props) 
     if (user?.id) {
       fetchCommunityContext(user.id).then((ctx) => {
         if (mounted) {
-          setIsAdmin(Boolean(ctx.isAdmin || user.email === 'mattedhairr@gmail.com'));
+          setIsAdmin(Boolean(ctx.isAdmin));
         }
       });
     }
@@ -67,7 +67,7 @@ export default function PrivateHubUnderDevelopment({ onSwitchToPublic }: Props) 
     return () => {
       mounted = false;
     };
-  }, [user?.id, user?.email]);
+  }, [user?.id]);
 
   const handleJoinWaitlist = async () => {
     if (isWaitlisted || isJoiningWaitlist) return;
