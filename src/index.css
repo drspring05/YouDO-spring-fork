@@ -799,6 +799,43 @@ html.dark .ios-segmented > button[aria-selected='true'] { background: #636366; }
 }
 .accent-swatch:active { transform: scale(0.9); }
 
+/* Goal rows: progress ring with the item's type inside, and a deadline chip. */
+.goal-row-status {
+  position: relative;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--text-secondary);
+}
+.goal-row-status > .activity-ring { position: absolute; inset: 0; }
+.goal-row-status[data-state='active'] { color: var(--primary); }
+.goal-row-status[data-state='idle'] { color: var(--text-muted); }
+.goal-row-status[data-state='done'] {
+  background: var(--secondary);
+  color: #ffffff;
+}
+.goal-row-status-icon { position: relative; }
+.goal-row-due {
+  padding: 2px 7px;
+  border-radius: 7px;
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  background: var(--bg-fill);
+  color: var(--text-secondary);
+}
+.goal-row-due[data-tone='soon'] {
+  background: color-mix(in srgb, var(--warning) 16%, transparent);
+  color: var(--warning);
+}
+.goal-row-due[data-tone='overdue'] {
+  background: color-mix(in srgb, var(--error) 15%, transparent);
+  color: var(--error);
+}
+
 /* Settings → App icon: the selected tile gets a check badge, never a ring,
    so the marker is never mistaken for part of the icon. */
 .app-icon-picker {

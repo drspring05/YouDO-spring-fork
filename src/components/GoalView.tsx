@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useUiPrefs } from '../hooks/useUiPrefs';
 import {
   CalendarDays,
+  Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -37,9 +38,15 @@ import {
   useSessionStore,
 } from '../store';
 import Overlay from './Overlay';
-import { goalBranchContainsTask } from '../lib/goalTree';
-import { goalTimingLabel } from '../lib/dates';
+import { goalBranchContainsTask, nextOpenItem } from '../lib/goalTree';
+import { daysBetweenLocalISO, deadlineDaysLabel, goalTimingLabel, todayISO } from '../lib/dates';
+import ActivityRing from './ActivityRing';
 import { hapticTick } from '../lib/haptics';
+
+function formatShortDate(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+}
 
 function getScheduledDateLabel(targetDate: string | null | undefined): string {
   if (!targetDate) return 'Scheduled';
@@ -712,6 +719,9 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
           // Completed today-slices stay on the calendar, but Goals should offer Schedule
           // for remaining micro-steps — not look like open work for today.
           const isActivelyScheduled = !!linkedTask && !isBacklogged && !isTaskComplete(linkedTask);
+          const nextItem = isEndpoint ? null : nextOpenItem(child);
+          const daysLeft = child.endDate ? daysBetweenLocalISO(todayISO(), child.endDate) : null;
+          const dueTone = daysLeft === null ? 'none' : daysLeft < 0 ? 'overdue' : daysLeft <= 7 ? 'soon' : 'ok';
 
           const isHighlighted = child.id === highlightNodeId;
           const isLast = index === children.length - 1;
@@ -768,7 +778,7 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
               } ${
                 pressingId === child.id ? 'transform scale-[0.97] bg-elevated' : ''
               } ${
-                !isLast ? 'border-b border-subtle' : ''
+                !isLast ? 'border-b border-[color:var(--separator)]' : ''
               } ${
                 isHighlighted
                   ? 'bg-primary-soft'
@@ -789,7 +799,18 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                   />
                 )}
                 <div className="flex-1 min-w-0 flex items-center gap-2">
-                  <Icon size={15} style={{ color: meta.tint }} className="shrink-0" />
+                  {/* Progress at a glance: a ring with the item's type inside;
+                      a filled check once done, an empty ring before it starts. */}
+                  <span className="goal-row-status" data-state={isDone ? 'done' : pct > 0 ? 'active' : 'idle'} aria-hidden>
+                    {isDone ? (
+                      <Check size={15} strokeWidth={3} />
+                    ) : (
+                      <>
+                        <ActivityRing progress={pct} size={30} stroke={2.5} />
+                        <Icon size={13} className="goal-row-status-icon" />
+                      </>
+                    )}
+                  </span>
                   <h3 className={`text-[14.5px] font-semibold leading-snug truncate ${isDone ? 'line-through text-content-muted' : 'text-content-primary'}`}>
                     {child.title}
                   </h3>
@@ -820,11 +841,19 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
               </div>
 
               <div className="flex items-center gap-2 min-w-0">
-                <p className="flex-1 min-w-0 text-[11px] text-content-muted truncate">
-                  {meta.label}
-                  {!isEndpoint && ` · ${countCompletedDirectChildren(child)}/${countDirectChildren(child)} done`}
-                  {isEndpoint && hasSteps && ` · ${stepDone.filter(Boolean).length}/${child.steps!.length} steps`}
+                <p className="flex-1 min-w-0 text-[11.5px] text-content-secondary truncate">
+                  {!isEndpoint && `${countCompletedDirectChildren(child)}/${countDirectChildren(child)} done`}
+                  {isEndpoint && hasSteps && `${stepDone.filter(Boolean).length}/${child.steps!.length} steps`}
+                  {isEndpoint && !hasSteps && (isDone ? 'Done' : 'To do')}
+                  {nextItem && !isDone && (
+                    <span className="text-content-muted"> · Next: <span className="text-content-secondary">{nextItem.title}</span></span>
+                  )}
                 </p>
+                {child.endDate && !isDone && (
+                  <span className={`goal-row-due shrink-0`} data-tone={dueTone}>
+                    {formatShortDate(child.endDate)} · {deadlineDaysLabel(child.endDate)}
+                  </span>
+                )}
                 {isActivelyScheduled && (
                   <span
                     className="shrink-0 text-[10px] font-semibold text-secondary bg-secondary-soft px-2 py-0.5 rounded-md"
@@ -838,10 +867,6 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                     Backlog
                   </span>
                 )}
-              </div>
-
-              <div className="h-1 rounded-full bg-border-subtle overflow-hidden">
-                <div className="h-full rounded-full" style={{ width: `${pct}%`, background: isDone ? 'var(--secondary)' : 'var(--primary)' }} />
               </div>
 
                 {isWorkItem && hasSteps && (
