@@ -41,6 +41,8 @@ import { FALLBACK_APP_QUOTES, fetchAppQuotes, loadCachedAppQuotes, type AppQuote
 import { taskStepStates } from './lib/goalTree';
 import { hapticSuccess } from './lib/haptics';
 import GoalDestinationSheet from './components/GoalDestinationSheet';
+import ActivityRing from './components/ActivityRing';
+import { useUiPrefs } from './hooks/useUiPrefs';
 
 // Keep Today/session controls in the initial bundle. The PWA precaches these
 // chunks and Android packages them locally, so installed offline use is retained.
@@ -83,6 +85,7 @@ function YouDoIcon({ size = 18 }: { size?: number }) {
   );
 }
 
+/** The v7 masthead wordmark, shown under Settings → Appearance → Classic look. */
 function YouDoWordmark() {
   return (
     <span className="youdo-wordmark" aria-label="YouDO">
@@ -170,6 +173,7 @@ function AppInner() {
   } = useSessionStore();
 
   const [{ darkMode }] = useTheme();
+  const [{ legacyStyle, roomyHeader }] = useUiPrefs();
   const { user: activityUser } = useAuth();
   const { pacePrefs: activityPrefs } = useStore();
   useCommunityActivity(activityUser?.id, activityPrefs.optedIn);
@@ -662,7 +666,9 @@ function AppInner() {
   }, [activeSession?.isPaused, nativeSessionReady]);
 
   useEffect(() => {
-    const chrome = darkMode ? '#11100E' : '#E6E0D4';
+    const chrome = legacyStyle
+      ? (darkMode ? '#11100E' : '#E6E0D4')
+      : (darkMode ? '#000000' : '#F2F2F7');
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', chrome);
     const initStatusBar = async () => {
       try {
@@ -674,7 +680,7 @@ function AppInner() {
       }
     };
     void initStatusBar();
-  }, [darkMode]);
+  }, [darkMode, legacyStyle]);
 
   const [todaySubTab, setTodaySubTab] = useState<'today' | 'backlog'>('today');
   const [activeCategoryFilter, setActiveCategoryFilter] = useState<string>('all');
@@ -1155,12 +1161,13 @@ function AppInner() {
         />
       )}
       <div
-        className="app-frame relative min-h-screen w-full max-w-md mx-auto px-4 pb-28 overflow-x-hidden"
+        className={`app-frame relative min-h-screen w-full max-w-md mx-auto px-4 ${legacyStyle ? 'pb-28' : 'pb-36'} overflow-x-hidden`}
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
       >
         {/* Header */}
+        {legacyStyle ? (
         <header className="pt-[max(0.75rem,var(--safe-area-top))] pb-1 space-y-3 shrink-0">
           <div className="space-y-2 relative">
             <div className="app-masthead">
@@ -1234,9 +1241,116 @@ function AppInner() {
             )}
           </div>
         </header>
+        ) : (
+        roomyHeader ? (
+        <header className="app-header shrink-0">
+          <div className="app-header-row">
+            <div className="min-w-0">
+              <p className="app-header-eyebrow">
+                {view === 'tasks'
+                  ? new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })
+                  : 'YouDO'}
+              </p>
+              <h1 className="app-large-title">
+                {view === 'goals' ? 'Goals' : view === 'calendar' ? 'Calendar' : view === 'board' ? 'Hub' : 'Today'}
+              </h1>
+              {view === 'tasks' && (
+                <p
+                  className="app-header-subtitle-roomy"
+                  aria-label={`Today progress ${todayDone} of ${todayCount}, ${todayProgress} percent`}
+                >
+                  {todayCount === 0 ? 'Nothing planned yet' : `${todayDone} of ${todayCount} done · ${todayProgress}%`}
+                </p>
+              )}
+            </div>
+            <div className="app-header-actions app-header-actions-roomy">
+              {view === 'tasks' && todayCount > 0 && (
+                <ActivityRing progress={todayProgress} size={44} stroke={6} />
+              )}
+              <button
+                type="button"
+                onClick={() => openHelp()}
+                className="app-header-button glass"
+                aria-label="Open YouDO guide"
+                title="Guide"
+              >
+                <YouDoIcon size={20} />
+              </button>
+            </div>
+          </div>
+          {randomQuote && view === 'tasks' && (
+            <figure className="app-quote">
+              <p>“{randomQuote.text}”</p>
+              {randomQuote.author !== 'Unknown' && <cite>— {randomQuote.author}</cite>}
+            </figure>
+          )}
+        </header>
+        ) : (
+        <header className="app-header shrink-0">
+          <div className="app-header-row">
+            {/* The date and the day's tally sit beside the large title, not above and below it. */}
+            <div className="app-title-line min-w-0">
+              <h1 className="app-large-title">
+                {view === 'goals' ? 'Goals' : view === 'calendar' ? 'Calendar' : view === 'board' ? 'Hub' : 'Today'}
+              </h1>
+              {view === 'tasks' && (
+                <div className="app-title-meta min-w-0">
+                  <span className="app-header-date">
+                    {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+                  </span>
+                  <span
+                    className="app-header-subtitle"
+                    aria-label={`Today progress ${todayDone} of ${todayCount}, ${todayProgress} percent`}
+                  >
+                    {todayCount === 0 ? 'Nothing planned yet' : `${todayDone} of ${todayCount} done · ${todayProgress}%`}
+                  </span>
+                </div>
+              )}
+            </div>
+            <div className="app-header-actions">
+              <button
+                type="button"
+                onClick={() => openHelp()}
+                className="app-header-button glass"
+                aria-label="Open YouDO guide"
+                title="Guide"
+              >
+                {/* Today's progress rings the app icon. */}
+                {view === 'tasks' && todayCount > 0 && (
+                  <span className="app-header-ring" aria-hidden="true">
+                    <ActivityRing progress={todayProgress} size={54} stroke={4} />
+                  </span>
+                )}
+                <YouDoIcon size={20} />
+              </button>
+            </div>
+          </div>
+          {randomQuote && view === 'tasks' && (
+            <blockquote className="quote-ticker">
+              <div
+                className={`quote-ticker-track ${
+                  randomQuote.text.length >= 80
+                    ? 'quote-ticker-track-fast'
+                    : randomQuote.text.length >= 60
+                      ? 'quote-ticker-track-medium'
+                      : 'quote-ticker-track-steady'
+                }`}
+              >
+                {[0, 1].map((copy) => (
+                  <p key={copy} className="quote-ticker-item" aria-hidden={copy === 1}>
+                    “{randomQuote.text}”
+                    {randomQuote.author !== 'Unknown' && <cite>{' — '}{randomQuote.author}</cite>}
+                  </p>
+                ))}
+              </div>
+            </blockquote>
+          )}
+        </header>
+        )
+        )}
 
         {/* Main View Area */}
-        <main className={`overflow-x-hidden ${view === 'board' || view === 'calendar' ? 'mt-2' : 'mt-3'}`}>
+        <main className={`overflow-x-hidden ${legacyStyle ? (view === 'board' || view === 'calendar' ? 'mt-2' : 'mt-3') : 'mt-4'}`}>
           <div
             key={`${view}-${goalPathIds.join('-')}`}
             className={`w-full overflow-x-hidden ${
@@ -1251,7 +1365,7 @@ function AppInner() {
             {view === 'tasks' ? (
               <div className="space-y-3">
                 {activityUser && tasks.length === 0 && goals.length === 0 && (
-                  <div className="p-3.5 bg-primary-soft border border-subtle flex items-center justify-between gap-3 rounded-[16px]">
+                  <div className={legacyStyle ? 'p-3.5 bg-primary-soft border border-subtle flex items-center justify-between gap-3 rounded-[16px]' : 'p-4 bg-surface shadow-card flex items-center justify-between gap-3 rounded-[16px]'}>
                     <div className="flex items-center gap-2.5 min-w-0">
                       <Cloud className="w-4 h-4 text-primary shrink-0" />
                       <div className="min-w-0">
@@ -1265,7 +1379,7 @@ function AppInner() {
                         const ok = await restoreFromCloud();
                         setCloudHint(ok ? 'Restored from cloud.' : 'No cloud backup for this account.');
                       }}
-                      className="px-3 py-1.5 rounded-xl bg-primary text-on-primary text-xs font-semibold shrink-0"
+                      className={legacyStyle ? 'px-3 py-1.5 rounded-xl bg-primary text-on-primary text-xs font-semibold shrink-0' : 'h-8 px-4 rounded-full bg-primary text-on-primary text-xs font-semibold shrink-0'}
                     >
                       Restore
                     </button>
@@ -1275,6 +1389,7 @@ function AppInner() {
                   <p className="text-[12px] text-content-secondary px-1">{cloudHint}</p>
                 )}
 
+                {legacyStyle ? (
                 <div className="flex items-center gap-1 p-1 rounded-[16px] bg-surface border border-subtle w-full">
                   <button
                     onClick={() => startTransition(() => setTodaySubTab('today'))}
@@ -1304,6 +1419,26 @@ function AppInner() {
                     </span>
                   </button>
                 </div>
+                ) : (
+                <div className="ios-segmented w-full" role="group" aria-label="Today list">
+                  <button
+                    type="button"
+                    aria-pressed={todaySubTab === 'today'}
+                    onClick={() => startTransition(() => setTodaySubTab('today'))}
+                  >
+                    <span>Scheduled</span>
+                    <span className="ios-segmented-count">{openTodayCount}</span>
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={todaySubTab === 'backlog'}
+                    onClick={() => startTransition(() => setTodaySubTab('backlog'))}
+                  >
+                    <span>Backlog</span>
+                    <span className={`ios-segmented-count ${openBacklogCount > 0 ? 'is-alert' : ''}`}>{openBacklogCount}</span>
+                  </button>
+                </div>
+                )}
 
                 {streakStatus.revive?.active && (
                   <button
@@ -1313,7 +1448,7 @@ function AppInner() {
                         startTransition(() => setTodaySubTab('backlog'));
                       }
                     }}
-                    className="w-full text-left bg-surface border border-subtle rounded-[16px] px-3.5 py-2.5 flex items-center justify-between gap-3"
+                    className={legacyStyle ? 'w-full text-left bg-surface border border-subtle rounded-[16px] px-3.5 py-2.5 flex items-center justify-between gap-3' : 'w-full text-left bg-surface shadow-card rounded-[16px] px-4 py-3 flex items-center justify-between gap-3'}
                   >
                     <div className="min-w-0">
                       <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">
@@ -1332,14 +1467,20 @@ function AppInner() {
 
                 {/* Smart Goal & Category Filter Chips */}
                 {categoryChips.length > 1 && (
-                  <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 text-[11px] fade-in">
+                  <div className={`flex items-center overflow-x-auto no-scrollbar py-1 fade-in ${legacyStyle ? 'gap-1.5 text-[11px]' : 'gap-2 text-[13px]'}`}>
                     <button
                       onClick={() => setActiveCategoryFilter('all')}
-                      className={`px-2.5 py-1 rounded-xl font-bold whitespace-nowrap border transition ${
-                        activeCategoryFilter === 'all'
-                          ? 'bg-primary text-white border-primary'
-                          : 'bg-surface border-subtle text-content-secondary hover:bg-elevated'
-                      }`}
+                      className={legacyStyle
+                        ? `px-2.5 py-1 rounded-xl font-bold whitespace-nowrap border transition ${
+                            activeCategoryFilter === 'all'
+                              ? 'bg-primary text-white border-primary'
+                              : 'bg-surface border-subtle text-content-secondary hover:bg-elevated'
+                          }`
+                        : `h-8 px-3.5 rounded-full font-semibold whitespace-nowrap transition ${
+                            activeCategoryFilter === 'all'
+                              ? 'bg-primary text-on-primary'
+                              : 'bg-fill text-content-primary'
+                          }`}
                     >
                       All ({todaySubTab === 'today' ? openTodayCount : openBacklogCount})
                     </button>
@@ -1347,14 +1488,20 @@ function AppInner() {
                       <button
                         key={chip.id}
                         onClick={() => setActiveCategoryFilter(chip.id)}
-                        className={`px-2.5 py-1 rounded-xl font-bold whitespace-nowrap border transition flex items-center gap-1 ${
-                          activeCategoryFilter === chip.id
-                            ? 'bg-primary text-white border-primary'
-                            : 'bg-surface border-subtle text-content-secondary hover:bg-elevated'
-                        }`}
+                        className={legacyStyle
+                          ? `px-2.5 py-1 rounded-xl font-bold whitespace-nowrap border transition flex items-center gap-1 ${
+                              activeCategoryFilter === chip.id
+                                ? 'bg-primary text-white border-primary'
+                                : 'bg-surface border-subtle text-content-secondary hover:bg-elevated'
+                            }`
+                          : `h-8 px-3.5 rounded-full font-semibold whitespace-nowrap transition flex items-center gap-1.5 ${
+                              activeCategoryFilter === chip.id
+                                ? 'bg-primary text-on-primary'
+                                : 'bg-fill text-content-primary'
+                            }`}
                       >
                         <span className="truncate max-w-[130px]">{chip.label}</span>
-                        <span className="text-[9.5px] font-semibold px-1.5 py-0.2 rounded-full bg-white/10 text-content-muted">
+                        <span className={legacyStyle ? 'text-[9.5px] font-semibold px-1.5 py-0.2 rounded-full bg-white/10 text-content-muted' : 'text-[11px] font-semibold tabular-nums opacity-70'}>
                           {chip.count}
                         </span>
                       </button>
@@ -1649,11 +1796,11 @@ function AppInner() {
         {view === 'tasks' && (
           <button
             onClick={() => openAddTask()}
-            className="fixed bottom-20 right-4 w-12 h-12 rounded-full text-on-primary grid place-items-center bg-primary shadow-elevated z-30"
+            className={legacyStyle ? 'fixed bottom-20 right-4 w-12 h-12 rounded-full text-on-primary grid place-items-center bg-primary shadow-elevated z-30' : 'fab'}
             title="Add task"
             aria-label="Add new task"
           >
-            <Plus size={24} />
+            {legacyStyle ? <Plus size={24} /> : <Plus size={26} strokeWidth={2.4} />}
           </button>
         )}
 
@@ -1978,20 +2125,41 @@ function AppInner() {
 }
 
 function EmptyState({ onAdd }: { onAdd: () => void }) {
-  return (
-    <div className="mt-16 flex flex-col items-center justify-center text-center px-6 fade-in">
-      <div className="w-16 h-16 rounded-[16px] bg-surface shadow-card border border-subtle flex items-center justify-center mb-5">
-        <ListChecks size={28} className="text-primary" />
+  const [{ legacyStyle }] = useUiPrefs();
+  if (legacyStyle) {
+    return (
+      <div className="mt-16 flex flex-col items-center justify-center text-center px-6 fade-in">
+        <div className="w-16 h-16 rounded-[16px] bg-surface shadow-card border border-subtle flex items-center justify-center mb-5">
+          <ListChecks size={28} className="text-primary" />
+        </div>
+        <h3 className="text-[16px] font-semibold text-content-primary tracking-tight">Nothing on today</h3>
+        <p className="mt-2 text-[13px] text-content-secondary max-w-[260px] leading-relaxed">
+          Schedule a piece from Goals, or add a quick task for this date.
+        </p>
+        <button
+          onClick={onAdd}
+          className="mt-7 flex items-center gap-2 px-5 py-2.5 rounded-[12px] bg-primary text-on-primary text-[13px] font-semibold"
+        >
+          <Plus size={16} />
+          Add Quick Task
+        </button>
       </div>
-      <h3 className="text-[16px] font-semibold text-content-primary tracking-tight">Nothing on today</h3>
-      <p className="mt-2 text-[13px] text-content-secondary max-w-[260px] leading-relaxed">
+    );
+  }
+  return (
+    <div className="mt-14 flex flex-col items-center justify-center text-center px-6 fade-in">
+      <div className="w-20 h-20 rounded-[24px] bg-primary-soft flex items-center justify-center mb-5">
+        <ListChecks size={36} strokeWidth={1.8} className="text-primary" />
+      </div>
+      <h3 className="text-[22px] font-bold text-content-primary">Nothing on today</h3>
+      <p className="mt-2 text-[15px] text-content-secondary max-w-[280px] leading-snug">
         Schedule a piece from Goals, or add a quick task for this date.
       </p>
       <button
         onClick={onAdd}
-        className="mt-7 flex items-center gap-2 px-5 py-2.5 rounded-[12px] bg-primary text-on-primary text-[13px] font-semibold"
+        className="btn-primary mt-7 h-[50px] flex items-center gap-2 px-6 text-[17px]"
       >
-        <Plus size={16} />
+        <Plus size={20} strokeWidth={2.4} />
         Add Quick Task
       </button>
     </div>

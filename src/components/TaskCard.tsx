@@ -1,11 +1,16 @@
-import { useState, useEffect, useRef } from 'react';
-import { Calendar, Clock, FileText, GripVertical, Link2, Play, Pause, Square, StickyNote, Trash2, CheckCircle2, Check } from 'lucide-react';
+import { lazy, Suspense, useState, useEffect, useRef } from 'react';
+import { Calendar, Clock, FileText, Link2, Play, Pause, Square, StickyNote, Trash2, CheckCircle2, Check } from 'lucide-react';
+import { useUiPrefs } from '../hooks/useUiPrefs';
 import type { Priority, Task, ActiveSession, TaskSession } from '../types';
 import { isBacklogTask, isTaskComplete } from '../store';
 import { hapticSessionStart, hapticSessionPause, hapticAmbient } from '../lib/haptics';
 import Overlay from './Overlay';
 import { computeNetFocusMs } from '../lib/sessionStats';
 import { sessionClockLabel, sessionClockRange } from '../lib/sessionClock';
+import ActivityRing from './ActivityRing';
+
+// The v7 TaskCard is only fetched when Classic Look is on, to keep it out of the initial bundle.
+const LegacyTaskCard = lazy(() => import('../legacy/LegacyTaskCard'));
 
 interface Props {
   task: Task;
@@ -35,10 +40,10 @@ interface Props {
   taskSessions?: TaskSession[];
 }
 
-const priorityStyles: Record<Priority, { dot: string; bar: string }> = {
-  high:   { dot: 'bg-error', bar: 'bg-error' },
-  medium: { dot: 'bg-primary', bar: 'bg-primary' },
-  low:    { dot: 'bg-secondary', bar: 'bg-secondary' },
+const priorityStyles: Record<Priority, { dot: string; bar: string; tone: string; label: string }> = {
+  high:   { dot: 'bg-error', bar: 'bg-error', tone: 'var(--error)', label: 'High priority' },
+  medium: { dot: 'bg-primary', bar: 'bg-primary', tone: 'var(--primary)', label: 'Medium priority' },
+  low:    { dot: 'bg-secondary', bar: 'bg-secondary', tone: 'var(--secondary)', label: 'Low priority' },
 };
 
 function fmtDate(iso: string | null): string {
@@ -59,7 +64,7 @@ function fmtCountdown(deadline: string | null): string {
   return `${hours}h left`;
 }
 
-export default function TaskCard({
+function ModernTaskCard({
   task, stepDone, activeSession, onAdvance, onDelete,
   onDragStart, onDragEnter, onDragEnd, isDragging, dragOver, originNodes, softRemove,
   onCardClick, onJumpToGoal, onOpenDescription,
@@ -141,8 +146,8 @@ export default function TaskCard({
       <div
         ref={cardRef}
         className={`
-          overflow-hidden relative rounded-[12px] border
-          bg-surface shadow-card border-subtle transition-all duration-200
+          overflow-hidden relative rounded-[20px]
+          bg-surface shadow-card transition-all duration-300 ease-spring
           active:scale-[0.98]
           ${isDragging ? 'dragging-card' : ''}
           ${dragOver  ? 'drag-over-card ring-2 ring-primary' : ''}
@@ -159,15 +164,15 @@ export default function TaskCard({
       >
         {/* ── Active Session Pulsing Header Banner (if active) ── */}
         {isSessionTask && (
-          <div className="bg-primary-soft border-b border-subtle px-3.5 py-2 flex items-center justify-between">
+          <div className="bg-primary-soft px-4 py-2.5 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <span className={`h-2 w-2 rounded-full ${isPaused ? 'bg-content-muted' : 'bg-primary animate-session-pulse'}`} />
-              <span className="text-[11px] font-mono font-semibold text-primary">
+              <span className="text-[13px] font-semibold tabular-nums text-primary">
                 {isPaused ? 'Paused' : 'Focus'} · {tickerText}
               </span>
             </div>
             {activeSession && (
-              <div className="text-[11px] font-mono text-content-muted tabular-nums" title="Session in progress">
+              <div className="text-[13px] text-content-secondary tabular-nums" title="Session in progress">
                 {sessionClockLabel(activeSession.startTime, activeSession.wallClockStart)}
                 {' – '}
                 <span className="text-primary">∞</span>
@@ -177,13 +182,21 @@ export default function TaskCard({
         )}
 
         {/* ── Main Card Body ── */}
-        <div className="flex items-start gap-2.5 px-3.5 pt-3.5 pb-3">
-          {/* Drag Handle */}
+        <div className="flex items-start gap-3 px-4 pt-3.5 pb-3.5">
+          {/* Progress ring — Reminders-style leading control, tinted by priority. */}
           <div
-            className="mt-1 cursor-grab active:cursor-grabbing shrink-0 text-content-muted hover:text-content-secondary transition"
+            className="mt-0.5 shrink-0 cursor-grab active:cursor-grabbing relative grid place-items-center"
             onClick={(e) => e.stopPropagation()}
+            title={ps.label}
+            aria-hidden="true"
           >
-            <GripVertical size={16} />
+            {complete ? (
+              <span className="w-[26px] h-[26px] rounded-full grid place-items-center text-white" style={{ background: ps.tone }}>
+                <Check size={16} strokeWidth={3} />
+              </span>
+            ) : (
+              <ActivityRing progress={hasSteps ? fillPct : 0} size={26} stroke={3} color={ps.tone} />
+            )}
           </div>
 
           {/* Content Column */}
@@ -202,12 +215,12 @@ export default function TaskCard({
                           onJumpToGoal();
                         }
                       }}
-                      className={`inline-flex items-center gap-1.5 text-[10px] font-semibold bg-base border border-subtle rounded-lg px-2 py-0.5 ${
-                        onJumpToGoal ? 'cursor-pointer hover:border-primary' : ''
+                      className={`inline-flex items-center gap-1.5 text-[12px] font-semibold ${
+                        onJumpToGoal ? 'cursor-pointer' : ''
                       }`}
                       title={onJumpToGoal ? 'Jump to this task in Goal Blueprint' : undefined}
                     >
-                      <Link2 size={10} className="shrink-0 text-primary mr-0.5 group-hover/path:text-primary-glow transition-colors" />
+                      <Link2 size={12} className="shrink-0 text-primary" />
                       {badgeNodes.map((n, i) => (
                         <span key={i} className="inline-flex items-center gap-1.5">
                           <span className="text-primary group-hover/path:text-primary-glow transition-colors">
@@ -223,7 +236,7 @@ export default function TaskCard({
                 );
               })()
             ) : !task.goalNodeId ? (
-              <div className="mb-1.5 inline-flex items-center gap-1 text-[10px] font-semibold text-primary bg-primary-soft px-2 py-0.5 rounded-lg">
+              <div className="mb-0.5 text-[12px] font-semibold text-content-secondary">
                 Quick task
               </div>
             ) : null}
@@ -231,9 +244,8 @@ export default function TaskCard({
             {/* Title Row */}
             <div className="flex items-start justify-between gap-3 pr-1">
               <div className="flex items-start gap-2 flex-1 min-w-0">
-                <span className={`mt-[6px] w-1.5 h-1.5 rounded-full shrink-0 ${ps.dot}`} />
                 <div className="flex items-center gap-2 min-w-0 flex-1 flex-wrap">
-                  <h3 className={`text-[15px] font-semibold leading-snug transition-colors duration-200 ${
+                  <h3 className={`text-[17px] font-semibold leading-[22px] transition-colors duration-200 ${
                     complete
                       ? 'line-through decoration-[1px] animate-strike text-content-muted'
                       : 'text-content-primary'
@@ -248,10 +260,10 @@ export default function TaskCard({
                           onOpenDescription(task.title, task.description);
                         }
                       }}
-                      className="inline-flex items-center gap-1 font-medium text-[11px] text-content-secondary hover:text-primary-glow transition-colors shrink-0"
+                      className="inline-flex items-center gap-1 font-medium text-[13px] text-primary transition-colors shrink-0"
                       title="View full description"
                     >
-                      <FileText size={11} className="text-primary shrink-0" />
+                      <FileText size={13} className="shrink-0" />
                       <span>Description</span>
                     </button>
                   )}
@@ -318,7 +330,7 @@ export default function TaskCard({
               const ctxNodes = originContextNodes;
               if (ctxNodes.length === 0) return null;
               return (
-                <div className="mt-1 flex items-center flex-wrap gap-1 text-[11px] text-content-muted font-normal ml-3.5">
+                <div className="mt-1 flex items-center flex-wrap gap-1 text-[13px] text-content-secondary font-normal">
                   {ctxNodes.map((n, i) => (
                     <span key={i} className="inline-flex items-center gap-1">
                       <span>{n.title}</span>
@@ -330,24 +342,24 @@ export default function TaskCard({
             })()}
 
             {!complete && task.resumeNote && (
-              <div className="mt-2 ml-3.5 flex items-start gap-1.5 rounded-lg border border-primary/15 bg-primary-soft/55 px-2.5 py-2 text-[11px] leading-relaxed text-content-secondary">
+              <div className="mt-2 flex items-start gap-1.5 rounded-xl bg-primary-soft px-3 py-2 text-[13px] leading-snug text-content-secondary">
                 <StickyNote size={12} className="mt-0.5 shrink-0 text-primary" />
                 <span className="line-clamp-2"><span className="font-semibold text-primary">Resume:</span> {task.resumeNote}</span>
               </div>
             )}
 
             {/* Date / Deadline / Description Row */}
-            <div className="mt-2.5 flex items-center gap-3 text-[11px] text-content-secondary font-medium flex-wrap ml-3.5">
+            <div className="mt-1.5 flex items-center gap-3 text-[13px] text-content-secondary flex-wrap">
               <span className="inline-flex items-center gap-1">
-                <Calendar size={11} className="text-content-muted" /> {fmtDate(task.targetDate)}
+                <Calendar size={13} className="text-content-muted" /> {fmtDate(task.targetDate)}
               </span>
               {isBacklogTask(task) && (
-                <span className="inline-flex items-center font-semibold text-[10px] text-error bg-error-soft px-2 py-0.5 rounded-lg">
+                <span className="inline-flex items-center font-semibold text-[12px] text-error bg-error-soft px-2 py-0.5 rounded-full">
                   Backlog
                 </span>
               )}
               {streakSave && (
-                <span className="inline-flex items-center font-semibold text-[10px] text-primary bg-primary-soft px-2 py-0.5 rounded-lg">
+                <span className="inline-flex items-center font-semibold text-[12px] text-primary bg-primary-soft px-2 py-0.5 rounded-full">
                   Save streak
                 </span>
               )}
@@ -355,21 +367,13 @@ export default function TaskCard({
                 <span className={`inline-flex items-center gap-1 font-semibold ${
                   new Date(task.deadline).getTime() < Date.now() ? 'text-error' : ''
                 }`}>
-                  <Clock size={11} className={new Date(task.deadline).getTime() < Date.now() ? "text-error" : "text-content-muted"} /> {fmtCountdown(task.deadline)}
+                  <Clock size={13} className={new Date(task.deadline).getTime() < Date.now() ? "text-error" : "text-content-muted"} /> {fmtCountdown(task.deadline)}
                 </span>
               )}
             </div>
           </div>
         </div>
         
-        {hasSteps && (
-          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-transparent">
-            <div
-              className={`h-full ${ps.bar} opacity-80`}
-              style={{ width: `${fillPct}%` }}
-            />
-          </div>
-        )}
       </div>
 
       <Overlay open={expanded} onClose={() => setExpanded(false)} align="bottom">
@@ -383,11 +387,11 @@ export default function TaskCard({
             {/* Header / Info Section */}
             <div className="px-1 space-y-1.5">
               {originBadgeNodes.length > 0 && (
-                <p className="text-[11px] font-bold text-primary uppercase tracking-wide">
+                <p className="text-[13px] font-semibold text-primary">
                   {originBadgeNodes.map((n) => n.title).join(' · ')}
                 </p>
               )}
-              <h3 className={`text-[20px] font-bold leading-tight ${complete ? 'line-through text-content-muted' : 'text-content-primary'}`}>
+              <h3 className={`text-[22px] font-bold leading-tight ${complete ? 'line-through text-content-muted' : 'text-content-primary'}`}>
                 {task.title}
               </h3>
               {originContextNodes.length > 0 && (
@@ -399,7 +403,7 @@ export default function TaskCard({
 
             {/* Resume Note Card */}
             {!complete && task.resumeNote && (
-              <div className="bg-primary-soft/40 border border-primary/20 rounded-2xl p-4 shadow-sm">
+              <div className="bg-primary-soft rounded-2xl p-4">
                 <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-primary">
                   <StickyNote size={14} strokeWidth={2.5} /> Continue from here
                 </p>
@@ -411,9 +415,9 @@ export default function TaskCard({
 
             {/* Steps Card */}
             {hasSteps && (
-              <div className="bg-surface border border-subtle rounded-2xl overflow-hidden shadow-sm flex flex-col">
-                <div className="flex items-center justify-between px-4 h-11 bg-elevated/40 border-b border-subtle">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-content-muted">Steps</span>
+              <div className="bg-surface rounded-2xl overflow-hidden shadow-card flex flex-col">
+                <div className="flex items-center justify-between px-4 h-11 border-b border-[var(--separator)]">
+                  <span className="text-[13px] font-semibold text-content-secondary">Steps</span>
                   <span className={`text-[12px] font-bold tabular-nums ${task.progress === task.steps.length ? 'text-secondary' : 'text-content-secondary'}`}>
                     {stepDone ? stepDone.filter(Boolean).length : task.progress} of {task.steps.length}
                   </span>
@@ -428,17 +432,17 @@ export default function TaskCard({
                       else if (sess) stamp = sessionClockRange(sess.startTime, sess.endTime, sess.wallClockStart, sess.wallClockEnd);
                     }
                     return (
-                      <li key={i} className={`flex items-center gap-3 px-4 h-12 transition-colors ${done ? 'bg-elevated/20' : 'bg-surface'}`}>
+                      <li key={i} className="flex items-center gap-3 px-4 h-12 transition-colors bg-surface">
                         <div className="shrink-0">
                           {done ? (
-                            <div className="w-5 h-5 rounded-full bg-secondary text-on-primary flex items-center justify-center">
+                            <div className="w-[22px] h-[22px] rounded-full bg-primary text-on-primary flex items-center justify-center">
                               <Check size={14} strokeWidth={3} />
                             </div>
                           ) : (
-                            <div className="w-5 h-5 rounded-full border-[2px] border-content-muted" />
+                            <div className="w-[22px] h-[22px] rounded-full border-[1.5px] border-[var(--text-muted)]" />
                           )}
                         </div>
-                        <span className={`flex-1 min-w-0 text-[14px] font-semibold truncate ${done ? 'line-through text-content-muted' : 'text-content-primary'}`}>
+                        <span className={`flex-1 min-w-0 text-[17px] truncate ${done ? 'line-through text-content-muted' : 'text-content-primary'}`}>
                           {s}
                         </span>
                         {stamp && (
@@ -459,7 +463,7 @@ export default function TaskCard({
             {isSessionTask ? (
               <button
                 onClick={() => { setExpanded(false); onStopSession?.(); }}
-                className="w-full h-12 rounded-2xl bg-error text-white font-bold text-[14px] flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] transition-transform"
+                className="w-full h-[50px] rounded-full bg-error text-white font-semibold text-[17px] flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
               >
                 <Square size={16} strokeWidth={2.5} className="fill-current" />
                 Stop session
@@ -467,7 +471,7 @@ export default function TaskCard({
             ) : !complete ? (
               <button
                 onClick={() => { setExpanded(false); hapticSessionStart(); onStartSession?.(task.id); }}
-                className="w-full h-12 rounded-2xl bg-primary text-on-primary font-bold text-[14px] flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] transition-transform"
+                className="btn-primary w-full h-[50px] text-[17px] flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
               >
                 <Play size={16} strokeWidth={2.5} className="fill-current" />
                 Start focus session
@@ -482,18 +486,18 @@ export default function TaskCard({
                   else if (isSessionTask) onStopSession?.();
                   else onAdvance(task.id);
                 }}
-                className="flex-1 h-12 rounded-2xl bg-surface border border-subtle text-content-primary text-[13px] font-bold flex items-center justify-center gap-2 shadow-sm active:bg-elevated transition-colors"
+                className="flex-1 h-[50px] rounded-full bg-surface text-primary text-[15px] font-semibold flex items-center justify-center gap-2 shadow-card active:opacity-70 transition-opacity"
               >
-                <CheckCircle2 size={16} className="text-secondary" />
+                <CheckCircle2 size={18} />
                 {task.goalNodeId ? 'Jump' : isSessionTask ? 'Finish sitting' : 'Advance'}
               </button>
 
               {!isSessionTask && (
                 <button
                   onClick={() => { setExpanded(false); onDelete(task.id); }}
-                  className="flex-1 h-12 rounded-2xl bg-error-soft text-error border border-error/20 text-[13px] font-bold flex items-center justify-center gap-2 shadow-sm active:bg-error/20 transition-colors"
+                  className="flex-1 h-[50px] rounded-full bg-surface text-error text-[15px] font-semibold flex items-center justify-center gap-2 shadow-card active:opacity-70 transition-opacity"
                 >
-                  <Trash2 size={16} className="text-error" />
+                  <Trash2 size={18} />
                   {softRemove ? 'Remove' : 'Delete task'}
                 </button>
               )}
@@ -505,3 +509,15 @@ export default function TaskCard({
   );
 }
 
+
+/** The redesign, or the v7 TaskCard under Settings → Appearance → Classic look. */
+export default function TaskCard(props: Props) {
+  const [{ legacyStyle }] = useUiPrefs();
+  return legacyStyle ? (
+    <Suspense fallback={null}>
+      <LegacyTaskCard {...props} />
+    </Suspense>
+  ) : (
+    <ModernTaskCard {...props} />
+  );
+}

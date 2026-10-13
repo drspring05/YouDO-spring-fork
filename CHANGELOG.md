@@ -17,6 +17,18 @@ Guidance: keep 3–6 short, user-facing bullets. Group related small fixes under
 
 ---
 
+## [v8.0.0] - 2026-10-13 - Apple-Inspired Redesign
+
+- **A new look, end to end** — YouDO is rebuilt on Apple's Human Interface Guidelines: true-black and grouped-gray canvases, borderless inset cards, hairline separators, the Inter variable typeface (SF Pro on Apple devices) bundled for offline use, and a legibility floor so no label drops below 11pt.
+- **Large titles & Activity ring** — Every tab opens with an iOS Large Title; on Today the date and the day's tally sit right beside it, the progress ring wraps the app icon, and the quote runs in a slim scrolling bar, so the header takes about half the space.
+- **Liquid Glass navigation** — A floating translucent tab bar with a separate Settings button and native-style badges. Tapping a tab slides the selection and its accent across; pressing and holding (or sliding along the bar) lifts it into a refracting glass bubble that stretches with its speed and can be dragged to any tab. Icon buttons swell and spring under the finger, and the daily briefing's slider becomes a blue glass bubble too.
+- **Native controls everywhere** — UISwitch-style toggles, segmented controls for Today/Backlog, Settings and sign-in, 34pt-corner sheets with a proper grabber, capsule buttons, and Reminders-style task cards with a priority-tinted progress ring.
+- **Pick your accent and your look** — Settings → Appearance offers eight system tint colors in Dark and Light themes; a Liquid Glass switch with live preview and Refraction / Tint sliders; Roomy Header for the larger header; and Classic Look to return to the v7 design. Existing theme choices are kept.
+- **New icon & Android chrome** — Blue-to-indigo app icon, matching splash, status/navigation bars, and session notification colors.
+- **Android APK** — versionName **8.0.0**, versionCode **79**. Installs over v7.8.0 (78).
+
+---
+
 ## [v7.8.0] - 2026-10-12 - Blueprint Studio Redesign, Private Hub & Push Notifications
 
 - **Blueprint Studio Redesign** — Complete architectural rebuild powered by a headless state controller: strict single-line tree rows with uniform height, instant tree search filtering, expand/collapse all controls, and full multi-level Undo/Redo history.

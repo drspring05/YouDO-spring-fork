@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useUiPrefs } from '../hooks/useUiPrefs';
 import {
   CalendarDays,
   ChevronDown,
@@ -128,6 +129,7 @@ function nodeMeta(node: GoalNode): { icon: typeof Target; tint: string; label: s
 
 export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddChild, onEditNode, onPushNode, onUnplan, onCopy, onSelectionChange, clearSelectionRef, onNavigateToPath, onOpenStudio, onOpenDescription }: Props) {
   const { goals, tasks, toggleGoalStep, togglePin, reorderGoalNodes, toggleNodeCompletion } = useStore();
+  const [{ legacyStyle }] = useUiPrefs();
   const { activeSession } = useSessionStore();
   const runningTask = tasks.find((task) => task.id === activeSession?.taskId);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -969,9 +971,11 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
 
       <button
         onClick={() => onAddChild(current?.id ?? null)}
-        className="mt-4 w-full py-3 rounded-2xl text-sm font-medium text-content-secondary bg-surface border border-dashed border-subtle hover:border-content-muted hover:text-content-primary transition-colors flex items-center justify-center gap-1.5"
+        className={legacyStyle
+          ? 'mt-4 w-full py-3 rounded-2xl text-sm font-medium text-content-secondary bg-surface border border-dashed border-subtle hover:border-content-muted hover:text-content-primary transition-colors flex items-center justify-center gap-1.5'
+          : 'mt-4 w-full h-[50px] rounded-2xl text-[17px] font-semibold text-primary bg-surface shadow-card active:opacity-70 transition-opacity flex items-center justify-center gap-1.5'}
       >
-        <Plus size={15} />
+        {legacyStyle ? <Plus size={15} /> : <Plus size={20} strokeWidth={2.4} />}
         {current ? `Add to ${current.title}` : 'Create Goal'}
       </button>
 
