@@ -1857,7 +1857,9 @@ export default function SettingsSheet({
                       ? 'Paused while Reduced Effects is on.'
                       : legacyStyle
                         ? 'Bouncy icon buttons. The glass tab pill is part of the new look.'
-                        : 'A glass pill that glides between tabs, and bouncy icon buttons.'}
+                        : liquidGlass
+                          ? 'Glass bars and buttons that catch the light, a gliding tab pill and bouncy buttons.'
+                          : 'Off: solid bars and buttons, no glass or motion effects.'}
                   </p>
                 </div>
               </div>

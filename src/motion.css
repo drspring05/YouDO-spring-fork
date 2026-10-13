@@ -98,3 +98,80 @@ html.light-dusky .briefing-bubble-lens {
 /* The track no longer clips (the bubble stands past it), so its sheen keeps
    the track's round ends on its own. */
 .briefing-slider-sheen { border-radius: inherit; }
+
+/* ── Liquid Glass material (Settings → Appearance → Liquid Glass) ──────────
+   On: floating chrome is a glass that catches the light — a specular rim
+   brightest at the top-left, a soft inner highlight and a faint accent tint.
+   The highlights are static gradients: no extra blur layers, no per-frame cost.
+   Off: the same chrome is solid, with no blur at all (also cheaper). */
+html[data-liquid-glass='true'] .glass {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.03) 42%, rgba(255, 255, 255, 0) 100%),
+    color-mix(in srgb, var(--glass-bg) 92%, var(--primary));
+  backdrop-filter: blur(20px) saturate(1.9) brightness(1.05);
+  -webkit-backdrop-filter: blur(20px) saturate(1.9) brightness(1.05);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    var(--glass-shadow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -1px 1px rgba(255, 255, 255, 0.06);
+}
+html.light-dusky[data-liquid-glass='true'] .glass {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.75) 0%, rgba(255, 255, 255, 0.35) 45%, rgba(255, 255, 255, 0.2) 100%),
+    color-mix(in srgb, var(--glass-bg) 94%, var(--primary));
+  box-shadow:
+    var(--glass-shadow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -1px 1px rgba(0, 0, 0, 0.04);
+}
+/* The specular rim: a 1px edge that is bright where light hits it. */
+html[data-liquid-glass='true'] :is(.tab-bar, .tab-bar-orb, .app-header-button, .fab)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    140deg,
+    rgba(255, 255, 255, 0.55) 0%,
+    rgba(255, 255, 255, 0.12) 28%,
+    rgba(255, 255, 255, 0) 55%,
+    rgba(255, 255, 255, 0.1) 82%,
+    rgba(255, 255, 255, 0.28) 100%
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+html.light-dusky[data-liquid-glass='true'] :is(.tab-bar, .tab-bar-orb, .app-header-button)::after {
+  background: linear-gradient(140deg, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0.4) 35%, rgba(0, 0, 0, 0.05) 70%, rgba(255, 255, 255, 0.6) 100%);
+}
+/* The add button is accent glass: a glossy top and the same rim. */
+html[data-liquid-glass='true'] .fab {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.26) 0%, rgba(255, 255, 255, 0) 55%),
+    var(--primary);
+  box-shadow:
+    0 10px 28px -8px color-mix(in srgb, var(--primary) 60%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+/* Off: solid chrome, no blur. */
+html[data-liquid-glass='false'] .glass,
+html[data-liquid-glass='false'] .settings-header {
+  background: var(--bg-elevated);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+html[data-liquid-glass='false'] .glass {
+  border-color: var(--border-subtle);
+  box-shadow: 0 6px 20px -10px rgba(0, 0, 0, 0.55);
+}
+html[data-liquid-glass='false'] .hub-nav {
+  background: var(--bg-base);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
