@@ -92,15 +92,15 @@ describe('Milestone 1 Empirical Challenger — UI Components & Flow Verification
       expect(html).not.toContain('Pace mismatch');
       expect(html).not.toContain('Cannot join');
       expect(html).not.toContain('alert');
-      expect(html).toContain('Target daily focus hours for squad members. Any member can join regardless of personal bar.');
+      expect(html).toContain('Members can keep their own daily bar; this is the room’s default.');
       expect(html).toContain('2h'); // initialized with personalPace
-      expect(html).toContain('Anyone can join');
-      expect(html).toContain('Invite-only');
-      expect(html).toContain('0/3 selected');
+      expect(html).toContain('>Open<');
+      expect(html).toContain('Invite only');
+      expect(html).toContain('0 of 3');
       expect(html).toContain('data-protonpass-ignore="true"');
       expect(html).toContain('data-1p-ignore="true"');
       expect(html).toContain('name="room_invite_search"');
-      expect(html).toContain('placeholder="Search friend handle (e.g. @alex)..."');
+      expect(html).toContain('placeholder="Search @username"');
     });
 
     it('1.2: Returns null when open is false', () => {
@@ -263,8 +263,8 @@ describe('Milestone 1 Empirical Challenger — UI Components & Flow Verification
         }),
       );
 
-      // Verify the component renders the squads container
-      expect(html).toContain('Your squads');
+      // Verify the component renders its sections (with a loading row) right away
+      expect(html).toContain('Your rooms');
       expect(html).toContain('Discover');
     });
 

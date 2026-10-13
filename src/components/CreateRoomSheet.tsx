@@ -220,8 +220,13 @@ export default function CreateRoomSheet({ open, onClose, onSuccess, personalPace
                 value={query}
                 placeholder="Search @username"
                 aria-label="Search friends to invite"
+                name="room_invite_search"
+                autoComplete="off"
                 autoCapitalize="none"
                 autoCorrect="off"
+                data-1p-ignore="true"
+                data-protonpass-ignore="true"
+                data-lpignore="true"
                 onChange={(e) => setQuery(e.target.value)}
               />
               {searching && <Loader2 size={15} className="animate-spin" />}

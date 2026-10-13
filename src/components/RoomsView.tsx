@@ -56,9 +56,13 @@ export default function RoomsView({ onOpenRoom, onCreateRoom, onNotificationsCha
 
   useEffect(() => {
     void reload();
-    const onSync = () => void reload();
-    window.addEventListener(PRIVATE_HUB_SYNC_EVENT, onSync);
-    return () => window.removeEventListener(PRIVATE_HUB_SYNC_EVENT, onSync);
+    const handleSync = () => {
+      void reload();
+    };
+    window.addEventListener(PRIVATE_HUB_SYNC_EVENT, handleSync);
+    return () => {
+      window.removeEventListener(PRIVATE_HUB_SYNC_EVENT, handleSync);
+    };
   }, [reload]);
 
   const requestJoin = async (room: Squad) => {
@@ -88,9 +92,18 @@ export default function RoomsView({ onOpenRoom, onCreateRoom, onNotificationsCha
   };
 
   if (loading) {
+    // Keep the page's shape while loading so nothing jumps when rooms arrive.
     return (
-      <div className="hub flex items-center justify-center gap-2 py-16 text-[14px] text-content-muted" role="status">
-        <Loader2 size={16} className="animate-spin" /> Loading rooms…
+      <div className="hub">
+        {['Your rooms', 'Discover'].map((title) => (
+          <HubSection key={title} title={title}>
+            <div className="hub-group">
+              <div className="hub-row is-compact justify-center gap-2 text-[14px] text-content-muted" role="status">
+                <Loader2 size={15} className="animate-spin" /> Loading…
+              </div>
+            </div>
+          </HubSection>
+        ))}
       </div>
     );
   }
