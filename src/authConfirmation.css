@@ -2,9 +2,9 @@
 * { box-sizing: border-box; }
 body { margin: 0; min-height: 100svh; display: grid; place-items: center; padding: 24px; }
 .confirmation { width: 100%; max-width: 420px; padding: 32px 24px; border: 0; border-radius: 26px; background: #1c1c1e; }
-.eyebrow { margin: 24px 0 12px; color: #0a84ff; font-size: 13px; font-weight: 600; letter-spacing: .02em; }
+.eyebrow { margin: 24px 0 12px; color: #c9a46e; font-size: 13px; font-weight: 600; letter-spacing: .02em; }
 h1 { font-size: 28px; line-height: 1.2; margin: 0 0 16px; letter-spacing: -.02em; }
 p { color: #a1a1a6; font-size: 15px; line-height: 1.65; }
-a { display: flex; justify-content: space-between; align-items: center; min-height: 50px; padding: 12px 20px; margin-top: 24px; border-radius: 999px; color: #ffffff; background: #0a84ff; text-decoration: none; font-size: 17px; font-weight: 600; }
+a { display: flex; justify-content: space-between; align-items: center; min-height: 50px; padding: 12px 20px; margin-top: 24px; border-radius: 999px; color: #14120f; background: #c9a46e; text-decoration: none; font-size: 17px; font-weight: 600; }
 a:focus-visible { outline: 2px solid #ffffff; outline-offset: 4px; }
 .footnote { margin: 16px 0 0; font-size: 12px; }

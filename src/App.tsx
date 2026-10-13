@@ -44,7 +44,7 @@ import { FALLBACK_APP_QUOTES, fetchAppQuotes, loadCachedAppQuotes, type AppQuote
 import { taskStepStates } from './lib/goalTree';
 import { hapticSuccess } from './lib/haptics';
 import GoalDestinationSheet from './components/GoalDestinationSheet';
-import ActivityRing from './components/ActivityRing';
+import LavaRing from './components/LavaRing';
 import { useUiPrefs } from './hooks/useUiPrefs';
 
 // Keep Today/session controls in the initial bundle. The PWA precaches these
@@ -79,8 +79,8 @@ function YouDoIcon({ size = 18 }: { size?: number }) {
         strokeLinejoin="round"
       />
       <path
-        d="M19 4.5L12 13.25L9.25 10"
-        style={{ stroke: 'var(--secondary)' }}
+        d="M19 4.5L12 13.25L8.9 9.6"
+        style={{ stroke: 'var(--accent-tick, var(--secondary))' }}
         strokeWidth="2.5"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -1305,7 +1305,7 @@ function AppInner() {
                 {/* Today's progress rings the app icon. */}
                 {view === 'tasks' && todayCount > 0 && (
                   <span className="app-header-ring" aria-hidden="true">
-                    <ActivityRing progress={todayProgress} size={54} stroke={4} />
+                    <LavaRing progress={todayProgress} size={54} stroke={4} />
                   </span>
                 )}
                 <YouDoIcon size={20} />
@@ -1459,7 +1459,7 @@ function AppInner() {
                       className={legacyStyle
                         ? `px-2.5 py-1 rounded-xl font-bold whitespace-nowrap border transition ${
                             activeCategoryFilter === 'all'
-                              ? 'bg-primary text-white border-primary'
+                              ? 'bg-primary text-on-primary border-primary'
                               : 'bg-surface border-subtle text-content-secondary hover:bg-elevated'
                           }`
                         : `h-8 px-3.5 rounded-full font-semibold whitespace-nowrap transition ${
@@ -1477,7 +1477,7 @@ function AppInner() {
                         className={legacyStyle
                           ? `px-2.5 py-1 rounded-xl font-bold whitespace-nowrap border transition flex items-center gap-1 ${
                               activeCategoryFilter === chip.id
-                                ? 'bg-primary text-white border-primary'
+                                ? 'bg-primary text-on-primary border-primary'
                                 : 'bg-surface border-subtle text-content-secondary hover:bg-elevated'
                             }`
                           : `h-8 px-3.5 rounded-full font-semibold whitespace-nowrap transition flex items-center gap-1.5 ${

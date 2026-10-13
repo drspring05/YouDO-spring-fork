@@ -15,7 +15,8 @@ html.dark {
   --bg-sheet: #161618;
   --bg-fill: rgba(118, 118, 128, 0.24);
   --bg-fill-strong: rgba(118, 118, 128, 0.32);
-  --primary: #0a84ff;
+  --primary: #c9a46e;
+  --accent-tick: #8fb394;
   --secondary: #30d158;
   --success: #30d158;
   --warning: #ff9f0a;
@@ -46,7 +47,8 @@ html.light-dusky {
   --bg-sheet: #f2f2f7;
   --bg-fill: rgba(118, 118, 128, 0.12);
   --bg-fill-strong: rgba(118, 118, 128, 0.2);
-  --primary: #007aff;
+  --primary: #8c6a3a;
+  --accent-tick: #4e7a57;
   --secondary: #248a3d;
   --success: #248a3d;
   --warning: #c93400;
@@ -70,24 +72,22 @@ html.light-dusky {
   color-scheme: light;
 }
 
-/* System tint colors (HIG "accent color"). Dark values first, light after. */
-html.dark[data-accent='indigo'] { --primary: #5e5ce6; }
-html.dark[data-accent='purple'] { --primary: #bf5af2; }
-html.dark[data-accent='pink'] { --primary: #ff375f; }
-html.dark[data-accent='orange'] { --primary: #ff9f0a; }
-html.dark[data-accent='green'] { --primary: #30d158; }
-html.dark[data-accent='teal'] { --primary: #40c8e0; }
-html.dark[data-accent='graphite'] { --primary: #98989d; }
-html.light-dusky[data-accent='indigo'] { --primary: #5856d6; }
-html.light-dusky[data-accent='purple'] { --primary: #af52de; }
-html.light-dusky[data-accent='pink'] { --primary: #ff2d55; }
-html.light-dusky[data-accent='orange'] { --primary: #f08a00; }
-html.light-dusky[data-accent='green'] { --primary: #28a745; }
-html.light-dusky[data-accent='teal'] { --primary: #1f9bb5; }
-html.light-dusky[data-accent='graphite'] { --primary: #6c6c70; }
-html[data-accent='orange'],
-html[data-accent='green'],
-html[data-accent='teal'] { --on-primary: #ffffff; }
+/* Accent pairs (keep in sync with src/lib/accentColors.ts): the accent and
+   the tick of the YouDO mark that goes with it. Soft tones carry dark text in
+   dark mode; deeper tones carry white text in light mode. */
+html.dark { --on-primary: #14120f; --on-accent: #14120f; }
+html.dark[data-accent='sand'] { --primary: #C9A46E; --accent-tick: #8FB394; }
+html.dark[data-accent='sage'] { --primary: #8FB394; --accent-tick: #D6B784; }
+html.dark[data-accent='slate'] { --primary: #8DA6C9; --accent-tick: #D6B784; }
+html.dark[data-accent='plum'] { --primary: #B39AC8; --accent-tick: #8FB394; }
+html.dark[data-accent='clay'] { --primary: #CC8E6E; --accent-tick: #8FB394; }
+html.dark[data-accent='graphite'] { --primary: #A4A6AB; --accent-tick: #D6B784; }
+html.light-dusky[data-accent='sand'] { --primary: #8C6A3A; --accent-tick: #4E7A57; }
+html.light-dusky[data-accent='sage'] { --primary: #4E7A57; --accent-tick: #8C6A3A; }
+html.light-dusky[data-accent='slate'] { --primary: #4A6A93; --accent-tick: #8C6A3A; }
+html.light-dusky[data-accent='plum'] { --primary: #7A5A8C; --accent-tick: #4E7A57; }
+html.light-dusky[data-accent='clay'] { --primary: #A55A3A; --accent-tick: #4E7A57; }
+html.light-dusky[data-accent='graphite'] { --primary: #5E6066; --accent-tick: #8C6A3A; }
 
 /* Derived tokens — every soft fill and glow follows the active tint. */
 html.dark,
@@ -558,6 +558,81 @@ button {
   pointer-events: none;
 }
 
+/* Lava ring: the filled arc glows and its colour flows along it. */
+@property --p {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+.lava-ring {
+  position: relative;
+  display: block;
+  border-radius: 50%;
+  transition: --p 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.lava-ring-track,
+.lava-ring-arc {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  --ring-band: radial-gradient(farthest-side, transparent calc(100% - var(--stroke)), #000 calc(100% - var(--stroke) + 0.5px));
+}
+.lava-ring-track {
+  background: color-mix(in srgb, var(--primary) 20%, transparent);
+  -webkit-mask: var(--ring-band);
+  mask: var(--ring-band);
+}
+.lava-ring-glow {
+  position: absolute;
+  inset: 0;
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--primary) 75%, transparent));
+}
+.lava-ring-arc {
+  overflow: hidden;
+  -webkit-mask: var(--ring-band), conic-gradient(#000 calc(var(--p) * 1turn), transparent 0);
+  -webkit-mask-composite: source-in;
+  mask: var(--ring-band), conic-gradient(#000 calc(var(--p) * 1turn), transparent 0);
+  mask-composite: intersect;
+}
+.lava-ring-flow {
+  position: absolute;
+  inset: -20%;
+  background: conic-gradient(
+    var(--primary),
+    var(--primary-glow) 14%,
+    color-mix(in srgb, var(--primary) 40%, #fff4dc) 22%,
+    var(--primary) 34%,
+    color-mix(in srgb, var(--primary) 62%, #000) 52%,
+    var(--primary) 66%,
+    var(--primary-glow) 82%,
+    var(--primary)
+  );
+  animation: lava-flow 7s linear infinite;
+  will-change: transform;
+}
+@keyframes lava-flow {
+  to { transform: rotate(1turn); }
+}
+.lava-ring-cap {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: var(--stroke);
+  height: var(--stroke);
+  margin-left: calc(var(--stroke) / -2);
+  border-radius: 50%;
+  background: var(--primary);
+}
+.lava-ring-end {
+  position: absolute;
+  inset: 0;
+  transform: rotate(calc(var(--p) * 1turn));
+}
+@media (prefers-reduced-motion: reduce) {
+  .lava-ring-flow { animation: none; }
+}
+:root[data-reduced-effects='true'] .lava-ring-flow { animation: none !important; }
+
 /* The quote: one sleek line that scrolls past, paused under a finger. */
 @keyframes quote-ticker {
   from { transform: translateX(0); }
@@ -711,7 +786,7 @@ html.dark .ios-segmented > button[aria-selected='true'] { background: #636366; }
   border-radius: 999px;
   display: grid;
   place-items: center;
-  color: #ffffff;
+  color: var(--on-primary);
   box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.12);
 }
 .accent-swatch[aria-checked='true']::after {
@@ -1791,7 +1866,7 @@ html[data-native-shell='true'] .auth-scroll-page { height: 100%; }
   border-radius: 8px;
   border: 0;
   background: var(--primary) !important;
-  color: #ffffff !important;
+  color: var(--on-primary) !important;
   box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.25);
 }
 
@@ -1894,7 +1969,7 @@ html.dark .settings-segment > button.bg-primary { background: #636366 !important
   padding: 7px;
   border-radius: 8px;
   background: var(--primary);
-  color: #ffffff;
+  color: var(--on-primary);
   border: 0;
 }
 

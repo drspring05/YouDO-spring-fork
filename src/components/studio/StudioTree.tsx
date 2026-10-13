@@ -94,7 +94,7 @@ export function StudioTree({ controller, searchQuery }: StudioTreeProps) {
         <button
           type="button"
           onClick={() => controller.openModal('bulk_add_inside', [])}
-          className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary-hover transition-colors shadow-sm"
+          className="flex items-center gap-1.5 px-4 py-2 bg-primary text-on-primary text-sm font-medium rounded-xl hover:bg-primary-hover transition-colors shadow-sm"
         >
           <Plus size={16} />
           <span>Add Goal</span>

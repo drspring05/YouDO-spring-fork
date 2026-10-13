@@ -55,7 +55,7 @@ class GlobalErrorBoundary extends Component<{ children: ReactNode }, ErrorBounda
           <div className="flex gap-3 w-full max-w-xs">
             <button
               onClick={() => window.location.reload()}
-              className="flex-1 py-3 px-4 rounded-xl bg-primary hover:bg-primary-glow font-bold text-xs text-white transition"
+              className="flex-1 py-3 px-4 rounded-xl bg-primary hover:bg-primary-glow font-bold text-xs text-on-primary transition"
             >
               Reload App
             </button>
