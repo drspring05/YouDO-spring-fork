@@ -750,7 +750,7 @@ export default function SettingsSheet({
 
           {/* ── SECTION 1: ACCOUNT & SYNC ── */}
           <section>
-          <SectionLabel icon={<ShieldCheck size={13} className="text-secondary" />}>ACCOUNT &amp; SYNC</SectionLabel>
+          <SectionLabel icon={<ShieldCheck size={13} className="text-primary" />}>ACCOUNT &amp; SYNC</SectionLabel>
           <div className="settings-card settings-account-card relative rounded-2xl border border-subtle/80 bg-elevated overflow-hidden shadow-xl">
             {user && (
               <div className="relative">
@@ -1215,7 +1215,7 @@ export default function SettingsSheet({
                   <div className="relative border-t border-subtle/80 bg-surface/40 px-4 sm:px-5 py-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5">
-                        <History size={13} className="text-secondary" />
+                        <History size={13} className="text-primary" />
                         <h4 className="text-[12px] font-bold text-content-primary">Cloud Restore Points</h4>
                       </div>
                       <button
@@ -1237,7 +1237,7 @@ export default function SettingsSheet({
 
                     {restoreLoading && (
                       <div className="py-6 text-center text-xs text-content-muted flex items-center justify-center gap-2">
-                        <RefreshCw size={13} className="animate-spin text-secondary" />
+                        <RefreshCw size={13} className="animate-spin text-primary" />
                         <span>Loading copies…</span>
                       </div>
                     )}
@@ -1348,7 +1348,7 @@ export default function SettingsSheet({
                   <div className="relative border-t border-subtle/80 bg-surface/40 px-4 sm:px-5 py-4 space-y-3.5">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5">
-                        <KeyRound size={13} className="text-secondary" />
+                        <KeyRound size={13} className="text-primary" />
                         <h4 className="text-[12px] font-bold text-content-primary">Account Security</h4>
                       </div>
                       <button
@@ -1732,7 +1732,7 @@ export default function SettingsSheet({
       >
         {/* ── SECTION 4: APPEARANCE & EXPERIENCE ── */}
         <section>
-          <SectionLabel icon={<Sparkles size={13} className="text-secondary" />}>APPEARANCE &amp; EXPERIENCE</SectionLabel>
+          <SectionLabel icon={<Sparkles size={13} className="text-primary" />}>APPEARANCE &amp; EXPERIENCE</SectionLabel>
           <div className="settings-card bg-elevated rounded-2xl border border-subtle overflow-hidden shadow-lg divide-y divide-white/5">
             <div className="settings-data-row p-4 flex items-center justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -2409,7 +2409,7 @@ export default function SettingsSheet({
               <div className="space-y-3 pt-2 border-t border-subtle">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <MessageSquare size={13} className="text-secondary shrink-0" />
+                    <MessageSquare size={13} className="text-primary shrink-0" />
                     <div className="min-w-0 flex-1">
                       <h4 className="text-[11.5px] font-semibold text-content-primary">Community Chat Messages</h4>
                       <p className="text-[10px] text-content-secondary">Alerts for new messages in public chat</p>
@@ -2429,7 +2429,7 @@ export default function SettingsSheet({
 
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <Hash size={13} className="text-secondary shrink-0" />
+                    <Hash size={13} className="text-primary shrink-0" />
                     <div className="min-w-0 flex-1">
                       <h4 className="text-[11.5px] font-semibold text-content-primary">Hashtag Community Updates</h4>
                       <p className="text-[10px] text-content-secondary">Alerts for your selected exam hashtag</p>
@@ -2455,7 +2455,7 @@ export default function SettingsSheet({
             <div className={`settings-card bg-elevated rounded-2xl border border-subtle p-4 shadow-lg mt-2.5 space-y-3 transition-opacity ${notifPrefs.enabled ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-3 min-w-0 flex-1">
-                  <div className="w-9 h-9 rounded-xl bg-warning/15 flex items-center justify-center text-warning shrink-0 mt-0.5">
+                  <div className="w-9 h-9 rounded-xl bg-primary-soft flex items-center justify-center text-primary shrink-0 mt-0.5">
                     <ShieldCheck size={16} />
                   </div>
                   <div className="min-w-0 flex-1">
@@ -2485,7 +2485,7 @@ export default function SettingsSheet({
                   {/* New Hashtag Requests */}
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <Hash size={13} className="text-secondary shrink-0" />
+                      <Hash size={13} className="text-primary shrink-0" />
                       <div className="min-w-0 flex-1">
                         <h4 className="text-[11.5px] font-semibold text-content-primary">New Hashtag Requests</h4>
                         <p className="text-[10px] text-content-secondary">Alerts when users submit new exam room requests</p>
@@ -2533,7 +2533,7 @@ export default function SettingsSheet({
                   {/* Support Chat Replies */}
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <MessageSquare size={13} className="text-secondary shrink-0" />
+                      <MessageSquare size={13} className="text-primary shrink-0" />
                       <div className="min-w-0 flex-1">
                         <h4 className="text-[11.5px] font-semibold text-content-primary">Support Chat Replies</h4>
                         <p className="text-[10px] text-content-secondary">Alerts when a requester answers your note in Support Chat</p>
@@ -2761,7 +2761,7 @@ export default function SettingsSheet({
       >
         {/* ── SECTION 6: UPDATES & COMMUNITY ── */}
         <section>
-          <SectionLabel icon={<Info size={13} className="text-content-muted" />}>UPDATES &amp; COMMUNITY</SectionLabel>
+          <SectionLabel icon={<Info size={13} className="text-primary" />}>UPDATES &amp; COMMUNITY</SectionLabel>
 
           {/* App updates card */}
           <div className="settings-card bg-elevated rounded-2xl border border-subtle overflow-hidden shadow-lg mb-2.5">
