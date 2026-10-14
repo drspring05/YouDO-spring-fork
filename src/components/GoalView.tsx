@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useUiPrefs } from '../hooks/useUiPrefs';
 import {
   CalendarDays,
@@ -41,6 +41,7 @@ import Overlay from './Overlay';
 import { goalBranchContainsTask, nextOpenItem } from '../lib/goalTree';
 import { daysBetweenLocalISO, deadlineDaysLabel, goalTimingLabel, todayISO } from '../lib/dates';
 import ActivityRing from './ActivityRing';
+import ClampedTitle from './ClampedTitle';
 import { hapticTick } from '../lib/haptics';
 import './goalCard.css';
 
@@ -161,18 +162,10 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
   const suppressClickUntilRef = useRef(0);
 
   const stepsOf = (node: GoalNode) => node.steps?.map((label, i) => ({ label, done: Boolean(node.stepDone?.[i]) }));
-  /** Tapping a title that is cut off (or one on a card whose step chips are)
-   *  shows the full text; otherwise the tap opens the card as usual. */
-  const showFullTextIfCut = (e: ReactMouseEvent<HTMLElement>, node: GoalNode) => {
-    if (!onOpenDescription || selected.size > 0) return;
-    if (isLongPressTriggeredRef.current || performance.now() < suppressClickUntilRef.current) return;
-    const cut = (el: Element) => el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1;
-    const card = e.currentTarget.closest('.goal-row');
-    const parts = [e.currentTarget, ...(card ? Array.from(card.querySelectorAll('.goal-row-step')) : [])];
-    if (!parts.some(cut)) return;
-    e.stopPropagation();
-    onOpenDescription(node.title, node.description ?? '', stepsOf(node));
-  };
+  /** The "…" on a cut title opens the full name, description and steps. */
+  const showFullText = onOpenDescription
+    ? (node: GoalNode) => () => onOpenDescription(node.title, node.description ?? '', stepsOf(node))
+    : () => undefined;
   const pressHighlightRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearLongPress = () => {
@@ -619,7 +612,7 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                   </div>
                 );
               })()}
-              <h2 className="mt-1 text-[19px] font-bold tracking-[-0.02em] text-content-primary line-clamp-2 [overflow-wrap:anywhere] leading-tight" onClick={(e) => showFullTextIfCut(e, current)}>{current.title}</h2>
+              <ClampedTitle as="h2" className="goal-head-title mt-1 text-[19px] font-bold tracking-[-0.02em] text-content-primary" text={current.title} onMore={showFullText(current)} />
             </div>
             <div className="flex items-center gap-0.5 shrink-0 -mt-1">
               {(() => {
@@ -870,9 +863,7 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
 
               <div className="goal-row-body">
                 <div className="goal-row-head">
-                  <h3 className={`goal-row-title ${isDone ? 'is-done' : ''}`} onClick={(e) => showFullTextIfCut(e, child)}>
-                    {child.title}
-                  </h3>
+                  <ClampedTitle className={`goal-row-title ${isDone ? 'is-done' : ''}`} text={child.title} onMore={showFullText(child)} />
                   {child.description && onOpenDescription && (
                     <button
                       type="button"

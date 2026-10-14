@@ -84,13 +84,31 @@
   font-weight: 600;
   letter-spacing: -0.012em;
   color: var(--text-primary);
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
+  max-height: 40px; /* two lines; ClampedTitle adds the "…" */
   overflow-wrap: anywhere;
 }
 .goal-row-title.is-done { color: var(--text-muted); text-decoration: line-through; }
+
+/* A clipped title: when cut it ends on the last word that fits, followed by
+   a softly tinted "…"; only the "…" opens the full text. */
+.clamped-title {
+  display: block;
+  overflow: hidden;
+}
+.goal-head-title { line-height: 24px; max-height: 48px; overflow-wrap: anywhere; }
+.clamped-title-more {
+  position: relative;
+  display: inline;
+  padding: 0 0 0 1px;
+  font: inherit;
+  line-height: inherit;
+  font-weight: 700;
+  color: var(--primary);
+  background: none;
+  cursor: pointer;
+}
+.clamped-title-more::after { content: ''; position: absolute; inset: -10px -10px -10px -6px; } /* easier to tap */
+.clamped-title-more:active { opacity: 0.6; }
 .goal-row-inline-icon {
   flex: 0 0 auto;
   margin-top: 4px;
