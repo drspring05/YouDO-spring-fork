@@ -605,7 +605,7 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                   </div>
                 );
               })()}
-              <h2 className="mt-1 text-[19px] font-bold tracking-[-0.02em] text-content-primary truncate leading-tight">{current.title}</h2>
+              <h2 className="mt-1 text-[19px] font-bold tracking-[-0.02em] text-content-primary line-clamp-2 [overflow-wrap:anywhere] leading-tight">{current.title}</h2>
             </div>
             <div className="flex items-center gap-0.5 shrink-0 -mt-1">
               {(() => {
@@ -736,6 +736,7 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
           // for remaining micro-steps — not look like open work for today.
           const isActivelyScheduled = !!linkedTask && !isBacklogged && !isTaskComplete(linkedTask);
           const nextItem = isEndpoint ? null : nextOpenItem(child);
+          const showActions = isWorkItem && !isDone && selected.size === 0;
           const locked = !!runningTask && goalBranchContainsTask(child, runningTask);
           const daysLeft = child.endDate ? daysBetweenLocalISO(todayISO(), child.endDate) : null;
           const dueTone = daysLeft === null ? 'none' : daysLeft < 0 ? 'overdue' : daysLeft <= 7 ? 'soon' : 'ok';
@@ -854,85 +855,9 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
               )}
 
               <div className="goal-row-body">
-                <div className="goal-row-head">
-                  <h3 className={`goal-row-title ${isDone ? 'is-done' : ''}`}>{child.title}</h3>
-                  {child.description && onOpenDescription && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onOpenDescription(child.title, child.description ?? '');
-                      }}
-                      className="goal-row-inline-icon hover:text-primary"
-                      title="View description"
-                      aria-label={`View description for ${child.title}`}
-                    >
-                      <FileText size={13} />
-                    </button>
-                  )}
-                  {child.pinned && <Star size={13} className="goal-row-inline-icon fill-primary text-primary" aria-label="Pinned" />}
-                  {isWorkItem && isActivelyScheduled ? (
-                    <span
-                      className="goal-row-status"
-                      title={`Scheduled for ${linkedTask?.targetDate ? formatDDMMYYYY(linkedTask.targetDate) : ''}`}
-                    >
-                      {getScheduledDateLabel(linkedTask?.targetDate)}
-                    </span>
-                  ) : isWorkItem && isBacklogged ? (
-                    <span className="goal-row-status" data-tone="backlog">Backlog</span>
-                  ) : !isWorkItem && child.endDate && !isDone ? (
-                    <span className="goal-row-status" data-tone={dueTone} title={`Due ${formatShortDate(child.endDate)}`}>
-                      {deadlineDaysLabel(child.endDate)}
-                    </span>
-                  ) : null}
-                  {canDrill && !(isWorkItem && (isActivelyScheduled || isBacklogged)) && (
-                    <ChevronRight size={18} className="goal-row-chevron" aria-hidden />
-                  )}
-                </div>
-
-                {!isWorkItem && (
-                  <p className="goal-row-detail">
-                    {isDone ? (
-                      'All done'
-                    ) : nextItem ? (
-                      <>
-                        <span className="text-content-muted">Next </span>
-                        {nextItem.title}
-                      </>
-                    ) : isEndpoint ? (
-                      'Empty · tap to add the first item'
-                    ) : null}
-                  </p>
-                )}
-                {isWorkItem && child.endDate && !isDone && (
-                  <p className="goal-row-detail" data-tone={dueTone}>
-                    Due {formatShortDate(child.endDate)} · {deadlineDaysLabel(child.endDate)}
-                  </p>
-                )}
-
-                {/* Tasks: steps on the left, the plan actions on the right, right
-                    under the status chip. */}
-                {isWorkItem && (hasSteps || (!isDone && selected.size === 0)) && (
-                  <div className="goal-row-line">
-                    <div className="goal-row-steps">
-                      {hasSteps && child.steps!.map((s, i) => (
-                        <button
-                          key={i}
-                          type="button"
-                          disabled={selected.size > 0 || locked}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleGoalStep(child.id, i);
-                          }}
-                          className="goal-row-step"
-                          data-done={Boolean(stepDone[i])}
-                          title={locked ? 'Save progress from the running sitting first' : s}
-                        >
-                          {s}
-                        </button>
-                      ))}
-                    </div>
-                    {!isDone && selected.size === 0 && (
+                {showActions ? (
+                  <div className="goal-row-head" data-wrap="true">
+                    {showActions && (
                       <div className="goal-row-actions">
                         {isActivelyScheduled ? (
                           <>
@@ -967,13 +892,101 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                               onPushNode(child);
                             }}
                             className="goal-row-btn is-primary"
-                            title={isBacklogged ? 'Schedule backlogged task' : 'Schedule'}
+                            title={isBacklogged ? 'Plan this backlogged task' : 'Plan this task'}
                           >
-                            Schedule
+                            Plan
                           </button>
                         )}
                       </div>
                     )}
+                    <h3 className={`goal-row-title ${isDone ? 'is-done' : ''}`}>
+                      {child.title}
+                      {child.description && onOpenDescription && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenDescription(child.title, child.description ?? '');
+                          }}
+                          className="goal-row-inline-icon hover:text-primary"
+                          title="View description"
+                          aria-label={`View description for ${child.title}`}
+                        >
+                          <FileText size={13} />
+                        </button>
+                      )}
+                      {child.pinned && <Star size={13} className="goal-row-inline-icon fill-primary text-primary" aria-label="Pinned" />}
+                    </h3>
+                  </div>
+                ) : (
+                <div className="goal-row-head">
+                  <h3 className={`goal-row-title ${isDone ? 'is-done' : ''}`}>{child.title}</h3>
+                  {child.description && onOpenDescription && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenDescription(child.title, child.description ?? '');
+                      }}
+                      className="goal-row-inline-icon hover:text-primary"
+                      title="View description"
+                      aria-label={`View description for ${child.title}`}
+                    >
+                      <FileText size={13} />
+                    </button>
+                  )}
+                  {child.pinned && <Star size={13} className="goal-row-inline-icon fill-primary text-primary" aria-label="Pinned" />}
+                  {!isWorkItem && child.endDate && !isDone ? (
+                    <span className="goal-row-status" data-tone={dueTone} title={`Due ${formatShortDate(child.endDate)}`}>
+                      {deadlineDaysLabel(child.endDate)}
+                    </span>
+                  ) : null}
+                  {canDrill && !showActions && (
+                    <ChevronRight size={18} className="goal-row-chevron" aria-hidden />
+                  )}
+                </div>
+                )}
+
+                {!isWorkItem && (
+                  <p className="goal-row-detail">
+                    {isDone ? (
+                      'All done'
+                    ) : nextItem ? (
+                      <>
+                        <span className="text-content-muted">Next </span>
+                        {nextItem.title}
+                      </>
+                    ) : isEndpoint ? (
+                      'Empty · tap to add the first item'
+                    ) : null}
+                  </p>
+                )}
+                {isWorkItem && child.endDate && !isDone && (
+                  <p className="goal-row-detail" data-tone={dueTone}>
+                    Due {formatShortDate(child.endDate)} · {deadlineDaysLabel(child.endDate)}
+                  </p>
+                )}
+
+                {isWorkItem && hasSteps && (
+                  <div className="goal-row-line">
+                    <div className="goal-row-steps">
+                      {child.steps!.map((s, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          disabled={selected.size > 0 || locked}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleGoalStep(child.id, i);
+                          }}
+                          className="goal-row-step"
+                          data-done={Boolean(stepDone[i])}
+                          title={locked ? 'Save progress from the running sitting first' : s}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -988,6 +1001,16 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                         <span className="goal-row-meta" data-tone="done">Completed</span>
                       ) : (
                         <span className="goal-row-meta">
+                          {isActivelyScheduled ? (
+                            <span
+                              data-tone="plan"
+                              title={`Planned for ${linkedTask?.targetDate ? formatDDMMYYYY(linkedTask.targetDate) : ''}`}
+                            >
+                              {getScheduledDateLabel(linkedTask?.targetDate)} ·{' '}
+                            </span>
+                          ) : isBacklogged ? (
+                            <span data-tone="backlog">Backlog · </span>
+                          ) : null}
                           {hasSteps ? `${stepDone.filter(Boolean).length} of ${child.steps!.length} steps` : 'No steps'}
                         </span>
                       )}
@@ -1045,11 +1068,11 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
       <button
         onClick={() => onAddChild(current?.id ?? null)}
         className={legacyStyle
-          ? 'mt-4 w-full py-3 rounded-2xl text-sm font-medium text-content-secondary bg-surface border border-dashed border-subtle hover:border-content-muted hover:text-content-primary transition-colors flex items-center justify-center gap-1.5'
-          : 'mt-4 w-full h-[50px] rounded-2xl text-[17px] font-semibold text-primary bg-surface shadow-card active:opacity-70 transition-opacity flex items-center justify-center gap-1.5'}
+          ? 'mt-4 w-full px-4 py-3 rounded-2xl text-sm font-medium text-content-secondary bg-surface border border-dashed border-subtle hover:border-content-muted hover:text-content-primary transition-colors flex items-center justify-center gap-1.5'
+          : 'mt-4 w-full h-[50px] px-4 rounded-2xl text-[17px] font-semibold text-primary bg-surface shadow-card active:opacity-70 transition-opacity flex items-center justify-center gap-1.5'}
       >
-        {legacyStyle ? <Plus size={15} /> : <Plus size={20} strokeWidth={2.4} />}
-        {current ? `Add to ${current.title}` : 'Create Goal'}
+        {legacyStyle ? <Plus size={15} className="shrink-0" /> : <Plus size={20} strokeWidth={2.4} className="shrink-0" />}
+        <span className="min-w-0 truncate">{current ? `Add to ${current.title}` : 'Create Goal'}</span>
       </button>
 
     </div>

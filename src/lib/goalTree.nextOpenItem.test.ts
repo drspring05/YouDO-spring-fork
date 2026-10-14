@@ -8,7 +8,7 @@ const branch = (id: string, children: GoalNode[], extra: Partial<GoalNode> = {})
   ({ id, kind: 'node', title: id, children, createdAt: 1, ...extra }) as GoalNode;
 
 describe('nextOpenItem', () => {
-  it('finds the first unfinished item in plan order, through nested branches', () => {
+  it('names the first unfinished direct child, not a grandchild', () => {
     const tree = branch('phase', [
       branch('maths', [
         item('l1', { steps: ['a', 'b'], stepDone: [true, true] }),
@@ -16,7 +16,7 @@ describe('nextOpenItem', () => {
       ]),
       item('revision'),
     ]);
-    expect(nextOpenItem(tree)?.id).toBe('l2');
+    expect(nextOpenItem(tree)?.id).toBe('maths');
   });
 
   it('skips items marked done and branches marked complete', () => {
@@ -25,6 +25,11 @@ describe('nextOpenItem', () => {
       item('marked', { completed: true }),
       item('open'),
     ]);
+    expect(nextOpenItem(tree)?.id).toBe('open');
+  });
+
+  it('skips a branch whose items are all done even if it is not marked complete', () => {
+    const tree = branch('phase', [branch('done', [item('a', { completed: true })]), branch('open', [item('b')])]);
     expect(nextOpenItem(tree)?.id).toBe('open');
   });
 

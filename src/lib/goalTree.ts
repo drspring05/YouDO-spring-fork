@@ -46,14 +46,14 @@ function endpointDone(node: GoalNode): boolean {
   return steps > 0 && (node.stepDone ?? []).filter(Boolean).length >= steps;
 }
 
-/** The first unfinished item inside a branch, in plan order (what to do next). */
+/** The first unfinished direct child of a branch, in plan order (what to do
+ *  next at this level): a task with work left, or a branch with any open item. */
 export function nextOpenItem(node: GoalNode): GoalNode | null {
   for (const child of node.children) {
     if (child.children.length === 0) {
       if (!endpointDone(child)) return child;
-    } else if (!child.completed) {
-      const next = nextOpenItem(child);
-      if (next) return next;
+    } else if (!child.completed && nextOpenItem(child)) {
+      return child;
     }
   }
   return null;

@@ -147,11 +147,28 @@
   flex-wrap: wrap;
   gap: 5px;
 }
+/* Tasks with plan actions: the buttons float right and the title wraps
+   under them, so a long title only shares its first line with them. A plain
+   block with overflow: clip (no new formatting context) keeps the wrap. */
+.goal-row-head[data-wrap] { display: block; }
+.goal-row-head[data-wrap]::after { content: ''; display: block; clear: both; }
+.goal-row-head[data-wrap] > .goal-row-actions { float: right; margin: -4px -2px -4px 10px; }
+.goal-row-head[data-wrap] > .goal-row-title {
+  display: block;
+  max-height: 60px; /* three lines */
+  overflow: clip;
+}
+.goal-row-head[data-wrap] .goal-row-inline-icon {
+  display: inline-block;
+  margin: 0 0 0 5px;
+  vertical-align: -1px;
+}
+/* On the title line: the 28px buttons centre on the 20px first line. */
 .goal-row-actions {
   flex: 0 0 auto;
   display: flex;
   gap: 6px;
-  margin-right: -2px;
+  margin: -4px -2px -4px 4px;
 }
 .goal-row-step {
   max-width: 100%;
@@ -200,6 +217,8 @@
   text-overflow: ellipsis;
 }
 .goal-row-meta[data-tone='done'] { color: var(--secondary); font-weight: 600; }
+.goal-row-meta [data-tone='plan'] { color: var(--primary); font-weight: 600; }
+.goal-row-meta [data-tone='backlog'] { color: var(--error); font-weight: 600; }
 :is(.goal-row-meta, .goal-row-detail) [data-tone='soon'],
 .goal-row-detail[data-tone='soon'] { color: var(--warning); }
 :is(.goal-row-meta, .goal-row-detail) [data-tone='overdue'],
