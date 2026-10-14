@@ -3,6 +3,7 @@ import { Plus, X, List, Hash, Type } from 'lucide-react';
 import type { BlueprintStudioController } from './blueprintStudioState';
 import { findGoal } from '../../lib/goalTree';
 import { numberedBlueprintTitles, normalizeBlueprintTitles } from '../../lib/blueprintStudio';
+import { TITLE_MAX, isTitleTooLong, longLinesMessage } from '../../lib/titleLimit';
 
 export interface StudioBulkAddModalProps {
   controller: BlueprintStudioController;
@@ -55,8 +56,13 @@ export function StudioBulkAddModal({ controller }: StudioBulkAddModalProps) {
   }, [mode, singleTitle, listText, prefix, startNum, sequenceCount]);
 
   const totalCreated = computedTitles.length * Math.max(1, targetNodeIds.length);
+  // Names stay short; details belong in each item's Description.
+  const tooLong = mode === 'list'
+    ? longLinesMessage(listText.split('\n'))
+    : computedTitles.some(isTitleTooLong) ? `Keep each name to ${TITLE_MAX} characters or fewer.` : null;
 
   const handleAdd = () => {
+    if (tooLong) return;
     if (computedTitles.length > 0) {
       addChildrenInside(targetNodeIds, computedTitles);
     }
@@ -142,6 +148,7 @@ export function StudioBulkAddModal({ controller }: StudioBulkAddModalProps) {
                 className="w-full px-3.5 py-2 text-sm bg-base border border-border-subtle rounded-xl text-content-primary placeholder:text-content-muted focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
                 placeholder="e.g. Overview & Introduction"
                 value={singleTitle}
+                maxLength={TITLE_MAX}
                 onChange={(e) => setSingleTitle(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
@@ -189,6 +196,7 @@ export function StudioBulkAddModal({ controller }: StudioBulkAddModalProps) {
                   className="w-full px-3.5 py-2 text-sm bg-base border border-border-subtle rounded-xl text-content-primary placeholder:text-content-muted focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
                   placeholder="e.g. Chapter, Lecture, or Step"
                   value={prefix}
+                  maxLength={TITLE_MAX - 4}
                   onChange={(e) => setPrefix(e.target.value)}
                 />
               </div>
@@ -238,6 +246,7 @@ export function StudioBulkAddModal({ controller }: StudioBulkAddModalProps) {
                 {totalCreated} total {totalCreated === 1 ? 'node' : 'nodes'}
               </span>
             </div>
+            {tooLong && <p role="alert" className="text-[11px] font-semibold text-error">{tooLong}</p>}
             <p className="text-[11px] text-content-muted">
               Duplicate titles within the same parent will be automatically skipped without error.
             </p>
@@ -255,7 +264,7 @@ export function StudioBulkAddModal({ controller }: StudioBulkAddModalProps) {
           </button>
           <button
             type="button"
-            disabled={computedTitles.length === 0}
+            disabled={computedTitles.length === 0 || Boolean(tooLong)}
             className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-on-primary bg-primary hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl transition-all shadow-sm"
             onClick={handleAdd}
           >

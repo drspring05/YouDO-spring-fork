@@ -215,7 +215,7 @@ function AppInner() {
   const [sliceNodes, setSliceNodes] = useState<GoalNode[]>([]);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
-  const [descModalData, setDescModalData] = useState<{ title: string; description: string } | null>(null);
+  const [descModalData, setDescModalData] = useState<{ title: string; description: string; steps?: { label: string; done: boolean }[] } | null>(null);
 
   // Session UI states
   const [showAmbient, setShowAmbient] = useState(false);
@@ -590,9 +590,9 @@ function AppInner() {
   }, []);
 
   const openDescriptionModal = useCallback(
-    (title: string, description: string) => {
+    (title: string, description: string, steps?: { label: string; done: boolean }[]) => {
       pushModalState();
-      setDescModalData({ title, description });
+      setDescModalData({ title, description, steps });
     },
     [pushModalState],
   );
@@ -1915,13 +1915,26 @@ function AppInner() {
                   <FileText size={18} />
                 </div>
                 <div className="min-w-0">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Full Description</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-primary">{descModalData.description ? 'Full Description' : 'Details'}</span>
                   <h3 className="text-[16px] font-bold text-content-primary leading-snug break-words">{descModalData.title}</h3>
                 </div>
               </div>
             </div>
-            <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar text-[14px] leading-relaxed text-content-primary whitespace-pre-wrap font-medium bg-surface p-4 rounded-2xl border border-subtle shadow-sm">
-              {descModalData.description}
+            <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar flex flex-col gap-3">
+              {descModalData.description && (
+                <div className="text-[14px] leading-relaxed text-content-primary whitespace-pre-wrap font-medium bg-surface p-4 rounded-2xl border border-subtle shadow-sm">
+                  {descModalData.description}
+                </div>
+              )}
+              {descModalData.steps && descModalData.steps.length > 0 && (
+                <ol className="bg-surface rounded-2xl border border-subtle shadow-sm divide-y divide-subtle">
+                  {descModalData.steps.map((step, i) => (
+                    <li key={i} className={`px-4 py-2.5 text-[14px] leading-snug break-words ${step.done ? 'text-content-muted line-through' : 'text-content-primary'}`}>
+                      {step.label}
+                    </li>
+                  ))}
+                </ol>
+              )}
             </div>
             <button onClick={closeDescriptionModal} className="w-full h-12 mt-2 rounded-2xl bg-surface border border-subtle text-[13px] font-bold text-content-secondary hover:text-content-primary hover:bg-elevated transition-all shadow-sm shrink-0">
               Close

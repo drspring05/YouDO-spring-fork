@@ -2,6 +2,7 @@ import type { GoalNode } from '../types';
 import { todayISO } from './dates';
 import { uid } from './ids';
 import { readPlanJSON } from './aiPlanInput';
+import { TITLE_MAX, isTitleTooLong } from './titleLimit';
 import { composePlanPrompt, buildMasterPlanningPrompt as createMasterPlanningPrompt } from './aiPlanPrompt';
 
 export const AI_PLAN_MAX_BYTES = 500 * 1024;
@@ -135,6 +136,7 @@ export function parseGeneratedBlueprint(text: string, context?: { today?: string
     const title = record.title.trim().replace(/\s+/g, ' ');
     const nextPath = [...parents, title];
     const nextLocation = pathLabel(nextPath);
+    if (isTitleTooLong(title)) return { error: `${nextLocation}: title is over ${TITLE_MAX} characters. Move the detail into description.` };
     if (Object.keys(record).some((key) => !allowed.has(key))) return { error: `${nextLocation}: remove fields that are not part of the plan schema.` };
     if (!Array.isArray(record.children)) return { error: `${nextLocation}: children must be an array.` };
     if (depth > AI_PLAN_MAX_DEPTH) return { error: `${nextLocation}: the plan is deeper than ${AI_PLAN_MAX_DEPTH} levels.` };

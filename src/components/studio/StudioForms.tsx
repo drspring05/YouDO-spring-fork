@@ -5,6 +5,7 @@ import { findGoal, hasGoalExecutionState, isGoalEndpoint } from '../../lib/goalT
 import { addBlueprintChildren, addBlueprintSteps, findBlueprintPath, flattenBlueprint, makeBlueprintNode, normalizeBlueprintTitles, numberedBlueprintTitles } from '../../lib/blueprintStudio';
 import { canMoveStudioItems, editStudioSteps, moveStudioItems, patchStudioItems, studioChangeDetails, studioItemPath, type StudioPatch, type StudioStepEdit } from '../../lib/studioWorkspace';
 import { fieldClass, StudioButton, StudioField, StudioTabs, StudioTargets } from './StudioControls';
+import { TITLE_MAX, isTitleTooLong, longLinesMessage } from '../../lib/titleLimit';
 
 type Apply = (goals: GoalNode[], summary: string) => void;
 type FormProps = { goals: GoalNode[]; ids: string[]; onApply: Apply; onDirty: (dirty: boolean) => void };
@@ -122,6 +123,14 @@ export function StudioAddForm({ goals, ids, kind, onApply, onDirty }: FormProps 
 
   const submit = scope === 'together' ? submitTogether : submitIndividual;
   const expectedCount = scope === 'together' ? sharedExpected : individualExpected;
+  // Names stay short (details go in Description); steps are not limited.
+  const tooLong = kind === 'steps'
+    ? null
+    : scope === 'together' && mode === 'list'
+      ? longLinesMessage(text.split(/\r?\n/))
+      : (scope === 'together' ? sharedNames : individualEntries.flatMap((entry) => entry.validNames)).some(isTitleTooLong)
+        ? `Keep each name to ${TITLE_MAX} characters or fewer.`
+        : null;
 
   const updateIndiv = (parentId: string, patch: Partial<IndivConfig>) => {
     setIndivConfigs((prev) => ({
@@ -150,10 +159,10 @@ export function StudioAddForm({ goals, ids, kind, onApply, onDirty }: FormProps 
           {parents.length > 1 && <p className="studio-context">Add the same {noun}s to each of the {parents.length} selected items.</p>}
           <StudioTabs value={mode} onChange={(value) => { setMode(value); setError(''); }} options={[{ value: 'one', label: 'One' }, { value: 'list', label: 'List' }, { value: 'numbered', label: 'Numbered' }]} />
           {mode === 'numbered' ? <>
-            <StudioField label="Name"><input className={fieldClass} value={prefix} onChange={(e) => setPrefix(e.target.value)} placeholder="e.g. Topic or Lecture" /></StudioField>
+            <StudioField label="Name"><input className={fieldClass} value={prefix} maxLength={kind === 'steps' ? undefined : TITLE_MAX - 4} onChange={(e) => setPrefix(e.target.value)} placeholder="e.g. Topic or Lecture" /></StudioField>
             <div className="studio-two-columns"><StudioField label="Start at"><input className={fieldClass} type="number" min={0} value={start} onChange={(e) => setStart(e.target.value)} /></StudioField><StudioField label="How many"><input className={fieldClass} type="number" min={1} max={100} value={count} onChange={(e) => setCount(e.target.value)} /></StudioField></div>
           </> : <StudioField label={mode === 'one' ? `${noun[0].toUpperCase()}${noun.slice(1)} name` : 'One name per line'}>
-            {mode === 'one' ? <input className={fieldClass} value={text} onChange={(e) => setText(e.target.value)} placeholder={kind === 'goal' ? 'Name your goal' : kind === 'steps' ? 'e.g. Review notes' : 'Name this topic or milestone'} onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} />
+            {mode === 'one' ? <input className={fieldClass} value={text} maxLength={kind === 'steps' ? undefined : TITLE_MAX} onChange={(e) => setText(e.target.value)} placeholder={kind === 'goal' ? 'Name your goal' : kind === 'steps' ? 'e.g. Review notes' : 'Name this topic or milestone'} onKeyDown={(e) => { if (e.key === 'Enter' && !tooLong) submit(); }} />
               : <textarea className={fieldClass} rows={4} value={text} onChange={(e) => setText(e.target.value)} placeholder={kind === 'steps' ? 'Watch\nPractise\nReview' : 'Chapter 1\nChapter 2\nChapter 3'} />}
           </StudioField>}
           {kind !== 'steps' && <details className="studio-disclosure"><summary>Description <ChevronDown size={14} /></summary><StudioField label="Description (optional)"><textarea className={fieldClass} rows={2} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Useful context for these items" /></StudioField></details>}
@@ -248,9 +257,10 @@ export function StudioAddForm({ goals, ids, kind, onApply, onDirty }: FormProps 
 
       {blocked.length > 0 && <p role="alert" className="studio-error">{blocked.length} selected task{blocked.length === 1 ? '' : 's'} already contain steps or recorded work. Add checklist steps instead.</p>}
       {error && <p role="alert" className="studio-error">{error}</p>}
+      {tooLong && <p role="alert" className="studio-error">{tooLong}</p>}
     </div>
     <footer className="studio-panel-footer">
-      <StudioButton onClick={submit} disabled={expectedCount === 0 || blocked.length > 0}>
+      <StudioButton onClick={() => { if (!tooLong) submit(); }} disabled={expectedCount === 0 || blocked.length > 0 || Boolean(tooLong)}>
         <Plus size={15} /> Add {expectedCount || ''} {noun}{expectedCount === 1 ? '' : 's'}
       </StudioButton>
     </footer>
@@ -263,7 +273,7 @@ const fieldPatch = (fields: Fields): StudioPatch => ({ title: fields.title.trim(
 
 function ItemFields({ fields, onChange, compact = false }: { fields: Fields; onChange: (fields: Fields) => void; compact?: boolean }) {
   return <div className="studio-form-fields">
-    <StudioField label="Name"><input className={fieldClass} value={fields.title} onChange={(e) => onChange({ ...fields, title: e.target.value })} /></StudioField>
+    <StudioField label="Name"><input className={fieldClass} value={fields.title} maxLength={Math.max(TITLE_MAX, fields.title.length)} onChange={(e) => onChange({ ...fields, title: e.target.value })} /></StudioField>
     <StudioField label="Description"><textarea className={fieldClass} rows={2} value={fields.description} onChange={(e) => onChange({ ...fields, description: e.target.value })} placeholder="Optional" /></StudioField>
     <details className="studio-disclosure" open={!compact && Boolean(fields.startDate || fields.endDate)}><summary>Dates & pin <ChevronDown size={14} /></summary><div className="studio-two-columns">
       <StudioField label="Start date"><input className={fieldClass} type="date" value={fields.startDate} onChange={(e) => onChange({ ...fields, startDate: e.target.value })} /></StudioField>
@@ -294,6 +304,7 @@ export function StudioEditForm({ goals, ids, onApply, onDirty }: FormProps) {
     const next = { ...findGoal(goals, id)!, ...patch };
     return next.title.trim() && !(next.startDate && next.endDate && next.endDate < next.startDate);
   });
+  const nameTooLong = Object.values(patches).some((patch) => patch.title !== undefined && isTitleTooLong(patch.title));
   useEffect(() => onDirty(dirty), [dirty, onDirty]);
   return <>
     <div className="studio-panel-body">
@@ -305,7 +316,7 @@ export function StudioEditForm({ goals, ids, onApply, onDirty }: FormProps) {
         <ItemFields compact fields={edits[node.id]} onChange={(value) => setEdits((current) => ({ ...current, [node.id]: value }))} />
       </details>)}</div> : <div className="studio-bulk-fields">
         <label className="studio-check-label"><input type="checkbox" checked={enabled.title} onChange={(e) => setEnabled({ ...enabled, title: e.target.checked })} /> Change name</label>
-        {enabled.title && <StudioField label="New name for all"><input className={fieldClass} value={shared.title} onChange={(e) => setShared({ ...shared, title: e.target.value })} placeholder="Leave different names unchanged by unchecking above" /></StudioField>}
+        {enabled.title && <StudioField label="New name for all"><input className={fieldClass} value={shared.title} maxLength={TITLE_MAX} onChange={(e) => setShared({ ...shared, title: e.target.value })} placeholder="Leave different names unchanged by unchecking above" /></StudioField>}
         <label className="studio-check-label"><input type="checkbox" checked={enabled.description} onChange={(e) => setEnabled({ ...enabled, description: e.target.checked })} /> Change description</label>
         {enabled.description && <StudioField label="Description for all"><textarea className={fieldClass} rows={3} value={shared.description} onChange={(e) => setShared({ ...shared, description: e.target.value })} placeholder="Blank clears descriptions" /></StudioField>}
         <label className="studio-check-label"><input type="checkbox" checked={enabled.dates} onChange={(e) => setEnabled({ ...enabled, dates: e.target.checked })} /> Change dates</label>
@@ -313,8 +324,9 @@ export function StudioEditForm({ goals, ids, onApply, onDirty }: FormProps) {
         <p className="studio-context">Only checked fields change.</p>
       </div>}
       {!valid && <p role="alert" className="studio-error">Use a name and a deadline on or after the start date.</p>}
+      {nameTooLong && <p role="alert" className="studio-error">Keep the name to {TITLE_MAX} characters or fewer. Add details in Description.</p>}
     </div>
-    <footer className="studio-panel-footer"><StudioButton disabled={!dirty || !valid} onClick={() => onApply(patchStudioItems(goals, patches), `Edited ${Object.keys(patches).length} item${Object.keys(patches).length === 1 ? '' : 's'}`)}><Check size={15} /> Apply{single ? ' edit' : ` to ${Object.keys(patches).length} items`}</StudioButton></footer>
+    <footer className="studio-panel-footer"><StudioButton disabled={!dirty || !valid || nameTooLong} onClick={() => onApply(patchStudioItems(goals, patches), `Edited ${Object.keys(patches).length} item${Object.keys(patches).length === 1 ? '' : 's'}`)}><Check size={15} /> Apply{single ? ' edit' : ` to ${Object.keys(patches).length} items`}</StudioButton></footer>
   </>;
 }
 

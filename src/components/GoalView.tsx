@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { useUiPrefs } from '../hooks/useUiPrefs';
 import {
   CalendarDays,
@@ -128,7 +128,7 @@ interface Props {
   /** Optional direct navigation handler for recording jump origin for 1-step back navigation */
   onNavigateToPath?: (pathIds: string[]) => void;
   onOpenStudio: () => void;
-  onOpenDescription?: (title: string, description: string) => void;
+  onOpenDescription?: (title: string, description: string, steps?: { label: string; done: boolean }[]) => void;
 }
 
 function nodeMeta(node: GoalNode): { icon: typeof Target; tint: string; label: string } {
@@ -159,6 +159,20 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
   // click after a long press" window must expire on its own, or it would eat
   // the next tap.
   const suppressClickUntilRef = useRef(0);
+
+  const stepsOf = (node: GoalNode) => node.steps?.map((label, i) => ({ label, done: Boolean(node.stepDone?.[i]) }));
+  /** Tapping a title that is cut off (or one on a card whose step chips are)
+   *  shows the full text; otherwise the tap opens the card as usual. */
+  const showFullTextIfCut = (e: ReactMouseEvent<HTMLElement>, node: GoalNode) => {
+    if (!onOpenDescription || selected.size > 0) return;
+    if (isLongPressTriggeredRef.current || performance.now() < suppressClickUntilRef.current) return;
+    const cut = (el: Element) => el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1;
+    const card = e.currentTarget.closest('.goal-row');
+    const parts = [e.currentTarget, ...(card ? Array.from(card.querySelectorAll('.goal-row-step')) : [])];
+    if (!parts.some(cut)) return;
+    e.stopPropagation();
+    onOpenDescription(node.title, node.description ?? '', stepsOf(node));
+  };
   const pressHighlightRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearLongPress = () => {
@@ -605,7 +619,7 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                   </div>
                 );
               })()}
-              <h2 className="mt-1 text-[19px] font-bold tracking-[-0.02em] text-content-primary line-clamp-2 [overflow-wrap:anywhere] leading-tight">{current.title}</h2>
+              <h2 className="mt-1 text-[19px] font-bold tracking-[-0.02em] text-content-primary line-clamp-2 [overflow-wrap:anywhere] leading-tight" onClick={(e) => showFullTextIfCut(e, current)}>{current.title}</h2>
             </div>
             <div className="flex items-center gap-0.5 shrink-0 -mt-1">
               {(() => {
@@ -855,78 +869,16 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
               )}
 
               <div className="goal-row-body">
-                {showActions ? (
-                  <div className="goal-row-head" data-wrap="true">
-                    {showActions && (
-                      <div className="goal-row-actions">
-                        {isActivelyScheduled ? (
-                          <>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onPushNode(child);
-                              }}
-                              className="goal-row-btn"
-                              title="Replan"
-                            >
-                              Replan
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (child.todayTaskId) onUnplan(child.todayTaskId);
-                              }}
-                              className="goal-row-btn is-danger"
-                              title="Unschedule"
-                            >
-                              Unplan
-                            </button>
-                          </>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onPushNode(child);
-                            }}
-                            className="goal-row-btn is-primary"
-                            title={isBacklogged ? 'Plan this backlogged task' : 'Plan this task'}
-                          >
-                            Plan
-                          </button>
-                        )}
-                      </div>
-                    )}
-                    <h3 className={`goal-row-title ${isDone ? 'is-done' : ''}`}>
-                      {child.title}
-                      {child.description && onOpenDescription && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onOpenDescription(child.title, child.description ?? '');
-                          }}
-                          className="goal-row-inline-icon hover:text-primary"
-                          title="View description"
-                          aria-label={`View description for ${child.title}`}
-                        >
-                          <FileText size={13} />
-                        </button>
-                      )}
-                      {child.pinned && <Star size={13} className="goal-row-inline-icon fill-primary text-primary" aria-label="Pinned" />}
-                    </h3>
-                  </div>
-                ) : (
                 <div className="goal-row-head">
-                  <h3 className={`goal-row-title ${isDone ? 'is-done' : ''}`}>{child.title}</h3>
+                  <h3 className={`goal-row-title ${isDone ? 'is-done' : ''}`} onClick={(e) => showFullTextIfCut(e, child)}>
+                    {child.title}
+                  </h3>
                   {child.description && onOpenDescription && (
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onOpenDescription(child.title, child.description ?? '');
+                        onOpenDescription(child.title, child.description ?? '', stepsOf(child));
                       }}
                       className="goal-row-inline-icon hover:text-primary"
                       title="View description"
@@ -936,6 +888,48 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                     </button>
                   )}
                   {child.pinned && <Star size={13} className="goal-row-inline-icon fill-primary text-primary" aria-label="Pinned" />}
+                  {showActions && (
+                    <div className="goal-row-actions">
+                      {isActivelyScheduled ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onPushNode(child);
+                            }}
+                            className="goal-row-btn"
+                            title="Replan"
+                          >
+                            Replan
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (child.todayTaskId) onUnplan(child.todayTaskId);
+                            }}
+                            className="goal-row-btn is-danger"
+                            title="Unschedule"
+                          >
+                            Unplan
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onPushNode(child);
+                          }}
+                          className="goal-row-btn is-primary"
+                          title={isBacklogged ? 'Plan this backlogged task' : 'Plan this task'}
+                        >
+                          Plan
+                        </button>
+                      )}
+                    </div>
+                  )}
                   {!isWorkItem && child.endDate && !isDone ? (
                     <span className="goal-row-status" data-tone={dueTone} title={`Due ${formatShortDate(child.endDate)}`}>
                       {deadlineDaysLabel(child.endDate)}
@@ -945,7 +939,6 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                     <ChevronRight size={18} className="goal-row-chevron" aria-hidden />
                   )}
                 </div>
-                )}
 
                 {!isWorkItem && (
                   <p className="goal-row-detail">
