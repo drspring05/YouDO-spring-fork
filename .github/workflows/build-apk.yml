@@ -124,4 +124,20 @@ jobs:
           APP_NAME="$(sed -n "s/.*APP_VERSION = '\([^']*\)'.*/\1/p" src/lib/version.ts | head -n 1)"
           echo "Signing certificate SHA-256: $CURRENT_CERT"
           if [ "$PERSISTENT_KEY" = "true" ] && [ -n "$PINNED_CERT_SHA256" ]; then
-            test "${CURRE
+                     test "${CURRENT_CERT,,}" = "${PINNED_CERT_SHA256,,}"
+          fi
+          EXPECTED_CODE="$(sed -n 's/.*versionCode \([0-9]*\).*/\1/p' android/app/build.gradle | head -n 1)"
+          EXPECTED_NAME="$(sed -n 's/.*versionName \"\([^\"]*\)\".*/\1/p' android/app/build.gradle | head -n 1)"
+          test "$EXPECTED_CODE" -ge 1
+          test "$CURRENT_CODE" = "$EXPECTED_CODE"
+          test "$CURRENT_NAME" = "$EXPECTED_NAME"
+          test "$PACKAGE_NAME" = "$CURRENT_NAME"
+          test "$APP_NAME" = "$CURRENT_NAME"
+          echo "Release identity verified: versionName $CURRENT_NAME; versionCode $CURRENT_CODE"
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.signing.outputs.persistent == 'true' && 'YouDO-APK' || 'YouDO-APK-throwaway-key' }}
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30 
