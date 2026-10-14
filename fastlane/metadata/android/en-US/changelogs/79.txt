@@ -1,0 +1,4 @@
+v8.0.0: A new look and the Private Hub
+- Redesigned app: large titles, Liquid Glass tab bar, six accents, five app icons; Classic Look keeps the v7 design.
+- The Private Hub previewed in v7.8.0 is complete and open to everyone: friends, messages and study rooms, with notifications even when the app is closed.
+- Clearer goal cards, a richer morning briefing and safer notifications.

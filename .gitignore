@@ -13,6 +13,8 @@ build
 .env
 .env.local
 .env.*.local
+.env.local.*
+*.tsbuildinfo
 .bolt
 .cache
 tmp

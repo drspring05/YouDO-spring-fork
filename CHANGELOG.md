@@ -17,14 +17,13 @@ Guidance: keep 3–6 short, user-facing bullets. Group related small fixes under
 
 ---
 
-## [v8.0.0] - 2026-10-13 - Apple-Inspired Redesign
+## [v8.0.0] - 2026-10-14 - A New Look and the Private Hub
 
-- **A new look, end to end** — YouDO is rebuilt on Apple's Human Interface Guidelines: true-black and grouped-gray canvases, borderless inset cards, hairline separators, the Inter variable typeface (SF Pro on Apple devices) bundled for offline use, and a legibility floor so no label drops below 11pt.
-- **Large titles & Activity ring** — Every tab opens with an iOS Large Title; on Today the date and the day's tally sit right beside it, the progress ring wraps the app icon, and the quote runs in a slim scrolling bar, so the header takes about half the space.
-- **Liquid Glass navigation** — A floating translucent tab bar with a separate Settings button and native-style badges. Tapping a tab slides the selection and its accent across; pressing and holding (or sliding along the bar) lifts it into a refracting glass bubble that stretches with its speed and can be dragged to any tab. Icon buttons swell and spring under the finger, and the daily briefing's slider becomes a blue glass bubble too.
-- **Native controls everywhere** — UISwitch-style toggles, segmented controls for Today/Backlog, Settings and sign-in, 34pt-corner sheets with a proper grabber, capsule buttons, and Reminders-style task cards with a priority-tinted progress ring.
-- **Pick your accent and your look** — Settings → Appearance offers eight system tint colors in Dark and Light themes; a Liquid Glass switch with live preview and Refraction / Tint sliders; Roomy Header for the larger header; and Classic Look to return to the v7 design. Existing theme choices are kept.
-- **New icon & Android chrome** — Blue-to-indigo app icon, matching splash, status/navigation bars, and session notification colors.
+- **A new look, end to end** — YouDO is redesigned around Apple's design language: large titles, borderless cards, a floating Liquid Glass tab bar with springy buttons, and native-style switches and sheets. Six calm accent colours and five app icons to choose from; the start screen, header and notifications follow your accent. Classic Look in Settings brings back the v7 design. The redesign was started by @maciasdav in PR #50. Thank you!
+- **Private Hub for everyone** — The Private Hub that v7.8.0 previewed while it was still in development is now complete and open to every signed-in user, so the waitlist is gone. Friends, direct messages and study rooms with live focus and a shared progress bar. Messages, requests, invites and @mentions now arrive even when the app is closed, while ordinary room chat stays quiet.
+- **Clearer goals** — Goal cards show progress, what's next and deadlines at a glance. Names stay short and tidy (up to 60 characters, with "…" to read the rest), and where a task lives looks the same on Today, Goals and Calendar.
+- **A morning briefing worth reading** — It leads with your goal countdown and names your first task, your pace, your backlog and your streak. The focus notification now has pause and resume, like a music player.
+- **Safer notifications** — Only YouDO's own server can send a notification, and switching accounts on a phone stops the previous account's notifications.
 - **Android APK** — versionName **8.0.0**, versionCode **79**. Installs over v7.8.0 (78).
 
 ---
