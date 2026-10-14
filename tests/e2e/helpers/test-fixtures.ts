@@ -1,7 +1,6 @@
 /**
  * E2E Test Fixtures & Simulation Helpers for YouDO Rooms & Hub Refactor
- * Implements opaque-box requirement models and contracts defined in
- * ORIGINAL_REQUEST.md, PROJECT.md, and TEST_INFRA.md.
+ * Opaque-box requirement models for the room and hub contracts.
  */
 
 export type RoomPrivacy = 'anyone_can_join' | 'invite_only';

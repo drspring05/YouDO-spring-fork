@@ -170,7 +170,7 @@ Signed-in users get a private space next to the public Board:
 <img src="public/app-icons/linen/icon-192.png" width="56" alt="Linen icon" />
 </p>
 
-v8 brings a new look: large titles, borderless cards and a floating **Liquid Glass** tab bar. In **Settings → Preferences** pick Dark or Light, one of six accent colours (the start screen, header and notifications follow it) and one of five app icons. **Classic Look** brings back the v7 design. The redesign was started by [@maciasdav](https://github.com/maciasdav).
+v8 brings a new look: large titles, borderless cards and a floating **Liquid Glass** tab bar. In **Settings → Preferences** pick Dark or Light, one of six accent colours (the start screen, header and notifications follow it) and one of five app icons. **Classic Look** brings back the v7 design ([v7 screenshots](docs/screenshots/v7-classic)). The redesign was started by [@maciasdav](https://github.com/maciasdav).
 
 ## Your data remains yours
 
