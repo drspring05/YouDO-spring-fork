@@ -202,6 +202,11 @@
      keeps the same gap as every other line. */
   margin-top: -6px;
 }
+/* A task without steps: its Plan button would almost touch the tools below,
+   so only the tools drop a little; the text keeps the usual line spacing. */
+.goal-row-head:has(> .goal-row-actions) + .goal-row-footer { align-items: flex-start; }
+.goal-row-head:has(> .goal-row-actions) + .goal-row-footer > .goal-row-footer-main { margin-top: 6px; }
+.goal-row-head:has(> .goal-row-actions) + .goal-row-footer > .goal-row-tools { margin-top: 8px; }
 .goal-row-footer-main {
   flex: 1 1 auto;
   min-width: 0;
