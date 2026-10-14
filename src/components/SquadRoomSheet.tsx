@@ -18,7 +18,7 @@ import SquadProgressBoard from './squad/SquadProgressBoard';
 import RoomActivity from './squad/RoomActivity';
 import RoomInfoSheet from './squad/RoomInfoSheet';
 import UserProfileSheet from './UserProfileSheet';
-import { HubNavBar } from './hub/HubParts';
+import { HubAvatar, HubNavBar } from './hub/HubParts';
 import { requestOpenDm } from './hub/openDm';
 import './chat/youDoChat.css';
 import ChatActionSheet from './chat/ChatActionSheet';
@@ -219,6 +219,16 @@ export default function SquadRoomSheet({ open, onClose, squadId, personalPace }:
     setShowMentions(words[words.length - 1].startsWith('@'));
   };
 
+  // The @ list narrows to the letters typed after @, by name or username.
+  const mentionQuery = showMentions ? (message.split(' ').pop() ?? '').slice(1).toLowerCase() : '';
+  const mentionMembers = acceptedMembers.filter((m) => {
+    const username = m.profiles?.username;
+    if (m.user_id === user?.id || !username) return false;
+    const name = (m.profiles?.display_name ?? '').toLowerCase();
+    return username.toLowerCase().startsWith(mentionQuery) || name.split(/\s+/).some((part) => part.startsWith(mentionQuery));
+  });
+  const mentionEveryone = 'all'.startsWith(mentionQuery) || 'everyone'.startsWith(mentionQuery);
+
   const insertMention = (username: string) => {
     const words = message.split(' ');
     words.pop();
@@ -397,30 +407,30 @@ export default function SquadRoomSheet({ open, onClose, squadId, personalPace }:
                   </ol>
                 </div>
 
-                {showMentions && (
-                  <div className="hub-group absolute bottom-full left-4 right-4 mb-2 max-h-56 overflow-y-auto shadow-xl">
-                    <button type="button" onClick={() => insertMention('all')} className="hub-row is-compact">
-                      <span className="hub-avatar is-sm">@</span>
-                      <span className="hub-row-main">
-                        <span className="hub-row-title text-[15px]">Everyone</span>
-                        <span className="hub-row-subtitle block">Mention all room members</span>
-                      </span>
-                    </button>
-                    {acceptedMembers
-                      .filter((m) => m.user_id !== user?.id && m.profiles?.username)
-                      .map((m) => (
+                <footer className="yd-chat-composer relative">
+                  {/* The @ list opens just above the message box. */}
+                  {showMentions && (mentionEveryone || mentionMembers.length > 0) && (
+                    <div className="hub-group absolute bottom-full left-3 right-3 mb-2 max-h-56 overflow-y-auto shadow-xl">
+                      {mentionEveryone && (
+                        <button type="button" onClick={() => insertMention('all')} className="hub-row is-compact">
+                          <span className="hub-avatar is-sm">@</span>
+                          <span className="hub-row-main">
+                            <span className="hub-row-title text-[15px]">Everyone</span>
+                            <span className="hub-row-subtitle block">Mention all room members</span>
+                          </span>
+                        </button>
+                      )}
+                      {mentionMembers.map((m) => (
                         <button key={m.user_id} type="button" onClick={() => insertMention(m.profiles!.username)} className="hub-row is-compact">
-                          <span className="hub-avatar is-sm">{(m.profiles?.display_name || '?').slice(0, 1).toUpperCase()}</span>
+                          <HubAvatar url={m.profiles?.avatar_url} name={m.profiles?.display_name} size="sm" />
                           <span className="hub-row-main">
                             <span className="hub-row-title text-[15px]"><span className="hub-truncate">{m.profiles?.display_name}</span></span>
                             <span className="hub-row-subtitle block">@{m.profiles?.username}</span>
                           </span>
                         </button>
                       ))}
-                  </div>
-                )}
-
-                <footer className="yd-chat-composer">
+                    </div>
+                  )}
                   {replyingTo && (
                     <div className="yd-chat-reply">
                       <Reply size={16} className="shrink-0 text-secondary" />

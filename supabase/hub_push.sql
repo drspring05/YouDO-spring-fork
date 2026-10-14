@@ -157,9 +157,13 @@ begin
     from public.squad_members m
     join public.profiles p on p.id = m.user_id
     where m.squad_id = new.squad_id and m.status = 'accepted' and m.user_id <> new.sender_id
-      and new.content ~* ('(^|[^a-z0-9_])@'
-        || pg_catalog.regexp_replace(p.username, '([^a-zA-Z0-9_])', '\\\1', 'g')
-        || '([^a-z0-9_]|$)')
+      and (
+        -- @all (or @everyone, @room, @squad) mentions the whole room.
+        new.content ~* '(^|[^a-z0-9_])@(all|everyone|room|squad)([^a-z0-9_]|$)'
+        or new.content ~* ('(^|[^a-z0-9_])@'
+          || pg_catalog.regexp_replace(p.username, '([^a-zA-Z0-9_])', '\\\1', 'g')
+          || '([^a-z0-9_]|$)')
+      )
       and private.push_wanted(m.user_id, 'mention');
   end if;
   -- Everyone else who chose "All messages" (no saved choice means mentions only).

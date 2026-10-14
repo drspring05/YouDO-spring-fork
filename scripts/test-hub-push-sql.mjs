@@ -111,6 +111,10 @@ try {
   calls = await sent();
   check(calls.length === 1 && calls[0].body.userIds[0] === id(3) && /in Night Owls/.test(calls[0].body.title), 'a mentioned "All messages" member gets the mention, once');
   await clear();
+  await db.query('insert into public.squad_messages(squad_id,sender_id,content) values($1,$2,$3)', [id(90), id(1), '@all mock at 9']);
+  calls = await sent();
+  check(calls.length === 1 && calls[0].body.userIds.length === 2 && !calls[0].body.userIds.includes(id(1)), '@all mentions every other member');
+  await clear();
   await db.query("insert into public.push_preferences(user_id,room_messages) values($1,'off') on conflict (user_id) do update set room_messages='off'", [id(2)]);
   await db.query('insert into public.squad_messages(squad_id,sender_id,content) values($1,$2,$3)', [id(90), id(1), '@ben ping']);
   check(!(await sent()).some((call) => call.body.userIds.includes(id(2))), 'room notifications off silences mentions');
