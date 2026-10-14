@@ -297,13 +297,13 @@ function ModernCommandBar({
                       >
                         {hubStripPublicDot && (
                           <span
-                            className="absolute right-full top-[25%] mr-[3px] size-[5px] -translate-y-1/2 rounded-full bg-primary ring-[1.5px] ring-[var(--bg-surface)]"
+                            className="absolute right-full top-[50%] mr-[3px] size-[5px] -translate-y-1/2 rounded-full bg-error ring-[1.5px] ring-[var(--bg-surface)]"
                             aria-label="Public hub has unread"
                           />
                         )}
                         {hubStripPrivateDot && (
                           <span
-                            className="absolute right-full top-[75%] mr-[3px] size-[5px] -translate-y-1/2 rounded-full bg-primary ring-[1.5px] ring-[var(--bg-surface)]"
+                            className="absolute right-full top-[50%] mr-[3px] size-[5px] -translate-y-1/2 rounded-full bg-error ring-[1.5px] ring-[var(--bg-surface)]"
                             aria-label="Private hub has activity"
                           />
                         )}
