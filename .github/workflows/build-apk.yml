@@ -27,14 +27,24 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
-      # Repository secrets hold the durable v6+ signing identity. Never fall
-      # back to an ephemeral debug key for a distributable APK.
-      - name: Prepare permanent Android signing key
+      # This fork signs with its own key, stored in this repository's secrets
+      # (YOUDO_SIGNING_KEYSTORE_BASE64 + YOUDO_SIGNING_PASSWORD). Forks do not
+      # inherit the original project's key. Without the secrets the build still
+      # runs, but with a throwaway debug key: every such build has a different
+      # signature, so the previous YouDO must be uninstalled before installing,
+      # and the artifact is named to show it is not a permanent build.
+      - name: Prepare Android signing key
+        id: signing
         env:
           SIGNING_KEYSTORE_BASE64: ${{ secrets.YOUDO_SIGNING_KEYSTORE_BASE64 }}
         run: |
-          test -n "$SIGNING_KEYSTORE_BASE64"
-          printf '%s' "$SIGNING_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/youdo-release.p12"
+          if [ -n "$SIGNING_KEYSTORE_BASE64" ]; then
+            printf '%s' "$SIGNING_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/youdo-release.p12"
+            echo "persistent=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::YOUDO_SIGNING_KEYSTORE_BASE64 is not set. Building with a throwaway debug key; uninstall the previous YouDO before installing this APK."
+            echo "persistent=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Clear Gradle Caches
         run: |
@@ -84,8 +94,8 @@ jobs:
       - name: Build Android Debug APK
         env:
           GRADLE_OPTS: "-Xmx6144m -Dorg.gradle.daemon=false -Dorg.gradle.parallel=false -Dorg.gradle.unsafe.build-cache=false"
-          YOUDO_SIGNING_KEYSTORE: ${{ runner.temp }}/youdo-release.p12
-          YOUDO_SIGNING_PASSWORD: ${{ secrets.YOUDO_SIGNING_PASSWORD }}
+          YOUDO_SIGNING_KEYSTORE: ${{ steps.signing.outputs.persistent == 'true' && format('{0}/youdo-release.p12', runner.temp) || '' }}
+          YOUDO_SIGNING_PASSWORD: ${{ steps.signing.outputs.persistent == 'true' && secrets.YOUDO_SIGNING_PASSWORD || '' }}
         run: |
           cd android
           ./gradlew clean assembleDebug --no-daemon --no-build-cache --stacktrace -x lint
@@ -96,7 +106,13 @@ jobs:
           "$APKSIGNER" verify --verbose --print-certs android/app/build/outputs/apk/debug/app-debug.apk
           sha256sum android/app/build/outputs/apk/debug/app-debug.apk
 
-      - name: Verify permanent signing and release identity
+      # The signing certificate's SHA-256 is public. It is printed below so it can
+      # be copied into the optional repository variable YOUDO_SIGNING_CERT_SHA256,
+      # which then pins every later build to the same key.
+      - name: Verify signing and release identity
+        env:
+          PERSISTENT_KEY: ${{ steps.signing.outputs.persistent }}
+          PINNED_CERT_SHA256: ${{ vars.YOUDO_SIGNING_CERT_SHA256 }}
         run: |
           CURRENT_APK="android/app/build/outputs/apk/debug/app-debug.apk"
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
@@ -106,19 +122,6 @@ jobs:
           CURRENT_NAME="$("$AAPT" dump badging "$CURRENT_APK" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p" | head -n 1)"
           PACKAGE_NAME="$(node -p "require('./package.json').version")"
           APP_NAME="$(sed -n "s/.*APP_VERSION = '\([^']*\)'.*/\1/p" src/lib/version.ts | head -n 1)"
-          test "$CURRENT_CERT" = "12c3ac6ccaa7850986223bbbbebedc860afdf8a44a9bbde542adfb5cc6dafb38"
-          EXPECTED_CODE="$(sed -n 's/.*versionCode \([0-9]*\).*/\1/p' android/app/build.gradle | head -n 1)"
-          EXPECTED_NAME="$(sed -n 's/.*versionName \"\([^\"]*\)\".*/\1/p' android/app/build.gradle | head -n 1)"
-          test "$EXPECTED_CODE" -ge 1
-          test "$CURRENT_CODE" = "$EXPECTED_CODE"
-          test "$CURRENT_NAME" = "$EXPECTED_NAME"
-          test "$PACKAGE_NAME" = "$CURRENT_NAME"
-          test "$APP_NAME" = "$CURRENT_NAME"
-          echo "Release identity verified: versionName $CURRENT_NAME; versionCode $CURRENT_CODE; certificate pinned"
-
-      - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: YouDO-APK
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 30
+          echo "Signing certificate SHA-256: $CURRENT_CERT"
+          if [ "$PERSISTENT_KEY" = "true" ] && [ -n "$PINNED_CERT_SHA256" ]; then
+            test "${CURRE
