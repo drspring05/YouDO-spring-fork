@@ -54,6 +54,7 @@ import {
   refreshMorningBriefing,
   extractBriefingData,
   buildMorningBriefingContent,
+  calculateNextBriefingTime,
   sendTestBriefingNotification,
   type NotificationPreferences,
   type RoomNotificationMode,
@@ -71,7 +72,7 @@ import {  requestAccountAccess, STORAGE_KEYS } from '../lib/storageKeys';
 import { hapticTick, setHapticsPreference } from '../lib/haptics';
 import { clampStreakBarHours, MAX_STREAK_BAR_HOURS, MIN_STREAK_BAR_HOURS } from '../lib/focusTrends';
 import { PACE_CHEATING_GUIDE, PACE_HONEST_QUOTE, paceWindowTotals } from '../lib/paceBoard';
-import { todayISO } from '../lib/dates';
+import { localISODate, todayISO } from '../lib/dates';
 import { checkAppUpdateStatus, type AppRelease } from '../lib/appUpdate';
 import UpdateAction from './UpdateAction';
 import { APP_VERSION } from '../lib/version';
@@ -103,6 +104,8 @@ interface Props {
   initialTab?: SettingsTab;
   streakBarHours: number;
   onStreakBarHoursChange: (hours: number) => void;
+  /** The current and best streak, so the briefing preview matches the real one. */
+  briefingStreak?: { current: number; best: number };
   /** Admins only: the Admin Hub row (the backup to holding the Settings button). */
   onOpenAdminHub?: () => void;
   adminPending?: number;
@@ -142,6 +145,7 @@ export default function SettingsSheet({
   initialTab,
   streakBarHours,
   onStreakBarHoursChange,
+  briefingStreak,
   onOpenAdminHub,
   adminPending = 0,
 }: Props) {
@@ -273,9 +277,13 @@ export default function SettingsSheet({
     });
   };
 
+  // The preview describes the morning it will arrive, like the real briefing.
+  const streakCurrent = briefingStreak?.current ?? 0;
+  const streakBest = briefingStreak?.best ?? 0;
   const briefingData = useMemo(() => {
-    return extractBriefingData(tasks, goals, 0, 0, undefined, notifPrefs.morningBriefing.selectedGoalId);
-  }, [tasks, goals, notifPrefs.morningBriefing.selectedGoalId]);
+    const deliveryDay = localISODate(calculateNextBriefingTime(notifPrefs.morningBriefing.time));
+    return extractBriefingData(tasks, goals, streakCurrent, streakBest, deliveryDay, notifPrefs.morningBriefing.selectedGoalId);
+  }, [tasks, goals, streakCurrent, streakBest, notifPrefs.morningBriefing.time, notifPrefs.morningBriefing.selectedGoalId]);
 
   const briefingPreview = useMemo(() => {
     return buildMorningBriefingContent(briefingData, notifPrefs.morningBriefing);
@@ -2280,6 +2288,9 @@ export default function SettingsSheet({
                     </button>
                   </div>
                   <div className="pt-1">
+                    {briefingPreview.summaryText && (
+                      <div className="mb-0.5 text-[10.5px] text-content-muted">YouDO · {briefingPreview.summaryText}</div>
+                    )}
                     <div className="text-[12px] font-bold text-content-primary flex items-center gap-1.5">
                       {briefingPreview.title}
                     </div>

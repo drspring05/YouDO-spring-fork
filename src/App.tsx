@@ -1892,6 +1892,7 @@ function AppInner() {
             focusSection={settingsFocus ?? undefined}
             streakBarHours={streakMeta.barHours}
             onStreakBarHoursChange={setStreakBarHours}
+            briefingStreak={{ current: streakStatus.current, best: streakStatus.best }}
             onOpenAdminHub={isCommunityAdmin ? openAdminHub : undefined}
             adminPending={adminQueue.total}
           />
