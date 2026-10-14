@@ -37,9 +37,9 @@ const RELEASE_DAMPING = 0.5;
 const MAX_ICON_BUTTON = 72;
 
 const SELECTOR = 'button, a[href], [role="button"]';
-const ALWAYS = '[data-bounce], .glass, .fab, .tab-bar-orb, .app-header-button';
+const ALWAYS = '[data-bounce], .glass, .fab, .tab-bar-orb, .app-header-brand';
 /** Floating chrome that may hold the page still while pressed. */
-const HOLDS_SCROLL = '.glass, .fab, .tab-bar-orb, .app-header-button';
+const HOLDS_SCROLL = '.glass, .fab, .tab-bar-orb, .app-header-brand';
 /** A drag this long on an in-content button is a scroll, not a press. */
 const SCROLL_SLOP = 8;
 

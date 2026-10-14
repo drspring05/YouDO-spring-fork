@@ -562,13 +562,17 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                       {badgeNodes.length > 0 && (
                         <div className="mb-1.5 inline-flex max-w-full items-center gap-1.5 rounded-lg border border-subtle bg-base px-2 py-0.5 text-[10px] font-semibold text-primary">
                           <Link2 size={10} className="shrink-0" />
-                          <span className="min-w-0 whitespace-normal break-words">
-                            {badgeNodes.map((node) => node.title).join(' · ')}
-                          </span>
+                          {/* One line: each name ends in "…" when it does not fit. */}
+                          {badgeNodes.map((node, b) => (
+                            <span key={node.id} className="inline-flex min-w-0 items-center gap-1.5">
+                              <span className="truncate">{node.title}</span>
+                              {b < badgeNodes.length - 1 && <span className="shrink-0 text-content-muted">·</span>}
+                            </span>
+                          ))}
                         </div>
                       )}
                       <div className="text-[13.5px] font-semibold leading-snug text-content-primary break-words">{p.node.title}</div>
-                      <div className="mt-0.5 text-[11px] leading-relaxed text-content-muted whitespace-normal break-words">
+                      <div className="mt-0.5 truncate text-[11px] leading-relaxed text-content-muted">
                         {contextNodes.length > 0 ? contextNodes.map((node) => node.title).join(' / ') : badgeNodes.length === 0 ? pathLabel : meta.label}
                       </div>
                     </div>

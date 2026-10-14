@@ -45,7 +45,6 @@ import { FALLBACK_APP_QUOTES, fetchAppQuotes, loadCachedAppQuotes, type AppQuote
 import { taskStepStates } from './lib/goalTree';
 import { hapticSuccess } from './lib/haptics';
 import GoalDestinationSheet from './components/GoalDestinationSheet';
-import LavaRing from './components/LavaRing';
 import { useUiPrefs } from './hooks/useUiPrefs';
 
 // Keep Today/session controls in the initial bundle. The PWA precaches these
@@ -90,7 +89,7 @@ function YouDoIcon({ size = 18 }: { size?: number }) {
   );
 }
 
-/** The v7 masthead wordmark, shown under Settings → Appearance → Classic look. */
+/** The YouDO wordmark: the Classic Look masthead and the top right of the header. */
 function YouDoWordmark() {
   return (
     <span className="youdo-wordmark" aria-label="YouDO">
@@ -1303,22 +1302,22 @@ function AppInner() {
                 </div>
               )}
             </div>
-            <div className="app-header-actions">
-              <button
-                type="button"
-                onClick={() => openHelp()}
-                className="app-header-button glass"
-                aria-label="Open YouDO guide"
-                title="Guide"
-              >
-                {/* Today's progress rings the app icon on every tab; empty until work is done. */}
-                <span className="app-header-ring" aria-hidden="true">
-                  <LavaRing progress={todayProgress} size={54} stroke={4} />
-                </span>
-                <YouDoIcon size={20} />
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => openHelp()}
+              className="app-header-brand"
+              aria-label="Open YouDO guide"
+              title="Guide"
+            >
+              <YouDoWordmark />
+            </button>
           </div>
+          {/* Today's progress, a thin glowing bar over the quote. */}
+          {view === 'tasks' && (
+            <div className="today-bar" aria-hidden="true">
+              {todayProgress > 0 && <span className="today-bar-fill" style={{ width: `${todayProgress}%` }} />}
+            </div>
+          )}
           {randomQuote && view === 'tasks' && (
             <blockquote className="quote-ticker">
               <div

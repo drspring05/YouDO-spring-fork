@@ -12,11 +12,13 @@ import { installPressBounce } from './lib/pressBounce';
 import ExperiencePreferences from './components/ExperiencePreferences';
 import { registerWebUpdates } from './lib/webUpdate';
 import { applyWebAppIcon } from './lib/appIcon';
+import { applyStoredTheme } from './hooks/useTheme';
 
 if (Capacitor.isNativePlatform()) {
   document.documentElement.dataset.nativeShell = 'true';
 }
 
+applyStoredTheme();
 installUiStyle();
 installPressBounce();
 applyWebAppIcon();

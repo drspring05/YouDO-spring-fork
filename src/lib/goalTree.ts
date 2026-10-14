@@ -40,7 +40,7 @@ export function countCompletedDirectChildren(node: GoalNode): number {
 }
 
 /** True when an endpoint's own work is finished (all steps, or marked done). */
-function endpointDone(node: GoalNode): boolean {
+export function endpointDone(node: GoalNode): boolean {
   if (node.completed) return true;
   const steps = node.steps?.length ?? 0;
   return steps > 0 && (node.stepDone ?? []).filter(Boolean).length >= steps;

@@ -244,16 +244,43 @@ describe('notifications library', () => {
       const data = extractBriefingData(mockTasks, mockGoals, 5, 8, '2026-10-09');
       const { title, body } = buildMorningBriefingContent(data);
 
-      expect(title).toContain('Good morning');
-      expect(body).toContain('UPSC CSE Prelims · 14 days left');
-      expect(body).toContain('1 task planned today');
-      expect(body).toContain('1 open in backlog');
-      expect(body).toContain('5-day streak');
+      expect(title).toBe('🎯 14 days to UPSC CSE Prelims');
+      expect(body.split('\n')[0]).toBe('📌 First up: Review Chapter 4');
+      expect(body).not.toContain('% done'); // nothing planned in the goal yet
+      expect(body).toContain('1 waiting in backlog');
+      expect(body).toContain('5-day streak · 4 more days to beat your best (8)');
+    });
+
+    it('names the pace that finishes the goal on time', () => {
+      const base = { todayTasksCount: 0, openBacklogCount: 0, activeGoals: [], streakCount: 0, streakBest: 0 };
+      const goal = { id: 'g', title: 'GATE', daysLeft: 10, pct: 34 };
+      const line = (openTasks: number) =>
+        buildMorningBriefingContent({ ...base, activeGoals: [{ ...goal, openTasks }] }).body;
+      expect(line(25)).toContain('📈 34% done · about 3 tasks a day keeps you on track');
+      expect(line(10)).toContain('📈 34% done · a task a day keeps you on track');
+      expect(line(3)).toContain('📈 34% done · a task every 3 days keeps you on track');
+      expect(line(0).split('\n')).toContain('📈 34% done');
+    });
+
+    it('cheers a record streak and invites a new one', () => {
+      const base = { todayTasksCount: 2, firstTaskTitle: 'Lecture 3', openBacklogCount: 0, activeGoals: [] };
+      expect(buildMorningBriefingContent({ ...base, streakCount: 9, streakBest: 9 }).body).toContain('🔥 9-day streak · your best yet');
+      expect(buildMorningBriefingContent({ ...base, streakCount: 0, streakBest: 4 }).body).toContain('🔥 Finish a task today to start a new streak');
+      expect(buildMorningBriefingContent({ ...base, streakCount: 2, streakBest: 20 }).body).toContain('🔥 2-day streak · keep it going');
+      expect(buildMorningBriefingContent({ ...base, streakCount: 0, streakBest: 0 }).body).not.toContain('streak');
+      expect(buildMorningBriefingContent({ ...base, streakCount: 0, streakBest: 0 }).body).toContain('📌 First up: Lecture 3 · 1 more planned');
+    });
+
+    it('greets with the date when no goal leads and asks for a plan when the day is empty', () => {
+      const content = buildMorningBriefingContent({ todayTasksCount: 0, openBacklogCount: 0, activeGoals: [], streakCount: 0, streakBest: 0, date: '2026-10-09' });
+      expect(content.title).toBe('Good morning ☀️');
+      expect(content.body).toBe('🗓️ Nothing planned yet · pick 1–2 tasks from Goals');
+      expect(content.summaryText).not.toContain('Good morning');
     });
 
     it('respects sub-toggles to omit specific sections if user turns them off', () => {
       const data = extractBriefingData(mockTasks, mockGoals, 5, 8, '2026-10-09');
-      const { body } = buildMorningBriefingContent(data, {
+      const { title, body } = buildMorningBriefingContent(data, {
         enabled: true,
         time: '04:00',
         includeGoals: false,
@@ -262,17 +289,19 @@ describe('notifications library', () => {
         includeStreak: false,
       });
 
+      expect(title).toBe('Good morning ☀️');
       expect(body).not.toContain('UPSC CSE Prelims');
+      expect(body).not.toContain('% done');
       expect(body).not.toContain('backlog');
       expect(body).not.toContain('streak');
-      expect(body).toContain('1 task planned today');
+      expect(body).toContain('First up: Review Chapter 4');
     });
     it('includes largeBody and summaryText for clean Android expansion without clipping', () => {
       const data = extractBriefingData(mockTasks, mockGoals, 5, 8, '2026-10-09');
       const content = buildMorningBriefingContent(data);
       expect(content.largeBody).toBeDefined();
       expect(content.largeBody).toBe(content.body);
-      expect(content.summaryText).toBe('Daily Morning Briefing');
+      expect(content.summaryText).toMatch(/^Good morning · \S/);
       expect(content.body).not.toContain(' \n'); // ensures clean \n without trailing space
     });
 
@@ -318,7 +347,7 @@ describe('notifications library', () => {
       expect(data.activeGoals[0].daysLeft).toBe(20);
 
       const content = buildMorningBriefingContent(data);
-      expect(content.body).toContain('Main UPSC Exam · 20 days left');
+      expect(content.title).toBe('🎯 20 days to Main UPSC Exam');
       expect(content.body).not.toContain('Sub-chapter 1 Milestone');
       expect(content.body).not.toContain('Deep child task');
     });
@@ -361,7 +390,7 @@ describe('notifications library', () => {
         ...DEFAULT_NOTIFICATION_PREFERENCES.morningBriefing,
         selectedGoalId: 'auto',
       });
-      expect(contentAuto.body).toContain('Goal Alpha (Near Deadline) · 3 days left');
+      expect(contentAuto.title).toBe('🎯 3 days to Goal Alpha (Near Deadline)');
 
       // Explicit selection: Goal Beta
       const dataSelected = extractBriefingData([], multipleRootGoals, 0, 0, '2026-10-09', 'goal-beta');
@@ -370,8 +399,8 @@ describe('notifications library', () => {
         ...DEFAULT_NOTIFICATION_PREFERENCES.morningBriefing,
         selectedGoalId: 'goal-beta',
       });
-      expect(contentSelected.body).toContain('Goal Beta (Selected Goal) · 15 days left');
-      expect(contentSelected.body).not.toContain('Goal Alpha');
+      expect(contentSelected.title).toBe('🎯 15 days to Goal Beta (Selected Goal)');
+      expect(contentSelected.title + contentSelected.body).not.toContain('Goal Alpha');
 
       // Fallback: if selected goal is invalid or missing, falls back to nearest deadline
       const dataFallback = extractBriefingData([], multipleRootGoals, 0, 0, '2026-10-09', 'nonexistent-id');
@@ -380,7 +409,7 @@ describe('notifications library', () => {
         ...DEFAULT_NOTIFICATION_PREFERENCES.morningBriefing,
         selectedGoalId: 'nonexistent-id',
       });
-      expect(contentFallback.body).toContain('Goal Alpha (Near Deadline) · 3 days left');
+      expect(contentFallback.title).toBe('🎯 3 days to Goal Alpha (Near Deadline)');
     });
 
     it('resolves root goal endDate from child milestone if root has no explicit endDate', () => {
@@ -423,7 +452,7 @@ describe('notifications library', () => {
       expect(data.activeGoals[0].daysLeft).toBe(31);
 
       const content = buildMorningBriefingContent(data);
-      expect(content.body).toContain('Chartered Financial Analyst Exam · 31 days left');
+      expect(content.title).toBe('🎯 31 days to Chartered Financial Analyst Exam');
       expect(content.body).not.toContain('Level 1 Milestone');
       expect(content.body).not.toContain('Final Examination Milestone');
     });
@@ -455,8 +484,8 @@ describe('notifications library', () => {
         ...DEFAULT_NOTIFICATION_PREFERENCES.morningBriefing,
         selectedGoalId: 'goal-open',
       });
-      expect(content.body).toContain('Continuous Habit Mastery · in progress');
-      expect(content.body).not.toContain('Dated Target');
+      expect(content.title).toBe('🎯 Continuous Habit Mastery');
+      expect(content.title + content.body).not.toContain('Dated Target');
     });
   });
 

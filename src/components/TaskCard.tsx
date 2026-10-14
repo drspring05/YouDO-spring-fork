@@ -201,7 +201,8 @@ function ModernTaskCard({
 
           {/* Content Column */}
           <div className="flex-1 min-w-0">
-            {/* EYEBROW: first two path items, followed by any remaining context. */}
+            {/* EYEBROW: first two path items, followed by any remaining context.
+                Both stay on one line; a name that does not fit ends in "…". */}
             {originNodes && originNodes.length > 0 ? (
               (() => {
                 const badgeNodes = originBadgeNodes;
@@ -215,19 +216,19 @@ function ModernTaskCard({
                           onJumpToGoal();
                         }
                       }}
-                      className={`inline-flex items-center gap-1.5 text-[12px] font-semibold ${
+                      className={`inline-flex max-w-full items-center gap-1.5 text-[12px] font-semibold ${
                         onJumpToGoal ? 'cursor-pointer' : ''
                       }`}
                       title={onJumpToGoal ? 'Jump to this task in Goal Blueprint' : undefined}
                     >
                       <Link2 size={12} className="shrink-0 text-primary" />
                       {badgeNodes.map((n, i) => (
-                        <span key={i} className="inline-flex items-center gap-1.5">
-                          <span className="text-primary group-hover/path:text-primary-glow transition-colors">
+                        <span key={i} className="inline-flex min-w-0 items-center gap-1.5">
+                          <span className="truncate text-primary group-hover/path:text-primary-glow transition-colors">
                             {n.title}
                           </span>
                           {i < badgeNodes.length - 1 && (
-                            <span className="text-content-muted">•</span>
+                            <span className="shrink-0 text-content-muted">•</span>
                           )}
                         </span>
                       ))}
@@ -330,11 +331,11 @@ function ModernTaskCard({
               const ctxNodes = originContextNodes;
               if (ctxNodes.length === 0) return null;
               return (
-                <div className="mt-1 flex items-center flex-wrap gap-1 text-[13px] text-content-secondary font-normal">
+                <div className="mt-1 flex min-w-0 items-center gap-1 whitespace-nowrap text-[13px] text-content-secondary font-normal">
                   {ctxNodes.map((n, i) => (
-                    <span key={i} className="inline-flex items-center gap-1">
-                      <span>{n.title}</span>
-                      {i < ctxNodes.length - 1 && <span className="text-content-muted/60">/</span>}
+                    <span key={i} className="inline-flex min-w-0 items-center gap-1">
+                      <span className="truncate">{n.title}</span>
+                      {i < ctxNodes.length - 1 && <span className="shrink-0 text-content-muted/60">/</span>}
                     </span>
                   ))}
                 </div>

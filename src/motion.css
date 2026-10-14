@@ -66,7 +66,7 @@ html.light-dusky .tab-pill-lens {
   --tw-scale-x: 1 !important;
   --tw-scale-y: 1 !important;
 }
-.app-header-button.is-bouncing:active,
+.app-header-brand.is-bouncing:active,
 .tab-bar-orb.is-bouncing:active,
 .fab.is-bouncing:active,
 .accent-swatch.is-bouncing:active,
@@ -126,7 +126,7 @@ html.light-dusky[data-liquid-glass='true'] .glass {
     inset 0 -1px 1px rgba(0, 0, 0, 0.04);
 }
 /* The specular rim: a 1px edge that is bright where light hits it. */
-html[data-liquid-glass='true'] :is(.tab-bar, .tab-bar-orb, .app-header-button, .fab)::after {
+html[data-liquid-glass='true'] :is(.tab-bar, .tab-bar-orb, .fab)::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -146,7 +146,7 @@ html[data-liquid-glass='true'] :is(.tab-bar, .tab-bar-orb, .app-header-button, .
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
   pointer-events: none;
 }
-html.light-dusky[data-liquid-glass='true'] :is(.tab-bar, .tab-bar-orb, .app-header-button)::after {
+html.light-dusky[data-liquid-glass='true'] :is(.tab-bar, .tab-bar-orb)::after {
   background: linear-gradient(140deg, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0.4) 35%, rgba(0, 0, 0, 0.05) 70%, rgba(255, 255, 255, 0.6) 100%);
 }
 /* The add button is accent glass: a glossy top and the same rim. */

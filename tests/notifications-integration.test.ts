@@ -350,11 +350,10 @@ describe('Notification Integration & Read-State Synchronization', () => {
       const data = extractBriefingData(tasks, goals, 12, 15, '2026-10-09');
       const { title, body } = buildMorningBriefingContent(data);
 
-      expect(title).toContain('Good morning');
-      expect(body).toContain('State PSC Exam · 15 days left');
-      expect(body).toContain('1 task planned today');
-      expect(body).toContain('2 open in backlog');
-      expect(body).toContain('12-day streak');
+      expect(title).toBe('🎯 15 days to State PSC Exam');
+      expect(body).toContain('📌 First up: Complete Algebra Module');
+      expect(body).toContain('2 waiting in backlog');
+      expect(body).toContain('12-day streak · 4 more days to beat your best (15)');
     });
   });
 });

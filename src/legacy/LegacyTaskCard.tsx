@@ -206,19 +206,19 @@ export default function LegacyTaskCard({
                           onJumpToGoal();
                         }
                       }}
-                      className={`inline-flex items-center gap-1.5 text-[10px] font-semibold bg-base border border-subtle rounded-lg px-2 py-0.5 ${
+                      className={`inline-flex max-w-full items-center gap-1.5 text-[10px] font-semibold bg-base border border-subtle rounded-lg px-2 py-0.5 ${
                         onJumpToGoal ? 'cursor-pointer hover:border-primary' : ''
                       }`}
                       title={onJumpToGoal ? 'Jump to this task in Goal Blueprint' : undefined}
                     >
                       <Link2 size={10} className="shrink-0 text-primary mr-0.5 group-hover/path:text-primary-glow transition-colors" />
                       {badgeNodes.map((n, i) => (
-                        <span key={i} className="inline-flex items-center gap-1.5">
-                          <span className="text-primary group-hover/path:text-primary-glow transition-colors">
+                        <span key={i} className="inline-flex min-w-0 items-center gap-1.5">
+                          <span className="truncate text-primary group-hover/path:text-primary-glow transition-colors">
                             {n.title}
                           </span>
                           {i < badgeNodes.length - 1 && (
-                            <span className="text-content-muted">•</span>
+                            <span className="shrink-0 text-content-muted">•</span>
                           )}
                         </span>
                       ))}
@@ -322,11 +322,11 @@ export default function LegacyTaskCard({
               const ctxNodes = originContextNodes;
               if (ctxNodes.length === 0) return null;
               return (
-                <div className="mt-1 flex items-center flex-wrap gap-1 text-[11px] text-content-muted font-normal ml-3.5">
+                <div className="mt-1 flex min-w-0 items-center gap-1 whitespace-nowrap text-[11px] text-content-muted font-normal ml-3.5">
                   {ctxNodes.map((n, i) => (
-                    <span key={i} className="inline-flex items-center gap-1">
-                      <span>{n.title}</span>
-                      {i < ctxNodes.length - 1 && <span className="text-content-muted/60">/</span>}
+                    <span key={i} className="inline-flex min-w-0 items-center gap-1">
+                      <span className="truncate">{n.title}</span>
+                      {i < ctxNodes.length - 1 && <span className="shrink-0 text-content-muted/60">/</span>}
                     </span>
                   ))}
                 </div>

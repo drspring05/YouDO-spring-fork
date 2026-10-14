@@ -42,7 +42,7 @@ export function Brand() {
     <div className="inline-flex items-center justify-center select-none" aria-label="YouDO">
       <svg width="40" height="40" viewBox="3 3 18 18" fill="none" aria-hidden="true" className="shrink-0 overflow-visible">
         <path d="M5 4.5L12 13.25V19.5" stroke="var(--primary)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M19 4.5L12 13.25L9.25 10" stroke="var(--secondary)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M19 4.5L12 13.25L9.25 10" stroke="var(--accent-tick, var(--secondary))" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
       <span className="-ml-1.5 text-[28px] leading-none tracking-[-0.05em] text-content-secondary">ou<span className="font-semibold text-content-primary">DO</span></span>
     </div>

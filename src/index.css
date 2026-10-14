@@ -491,7 +491,7 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
   flex-wrap: nowrap;
 }
 .app-title-line {
@@ -534,105 +534,51 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.app-header-actions {
+/* The wordmark at the top right opens the guide. */
+.app-header-brand {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex: 0 0 auto;
-  padding: 5px;
-  /* Room for the progress ring without making the header taller than the title. */
-  margin-block: -5px;
+  padding: 4px 0;
+  border-radius: 10px;
 }
-.app-header-button {
-  position: relative;
-  width: 44px;
-  height: 44px;
-  display: grid;
-  place-items: center;
-  border-radius: 999px;
-}
-.app-header-button:active { transform: scale(0.92); }
-/* The day's ring sits just outside the icon button and moves with it. */
-.app-header-ring {
-  position: absolute;
-  inset: -5px;
-  pointer-events: none;
-}
+.app-header-brand:active { transform: scale(0.95); }
 
-/* Lava ring: the filled arc glows and its colour flows along it. */
-@property --p {
-  syntax: '<number>';
-  inherits: true;
-  initial-value: 0;
-}
-.lava-ring {
+/* Today's progress: a thin bar over the quote. The filled part glows and its
+   colour flows slowly along it; with Reduced Effects it rests as a still glow. */
+.today-bar {
   position: relative;
-  display: block;
-  border-radius: 50%;
-  transition: --p 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  height: 3px;
+  margin: 12px 8px 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
 }
-.lava-ring-track,
-.lava-ring-arc {
+.today-bar-fill {
   position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  --ring-band: radial-gradient(farthest-side, transparent calc(100% - var(--stroke)), #000 calc(100% - var(--stroke) + 0.5px));
-}
-.lava-ring-track {
-  background: color-mix(in srgb, var(--primary) 20%, transparent);
-  -webkit-mask: var(--ring-band);
-  mask: var(--ring-band);
-}
-.lava-ring-glow {
-  position: absolute;
-  inset: 0;
-  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--primary) 75%, transparent));
-}
-.lava-ring-arc {
-  overflow: hidden;
-  -webkit-mask: var(--ring-band), conic-gradient(#000 calc(var(--p) * 1turn), transparent 0);
-  -webkit-mask-composite: source-in;
-  mask: var(--ring-band), conic-gradient(#000 calc(var(--p) * 1turn), transparent 0);
-  mask-composite: intersect;
-}
-.lava-ring-flow {
-  position: absolute;
-  inset: -20%;
-  background: conic-gradient(
+  inset: 0 auto 0 0;
+  max-width: 100%;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
     var(--primary),
-    var(--primary-glow) 14%,
-    color-mix(in srgb, var(--primary) 40%, #fff4dc) 22%,
-    var(--primary) 34%,
-    color-mix(in srgb, var(--primary) 62%, #000) 52%,
-    var(--primary) 66%,
-    var(--primary-glow) 82%,
+    var(--primary-glow) 25%,
+    color-mix(in srgb, var(--primary) 45%, #fff4dc) 40%,
+    var(--primary) 55%,
+    color-mix(in srgb, var(--primary) 65%, #000) 78%,
     var(--primary)
-  );
-  animation: lava-flow 7s linear infinite;
-  will-change: transform;
+  ) 0 0 / 160px 100% repeat-x;
+  box-shadow: 0 0 6px color-mix(in srgb, var(--primary) 65%, transparent);
+  transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: today-bar-flow 6s linear infinite;
 }
-@keyframes lava-flow {
-  to { transform: rotate(1turn); }
-}
-.lava-ring-cap {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  width: var(--stroke);
-  height: var(--stroke);
-  margin-left: calc(var(--stroke) / -2);
-  border-radius: 50%;
-  background: var(--primary);
-}
-.lava-ring-end {
-  position: absolute;
-  inset: 0;
-  transform: rotate(calc(var(--p) * 1turn));
+@keyframes today-bar-flow {
+  to { background-position: 160px 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .lava-ring-flow { animation: none; }
+  .today-bar-fill { animation: none; }
 }
-:root[data-reduced-effects='true'] .lava-ring-flow { animation: none !important; }
+:root[data-reduced-effects='true'] .today-bar-fill { animation: none !important; }
+.today-bar + .quote-ticker { margin-top: 9px; }
 
 /* The quote: one sleek line that scrolls past, paused under a finger. */
 @keyframes quote-ticker {
