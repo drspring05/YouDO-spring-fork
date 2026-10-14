@@ -46,7 +46,7 @@ All five locations must be identical before tagging:
    - Add new top entry under `## [vX.Y.Z] - YYYY-MM-DD - Short Title`
    - Include 3–6 user-facing bullets
    - End with: `- **Android APK** - versionName **X.Y.Z**, versionCode **N**. Installs safely over v...`
-5. `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt` ➔ a plain-text summary under 500 characters for app stores (F-Droid, IzzyOnDroid, Orion Store). Refresh `images/phoneScreenshots/` when the look changes.
+5. `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt` ➔ a plain-text summary under 500 characters for app stores (F-Droid, IzzyOnDroid, Orion Store). When the look changes, refresh the framed screenshots in `docs/screenshots/` (used by the README and every store listing).
 
 ---
 

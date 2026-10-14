@@ -22,11 +22,15 @@ UPSC, JEE, NEET, GATE, CAT, government exams, university entrances, and every se
 
 <br />
 
-<img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1-today.png" width="150" alt="Today with goal-linked tasks" />
-<img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2-goals.png" width="150" alt="A goal broken into papers and chapters" />
-<img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3-calendar.png" width="150" alt="Calendar with the day's focus summary" />
-<img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4-focus.png" width="150" alt="A running focus session" />
-<img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5-appearance.png" width="150" alt="Accent colours and app icons" />
+<img src="docs/screenshots/01-today.png" width="180" alt="Today with goal-linked tasks" />
+<img src="docs/screenshots/02-today-at-a-glance.png" width="180" alt="Today at a glance" />
+<img src="docs/screenshots/03-goals.png" width="180" alt="A goal broken into papers and chapters" />
+<img src="docs/screenshots/04-focus-session.png" width="180" alt="A running focus session" />
+<img src="docs/screenshots/05-calendar.png" width="180" alt="Calendar with the day summary" />
+<img src="docs/screenshots/06-daily-focus-stats.png" width="180" alt="Daily focus stats" />
+<img src="docs/screenshots/07-private-hub-chats.png" width="180" alt="Private Hub chats" />
+<img src="docs/screenshots/08-study-room.png" width="180" alt="A study room with live focus" />
+<img src="docs/screenshots/09-appearance.png" width="180" alt="Accent colours and app icons" />
 
 </div>
 
