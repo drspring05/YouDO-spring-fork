@@ -112,7 +112,7 @@ export default function StepSliceSheet({ open, nodes, node, onClose, onConfirm }
           </div>
           <div>
             <h3 className="text-[14px] font-bold text-content-primary leading-tight">
-              {isMulti ? `Schedule ${targetNodes.length} Tasks` : 'Schedule Task'}
+              {isMulti ? `Plan ${targetNodes.length} Tasks` : 'Plan Task'}
             </h3>
             <p className="text-[11px] font-medium text-content-muted leading-tight mt-0.5">
               Choose steps for this date
@@ -264,10 +264,10 @@ export default function StepSliceSheet({ open, nodes, node, onClose, onConfirm }
           >
             <Zap size={15} className="fill-current" />
             {isMulti
-              ? `Schedule ${targetNodes.length} Tasks`
+              ? `Plan ${targetNodes.length} Tasks`
               : totalStepsExist === 0
-              ? 'Schedule Task'
-              : `Schedule ${totalAssignedSteps} Step${totalAssignedSteps !== 1 ? 's' : ''}`}
+              ? 'Plan Task'
+              : `Plan ${totalAssignedSteps} Step${totalAssignedSteps !== 1 ? 's' : ''}`}
           </button>
         </div>
       </div>
