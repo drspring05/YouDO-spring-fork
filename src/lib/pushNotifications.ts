@@ -105,7 +105,9 @@ export function initPushNotifications(
       } else if (type === 'dm' || type === 'friend_request' || type === 'room_invite' || type === 'room_request' || type === 'room') {
         callbacks?.onNavigate?.('private');
         // A message opens its chat once the Private Hub is on screen.
-        if (type === 'dm' && typeof data?.from === 'string') requestOpenDm(data.from);
+        // "sender" (pushes before v8.0.0 used "from", which FCM rejects).
+        const sender = data?.sender ?? data?.from;
+        if (type === 'dm' && typeof sender === 'string') requestOpenDm(sender);
       }
     }
   );

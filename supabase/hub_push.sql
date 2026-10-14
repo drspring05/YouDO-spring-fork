@@ -8,6 +8,8 @@
 --             (to the room's admins), your join request approved, @mention
 --             in a room chat.
 --   in-app:   everything else (accepted requests, ordinary room messages, ...).
+-- Data keys avoid FCM's reserved names ("from", "notification", "message_type",
+-- anything starting with "google" or "gcm"): one would make Google reject the push.
 -- Each person's switches live in push_preferences (mirrored from Settings ->
 -- Notifications -> Private Hub). No row means the defaults: all on.
 
@@ -72,7 +74,7 @@ begin
     array[new.receiver_id],
     private.push_handle(new.sender_id),
     case when show_text then pg_catalog.left(new.content, 140) else 'New message' end,
-    pg_catalog.jsonb_build_object('type', 'dm', 'from', new.sender_id, 'tag', 'dm-' || new.sender_id, 'channel', 'private-hub')
+    pg_catalog.jsonb_build_object('type', 'dm', 'sender', new.sender_id, 'tag', 'dm-' || new.sender_id, 'channel', 'private-hub')
   );
   return null;
 end; $$;
@@ -86,7 +88,7 @@ begin
     array[new.receiver_id],
     'Friend request',
     private.push_handle(new.requester_id) || ' wants to add you as a friend.',
-    pg_catalog.jsonb_build_object('type', 'friend_request', 'from', new.requester_id, 'channel', 'private-hub')
+    pg_catalog.jsonb_build_object('type', 'friend_request', 'sender', new.requester_id, 'channel', 'private-hub')
   );
   return null;
 end; $$;
