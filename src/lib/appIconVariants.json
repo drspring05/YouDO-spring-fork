@@ -1,0 +1,17 @@
+{
+  "$comment": "The YouDO app icons: a Y whose junction forms a tick. Source of truth for scripts/generate-icons.mjs (Android + web assets) and the Settings picker. Android launcher entry per icon: alias. Regenerate assets with `npm run icons` after any change.",
+  "default": "signature",
+  "mark": {
+    "y": "M4 4L11.5 13.5V20",
+    "tick": "M20 4L11.5 13.5L8.2 9.7",
+    "viewBox": 24,
+    "stroke": 2.7
+  },
+  "variants": [
+    { "id": "signature", "label": "Signature", "alias": "MainActivity", "background": "#14120F", "y": "#C9A46E", "tick": "#8FB394" },
+    { "id": "ivory", "label": "Ivory", "alias": "IconIvory", "background": "#14120F", "y": "#EDE4D3", "tick": "#C9A46E" },
+    { "id": "sand", "label": "Sand", "alias": "IconSand", "background": "#C9A46E", "y": "#1E1912", "tick": "#F7F1E6" },
+    { "id": "onyx", "label": "Onyx", "alias": "IconOnyx", "background": "#000000", "y": "#48484A", "tick": "#C9A46E" },
+    { "id": "linen", "label": "Linen", "alias": "IconLinen", "background": "#E8DECB", "y": "#2A241C", "tick": "#557F5E" }
+  ]
+}

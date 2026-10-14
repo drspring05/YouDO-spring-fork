@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, ChevronDown, Gauge, Heart, LockKeyhole, MessageCircle, ShieldCheck, TrendingUp, Trophy, Users } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronDown, Heart, LockKeyhole, MessageCircle, ShieldCheck, TrendingUp, Trophy, Users } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useStore } from '../store';
 import {
@@ -22,12 +22,10 @@ import { formatDuration } from '../lib/format';
 import { STORAGE_KEYS } from '../lib/storageKeys';
 import { formatStreakHours } from '../lib/focusTrends';
 import { todayISO } from '../lib/dates';
-import { fetchAdminHubCounts, fetchAppreciations, fetchCommunityContext, giveKudos, type AdminHubCounts, type AppreciationState, type CommunityContext } from '../lib/community';
+import { fetchAppreciations, fetchCommunityContext, giveKudos, type AppreciationState, type CommunityContext } from '../lib/community';
 import CommunitySheet from './CommunitySheet';
 import { hapticTick } from '../lib/haptics';
 import {
-  dispatchAdminNotification,
-  dismissAdminNotification,
   dispatchCommunityNotification,
   dismissCommunityNotification,
 } from '../lib/notifications';
@@ -246,12 +244,10 @@ export default function BoardView({
   onOpenBoardSettings,
   onOpenProfile,
   initialCommunity,
-  initialAdminCounts,
 }: {
   onOpenBoardSettings: () => void;
   onOpenProfile?: (userId: string, row?: PaceRow | null, paceWindow?: PaceWindow) => void;
   initialCommunity?: CommunityContext;
-  initialAdminCounts?: AdminHubCounts;
 }) {
   const { user } = useAuth();
   const { publishPublicPace, syncToCloud, pacePrefs } = useStore();
@@ -265,7 +261,6 @@ export default function BoardView({
   const [showNearby, setShowNearby] = useState(false);
   const [anchorISO, setAnchorISO] = useState(todayISO());
   const [communityOpen, setCommunityOpen] = useState(false);
-  const [communityStartInAdmin, setCommunityStartInAdmin] = useState(false);
   const [community, setCommunity] = useState<CommunityContext>(initialCommunity ?? EMPTY_COMMUNITY_CONTEXT());
   const communityUnreadCount =
     pacePrefs.optedIn && !community.banned
@@ -319,76 +314,6 @@ export default function BoardView({
     document.addEventListener('visibilitychange',refreshUnread);
     return () => { cancelled=true;clearInterval(timer);window.removeEventListener('youdo-community-read',refreshUnread);document.removeEventListener('visibilitychange',refreshUnread); };
   },[user]);
-
-  const [adminCounts, setAdminCounts] = useState<AdminHubCounts>(
-    initialAdminCounts ?? { reports: 0, appeals: 0, hashtagRequests: 0, chatReplies: 0, total: 0 }
-  );
-  const prevAdminCounts = useRef<AdminHubCounts | null>(null);
-
-  useEffect(() => {
-    if (!community.isAdmin) {
-      setAdminCounts({ reports: 0, appeals: 0, hashtagRequests: 0, chatReplies: 0, total: 0 });
-      prevAdminCounts.current = null;
-      return;
-    }
-
-    let cancelled = false;
-    let busy = false;
-
-    const checkAdminCounts = async () => {
-      if (busy || document.visibilityState !== 'visible') return;
-      busy = true;
-      try {
-        const counts = await fetchAdminHubCounts();
-        if (cancelled) return;
-
-        if (prevAdminCounts.current !== null) {
-          if (counts.reports > prevAdminCounts.current.reports) {
-            void dispatchAdminNotification({
-              type: 'message_report',
-              title: 'New Message Report',
-              body: `${counts.reports} ${counts.reports === 1 ? 'message report requires' : 'message reports require'} review in Admin Hub.`,
-            });
-          }
-          if (counts.hashtagRequests > prevAdminCounts.current.hashtagRequests) {
-            void dispatchAdminNotification({
-              type: 'hashtag_request',
-              title: 'New Hashtag Request',
-              body: `${counts.hashtagRequests} ${counts.hashtagRequests === 1 ? 'hashtag request is' : 'hashtag requests are'} waiting for admin review.`,
-            });
-          }
-          if (counts.chatReplies > prevAdminCounts.current.chatReplies) {
-            void dispatchAdminNotification({
-              type: 'chat_reply',
-              title: 'New Support Chat Reply',
-              body: 'A requester replied to your note in Hashtag Support Chat.',
-            });
-          }
-          if (counts.total === 0 && prevAdminCounts.current.total > 0) {
-            void dismissAdminNotification();
-          }
-        }
-        prevAdminCounts.current = counts;
-        setAdminCounts(counts);
-      } catch {
-        // Keep last known admin counts
-      } finally {
-        busy = false;
-      }
-    };
-
-    void checkAdminCounts();
-    const timer = window.setInterval(() => { void checkAdminCounts(); }, 30_000);
-    window.addEventListener('youdo-community-read', checkAdminCounts);
-    document.addEventListener('visibilitychange', checkAdminCounts);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-      window.removeEventListener('youdo-community-read', checkAdminCounts);
-      document.removeEventListener('visibilitychange', checkAdminCounts);
-    };
-  }, [community.isAdmin]);
 
   useEffect(() => {
     const refreshDate = () => setAnchorISO(todayISO());
@@ -458,12 +383,6 @@ export default function BoardView({
     void fetchCommunityContext(user.id).then((next) => {
       if (!next.error) setCommunity(next);
     }).catch(() => { /* Keep the last known Board state during a connection failure. */ });
-    if (community.isAdmin) {
-      void fetchAdminHubCounts().then((counts) => {
-        setAdminCounts(counts);
-        prevAdminCounts.current = counts;
-      }).catch(() => {});
-    }
   };
 
   const toggleAppreciation = async (targetId: string) => {
@@ -575,11 +494,11 @@ export default function BoardView({
       </p>}
 
       {community.available && (community.canJoin || community.isAdmin || community.banned) && (
-        <div className={`board-community-actions px-0.5 ${community.isAdmin ? 'with-admin' : ''}`}>
+        <div className="board-community-actions px-0.5">
           <button
             type="button"
             aria-label={hasCommunityUnread ? `Community, ${communityUnreadCount} new messages` : 'Community'}
-            onClick={() => { setCommunityStartInAdmin(false); setCommunityOpen(true); }}
+            onClick={() => setCommunityOpen(true)}
             className={`board-community-link ${hasCommunityUnread ? 'has-unread' : ''}`}
           >
             <span className="board-community-icon" aria-hidden="true">{community.banned ? <ShieldCheck size={17} /> : <MessageCircle size={17} />}</span>
@@ -592,26 +511,6 @@ export default function BoardView({
               <span className="board-room-status">{community.banned ? 'Restricted' : community.settings.roomEnabled ? 'Open' : 'Paused'}</span>
             )}
           </button>
-          {community.isAdmin && (
-            <button
-              type="button"
-              onClick={() => { setCommunityStartInAdmin(true); setCommunityOpen(true); }}
-              className={`board-admin-link ${adminCounts.total > 0 ? 'has-unread' : ''}`}
-              aria-label={adminCounts.total > 0 ? `Open community admin, ${adminCounts.total} unreviewed items` : 'Open community admin'}
-            >
-              <Gauge size={14} className="shrink-0" />
-              <span>Admin</span>
-              {adminCounts.total > 0 && (
-                <span
-                  className="board-admin-badge"
-                  title={`${adminCounts.total} pending admin items`}
-                  aria-hidden="true"
-                >
-                  {adminCounts.total > 9 ? '9+' : adminCounts.total}
-                </span>
-              )}
-            </button>
-          )}
         </div>
       )}
 
@@ -855,13 +754,11 @@ export default function BoardView({
       )}
       {communityOpen && (
         <CommunitySheet
-          key={communityStartInAdmin ? 'admin' : 'room'}
           open
           onClose={closeCommunity}
           userId={user?.id}
           rows={rows}
           initialContext={community}
-          startInAdmin={communityStartInAdmin}
           onOpenBoardSettings={() => { closeCommunity(); onOpenBoardSettings(); }}
           onProfile={onOpenProfile ? (id) => {
             const targetRow = byId.get(id) ?? rows.find((r) => r.userId === id) ?? null;

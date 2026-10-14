@@ -1,6 +1,16 @@
-import { useRef } from 'react';
-import { Calendar, Check, Copy, FolderInput, RotateCcw, Settings, Target, Trash2, Users, X } from 'lucide-react';
+import { lazy, Suspense, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { Calendar, CalendarDays, CheckCircle2, Copy, FolderInput, RotateCcw, Settings, Target, Trash2, Users, X } from 'lucide-react';
 import type { View } from '../types';
+import TabPill from './TabPill';
+import { useUiPrefs } from '../hooks/useUiPrefs';
+import { hapticTick } from '../lib/haptics';
+
+/** Holding the Settings button this long opens the Admin Hub (admins only). */
+export const ADMIN_HOLD_MS = 700;
+const ADMIN_HOLD_SLOP = 10;
+
+// The v7 CommandBar is only fetched when Classic Look is on, to keep it out of the initial bundle.
+const LegacyCommandBar = lazy(() => import('../legacy/LegacyCommandBar'));
 
 interface BatchMode {
   count: number;
@@ -41,9 +51,65 @@ interface Props {
   hubCommunityUnread?: number;
   /** Any private-side activity (notifications, DMs, room requests). */
   hubPrivateAttention?: boolean;
+  /** Admins only: holding Settings opens the Admin Hub. */
+  onOpenAdminHub?: () => void;
+  /** Admin items waiting to be handled; shown as a number on the Settings button. */
+  adminPending?: number;
 }
 
-export default function CommandBar({
+/** Press-and-hold on the Settings button; a normal tap still opens Settings. */
+function useAdminHold(onOpenAdminHub: (() => void) | undefined) {
+  const [holding, setHolding] = useState(false);
+  const hold = useRef<{ timer: number; x: number; y: number } | null>(null);
+  const fired = useRef(false);
+
+  const cancel = () => {
+    if (hold.current) window.clearTimeout(hold.current.timer);
+    hold.current = null;
+    setHolding(false);
+  };
+  useEffect(() => cancel, []);
+
+  if (!onOpenAdminHub) return { holding: false, handlers: {}, consumeClick: () => false };
+
+  return {
+    holding,
+    consumeClick: () => {
+      if (!fired.current) return false;
+      fired.current = false;
+      return true;
+    },
+    handlers: {
+      onPointerDown: (event: ReactPointerEvent) => {
+        if (!event.isPrimary || event.button !== 0) return;
+        fired.current = false;
+        cancel();
+        hold.current = {
+          x: event.clientX,
+          y: event.clientY,
+          timer: window.setTimeout(() => {
+            hold.current = null;
+            fired.current = true;
+            setHolding(false);
+            hapticTick();
+            onOpenAdminHub();
+          }, ADMIN_HOLD_MS),
+        };
+        setHolding(true);
+      },
+      onPointerMove: (event: ReactPointerEvent) => {
+        const start = hold.current;
+        if (start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > ADMIN_HOLD_SLOP) cancel();
+      },
+      onPointerUp: cancel,
+      onPointerCancel: cancel,
+      onPointerLeave: cancel,
+      onContextMenu: (event: ReactMouseEvent) => event.preventDefault(),
+    },
+  };
+}
+
+function ModernCommandBar({
   view,
   onNavigate,
   onSettings,
@@ -59,50 +125,55 @@ export default function CommandBar({
   showHubNavDot = false,
   hubCommunityUnread = 0,
   hubPrivateAttention = false,
+  onOpenAdminHub,
+  adminPending = 0,
 }: Props) {
   const remainingToday = Math.max(0, todayCount - todayDone);
   const hubTouchStartY = useRef<number | null>(null);
+  const [{ liquidGlass }] = useUiPrefs();
+  const adminHold = useAdminHold(onOpenAdminHub);
+  const showAdminBadge = Boolean(onOpenAdminHub) && adminPending > 0;
 
-  const tabs: { id: View; label: string; icon: typeof Check; badge?: number }[] = [
-    { id: 'tasks', label: 'Today', icon: Check, badge: remainingToday > 0 ? remainingToday : undefined },
-    { id: 'goals', label: 'Goals', icon: Target, badge: goalsCount > 0 ? goalsCount : undefined },
-    { id: 'calendar', label: 'Calendar', icon: Calendar },
+  const tabs: { id: View; label: string; icon: typeof Target; badge?: number; quietBadge?: boolean }[] = [
+    { id: 'tasks', label: 'Today', icon: CheckCircle2, badge: remainingToday > 0 ? remainingToday : undefined },
+    { id: 'goals', label: 'Goals', icon: Target, badge: goalsCount > 0 ? goalsCount : undefined, quietBadge: true },
+    { id: 'calendar', label: 'Calendar', icon: CalendarDays },
     { id: 'board', label: 'Hub', icon: Users },
   ];
 
   return (
-    <nav className="fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] inset-x-4 z-30 max-w-md mx-auto no-swipe" aria-label="Primary navigation">
-      <div className="command-dock command-dock-premium flex flex-nowrap items-center rounded-[16px] border border-subtle p-1.5">
+    <nav className="tab-bar-wrap no-swipe" aria-label="Primary navigation">
+      <div className={`glass tab-bar ${batch || paste ? 'tab-bar-sheet' : ''}`}>
         {batch ? (
           <div className="w-full p-1 space-y-1.5">
-            <div className="h-9 flex items-center gap-1">
-              <span className="pl-2 flex-1 text-[12px] font-semibold text-content-secondary tabular-nums">
+            <div className="h-10 flex items-center gap-1">
+              <span className="pl-2 flex-1 text-[15px] font-semibold text-content-primary tabular-nums">
                 {batch.count} selected
               </span>
-              <button onClick={batch.onCopy} className="h-8 px-2 rounded-[9px] text-[11px] font-medium text-content-secondary hover:bg-surface inline-flex items-center gap-1" title="Copy selected">
+              <button onClick={batch.onCopy} className="h-9 px-2.5 rounded-full text-[13px] font-medium text-primary inline-flex items-center gap-1" title="Copy selected">
                 <Copy size={13} /> Copy
               </button>
               {batch.onMove && (
-                <button onClick={batch.onMove} className="h-8 px-2 rounded-[9px] text-[11px] font-medium text-content-secondary hover:bg-surface inline-flex items-center gap-1" title="Move selected">
+                <button onClick={batch.onMove} className="h-9 px-2.5 rounded-full text-[13px] font-medium text-primary inline-flex items-center gap-1" title="Move selected">
                   <FolderInput size={13} /> Move
                 </button>
               )}
-              <button onClick={batch.onDelete} className="h-8 px-2 rounded-[9px] text-[11px] font-medium text-error hover:bg-error-soft inline-flex items-center gap-1" title="Delete selected">
+              <button onClick={batch.onDelete} className="h-9 px-2.5 rounded-full text-[13px] font-medium text-error inline-flex items-center gap-1" title="Delete selected">
                 <Trash2 size={13} /> Delete
               </button>
-              <button onClick={batch.onCancel} className="w-8 h-8 grid place-items-center rounded-[9px] text-content-secondary hover:bg-surface" title="Clear selection">
+              <button onClick={batch.onCancel} className="w-9 h-9 grid place-items-center rounded-full bg-fill text-content-secondary" title="Clear selection">
                 <X size={15} />
               </button>
             </div>
             {(batch.scheduleCount > 0 || batch.replanCount > 0 || batch.unplanCount > 0) ? (
               <div className="grid grid-cols-3 gap-1.5">
-                <button onClick={batch.onSchedule} disabled={batch.scheduleCount === 0} className="h-9 rounded-[9px] text-[11px] font-semibold bg-primary text-on-primary disabled:opacity-25 inline-flex items-center justify-center gap-1">
+                <button onClick={batch.onSchedule} disabled={batch.scheduleCount === 0} className="h-10 rounded-full text-[13px] font-semibold bg-primary text-on-primary disabled:opacity-25 inline-flex items-center justify-center gap-1">
                   <Calendar size={13} /> Schedule {batch.scheduleCount || ''}
                 </button>
-                <button onClick={batch.onReplan} disabled={batch.replanCount === 0} className="h-9 rounded-[9px] text-[11px] font-semibold bg-primary-soft text-primary border border-primary/15 disabled:opacity-25 inline-flex items-center justify-center gap-1">
+                <button onClick={batch.onReplan} disabled={batch.replanCount === 0} className="h-10 rounded-full text-[13px] font-semibold bg-primary-soft text-primary disabled:opacity-25 inline-flex items-center justify-center gap-1">
                   <RotateCcw size={13} /> Replan {batch.replanCount || ''}
                 </button>
-                <button onClick={batch.onUnplan} disabled={batch.unplanCount === 0} className="h-9 rounded-[9px] text-[11px] font-semibold bg-error-soft text-error border border-error/15 disabled:opacity-25 inline-flex items-center justify-center gap-1">
+                <button onClick={batch.onUnplan} disabled={batch.unplanCount === 0} className="h-10 rounded-full text-[13px] font-semibold bg-error-soft text-error disabled:opacity-25 inline-flex items-center justify-center gap-1">
                   <X size={13} /> Unplan {batch.unplanCount || ''}
                 </button>
               </div>
@@ -112,26 +183,32 @@ export default function CommandBar({
           </div>
         ) : paste ? (
           <>
-            <div className="p-2 rounded-xl bg-primary-soft text-primary shrink-0">
-              <Copy size={15} />
+            <div className="ml-1 w-10 h-10 grid place-items-center rounded-full bg-primary-soft text-primary shrink-0">
+              <Copy size={17} />
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="text-[13px] font-semibold text-content-primary truncate">{paste.title}</div>
-              <div className="text-[11px] text-content-muted truncate">Into {paste.targetName}</div>
+            <div className="flex-1 min-w-0 px-2">
+              <div className="text-[15px] font-semibold text-content-primary truncate">{paste.title}</div>
+              <div className="text-[13px] text-content-secondary truncate">Into {paste.targetName}</div>
             </div>
-            <button onClick={paste.onCancel} className="p-2 rounded-xl text-content-secondary hover:bg-surface">
-              <X size={16} />
+            <button onClick={paste.onCancel} className="w-10 h-10 grid place-items-center rounded-full bg-fill text-content-secondary" aria-label="Cancel paste">
+              <X size={17} />
             </button>
             <button
               onClick={paste.onPaste}
-              className="px-3.5 py-2 rounded-xl text-[12px] font-semibold bg-primary text-on-primary"
+              className="h-10 px-5 rounded-full text-[15px] font-semibold bg-primary text-on-primary"
             >
               Paste
             </button>
           </>
         ) : (
           <>
-            <div className="flex flex-1 min-w-0 items-center gap-0.5">
+            <div className={`tab-bar-tabs ${liquidGlass ? 'has-pill' : ''}`}>
+              {liquidGlass && (
+                <TabPill
+                  activeIndex={tabs.findIndex((tab) => tab.id === view)}
+                  onSelect={(index) => onNavigate(tabs[index].id)}
+                />
+              )}
               {tabs.map((tab) => {
                 const Icon = tab.icon;
                 const active = view === tab.id;
@@ -180,17 +257,13 @@ export default function CommandBar({
                     }
                     aria-current={active ? 'page' : undefined}
                     title={isHubTab && active ? 'Scroll or tap to switch Public / Private' : undefined}
-                    className={`command-tab relative flex-1 min-w-0 h-11 flex flex-col items-center justify-center gap-0.5 rounded-[11px] text-[10.5px] transition-all active:scale-[0.96] select-none ${
-                      active
-                        ? 'is-active text-primary font-semibold'
-                        : 'text-content-muted font-medium [@media(hover:hover)]:hover:text-content-primary [@media(hover:hover)]:hover:bg-elevated/60'
-                    }`}
+                    className={`tab-bar-item ${active ? 'is-active' : ''}`}
                   >
                     <span className="relative inline-flex shrink-0">
-                      <Icon size={16} strokeWidth={active ? 2.45 : 2} className="transition-transform duration-200" />
+                      <Icon size={23} strokeWidth={active ? 2.3 : 1.9} />
                       {hubIconDot && (
                         <span
-                          className="absolute -right-1 -top-1 size-[6px] rounded-full bg-primary ring-2 ring-[var(--bg-surface)] pointer-events-none"
+                          className="absolute -right-1 -top-0.5 size-[9px] rounded-full bg-error ring-2 ring-[var(--bg-surface)] pointer-events-none"
                           aria-hidden
                         />
                       )}
@@ -198,57 +271,57 @@ export default function CommandBar({
                     
                     {/* Rolling label for active Hub, static label for others */}
                     {isHubTab && active ? (
-                      <div className="h-[14px] overflow-hidden relative w-full">
+                      <div className="h-[12px] overflow-hidden relative w-full">
                         <div
                           className="flex flex-col transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
                           style={{
                             transform: hubSubTab === 'social' ? 'translateY(0%)' : 'translateY(-50%)',
                           }}
                         >
-                          <span className="h-[14px] flex items-center justify-center text-[10.5px] font-bold text-primary shrink-0">
+                          <span className="h-[12px] flex items-center justify-center text-[10px] font-semibold text-primary shrink-0">
                             Public
                           </span>
-                          <span className="h-[14px] flex items-center justify-center text-[10.5px] font-bold text-primary shrink-0">
+                          <span className="h-[12px] flex items-center justify-center text-[10px] font-semibold text-primary shrink-0">
                             Private
                           </span>
                         </div>
                       </div>
                     ) : (
-                      <span className="command-tab-label truncate leading-none">{tab.label}</span>
+                      <span className="tab-bar-label">{tab.label}</span>
                     )}
 
                     {isHubTab && active && (
                       <div
-                        className="absolute right-1 top-2.5 bottom-2.5 w-[5px] pointer-events-none"
+                        className="absolute right-2 top-3 bottom-3 w-[4px] pointer-events-none"
                         aria-hidden
                       >
                         {hubStripPublicDot && (
                           <span
-                            className="absolute right-full top-[25%] mr-[3px] size-[5px] -translate-y-1/2 rounded-full bg-primary ring-[1.5px] ring-[var(--bg-surface)]"
+                            className="absolute right-full top-[25%] mr-[3px] size-[5px] -translate-y-1/2 rounded-full bg-[var(--switch-on,var(--primary))] ring-[1.5px] ring-[var(--bg-surface)]"
                             aria-label="Public hub has unread"
                           />
                         )}
                         {hubStripPrivateDot && (
                           <span
-                            className="absolute right-full top-[75%] mr-[3px] size-[5px] -translate-y-1/2 rounded-full bg-primary ring-[1.5px] ring-[var(--bg-surface)]"
+                            className="absolute right-full top-[75%] mr-[3px] size-[5px] -translate-y-1/2 rounded-full bg-[var(--switch-on,var(--primary))] ring-[1.5px] ring-[var(--bg-surface)]"
                             aria-label="Private hub has activity"
                           />
                         )}
-                        <div className="absolute inset-0 rounded-full bg-surface border border-subtle overflow-hidden">
+                        <div className="absolute inset-0 rounded-full bg-fill overflow-hidden">
                           <div
                             className="absolute left-0 right-0 h-1/2 transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] p-[1px]"
                             style={{
                               transform: hubSubTab === 'social' ? 'translateY(0%)' : 'translateY(100%)',
                             }}
                           >
-                            <div className="w-full h-full rounded-full bg-primary shadow-[0_0_6px_var(--primary)]" />
+                            <div className="w-full h-full rounded-full bg-primary" />
                           </div>
                         </div>
                       </div>
                     )}
 
                     {tab.badge !== undefined && (
-                      <span className={`command-tab-badge ${active ? 'is-active' : ''}`}>
+                      <span className={`tab-bar-badge ${tab.quietBadge ? 'is-quiet' : ''}`}>
                         {tab.badge > 99 ? '99+' : tab.badge}
                       </span>
                     )}
@@ -256,25 +329,51 @@ export default function CommandBar({
                 );
               })}
             </div>
-            <span className="command-dock-divider" aria-hidden />
-            <button
-              type="button"
-              onClick={onSettings}
-              className="command-settings relative shrink-0 grid place-items-center size-11 rounded-[11px] text-content-muted active:scale-[0.94] [@media(hover:hover)]:hover:text-content-primary [@media(hover:hover)]:hover:bg-elevated"
-              title="Settings"
-              aria-label="Settings"
-            >
-              <Settings size={16} strokeWidth={2} />
-              {syncAttention && (
-                <span
-                  className="absolute right-2 top-2 size-2 rounded-full bg-warning ring-2 ring-[var(--bg-surface)]"
-                  aria-label="Sync needs review"
-                />
-              )}
-            </button>
           </>
         )}
       </div>
+      {!batch && !paste && (
+        <button
+          type="button"
+          onClick={() => {
+            if (!adminHold.consumeClick()) onSettings();
+          }}
+          {...adminHold.handlers}
+          className={`glass tab-bar-orb ${adminHold.holding ? 'is-admin-holding' : ''}`}
+          title={onOpenAdminHub ? 'Settings · hold for Admin Hub' : 'Settings'}
+          aria-label={showAdminBadge ? `Settings, ${adminPending} admin ${adminPending === 1 ? 'item' : 'items'} waiting` : 'Settings'}
+        >
+          <Settings size={24} strokeWidth={1.9} />
+          {adminHold.holding && (
+            <svg className="admin-hold-ring" viewBox="0 0 40 40" aria-hidden>
+              <circle cx="20" cy="20" r="18" pathLength={100} />
+            </svg>
+          )}
+          {showAdminBadge && (
+            <span className="admin-orb-badge" aria-hidden>
+              {adminPending > 9 ? '9+' : adminPending}
+            </span>
+          )}
+          {syncAttention && (
+            <span
+              className="absolute right-3.5 top-3.5 size-2.5 rounded-full bg-warning ring-2 ring-[var(--bg-surface)]"
+              aria-label="Sync needs review"
+            />
+          )}
+        </button>
+      )}
     </nav>
+  );
+}
+
+/** The redesign, or the v7 CommandBar under Settings → Appearance → Classic look. */
+export default function CommandBar(props: Props) {
+  const [{ legacyStyle }] = useUiPrefs();
+  return legacyStyle ? (
+    <Suspense fallback={null}>
+      <LegacyCommandBar {...props} />
+    </Suspense>
+  ) : (
+    <ModernCommandBar {...props} />
   );
 }

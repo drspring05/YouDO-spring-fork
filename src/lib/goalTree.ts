@@ -39,6 +39,26 @@ export function countCompletedDirectChildren(node: GoalNode): number {
   return node.children.filter((c) => c.completed || rollupPct(c) === 100).length;
 }
 
+/** True when an endpoint's own work is finished (all steps, or marked done). */
+export function endpointDone(node: GoalNode): boolean {
+  if (node.completed) return true;
+  const steps = node.steps?.length ?? 0;
+  return steps > 0 && (node.stepDone ?? []).filter(Boolean).length >= steps;
+}
+
+/** The first unfinished direct child of a branch, in plan order (what to do
+ *  next at this level): a task with work left, or a branch with any open item. */
+export function nextOpenItem(node: GoalNode): GoalNode | null {
+  for (const child of node.children) {
+    if (child.children.length === 0) {
+      if (!endpointDone(child)) return child;
+    } else if (!child.completed && nextOpenItem(child)) {
+      return child;
+    }
+  }
+  return null;
+}
+
 let rollupCache = new WeakMap<GoalNode, number>();
 
 export function clearRollupCache() {

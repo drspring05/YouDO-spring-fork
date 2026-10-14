@@ -1,14 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <defs>
-    <radialGradient id="glow" cx="50%" cy="48%" r="48%">
-      <stop offset="0" stop-color="#c4a574" stop-opacity="0.18"/>
-      <stop offset="1" stop-color="#11100e" stop-opacity="0"/>
-    </radialGradient>
-  </defs>
-  <rect width="512" height="512" fill="#11100e"/>
-  <circle cx="256" cy="248" r="210" fill="url(#glow)"/>
-  <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="42">
-    <path d="M128 128 L248 280 V384" stroke="#c4a574"/>
-    <path d="M384 128 L248 280 L200 224" stroke="#86a588"/>
+  <rect width="512" height="512" rx="115.2" fill="#14120F"/>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.7" transform="translate(256 256) scale(16) translate(-12 -12)">
+    <path d="M4 4L11.5 13.5V20" stroke="#C9A46E"/>
+    <path d="M20 4L11.5 13.5L8.2 9.7" stroke="#8FB394"/>
   </g>
 </svg>

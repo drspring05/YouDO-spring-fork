@@ -11,19 +11,82 @@
 
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
-            android:name=".MainActivity"
+            android:name=".YouDoActivity"
             android:label="@string/title_activity_main"
             android:theme="@style/AppTheme.NoActionBarLaunch"
             android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize"
-            android:exported="true">
+            android:exported="true" />
 
+        <!-- Home-screen icons (Settings → App icon). Exactly one is enabled; the
+             default keeps the ".MainActivity" name so icons pinned by older
+             versions keep working. Keep in sync with YouDoAppIconPlugin and
+             src/lib/appIconVariants.json. -->
+        <activity-alias
+            android:name=".MainActivity"
+            android:targetActivity=".YouDoActivity"
+            android:label="@string/title_activity_main"
+            android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher_round"
+            android:enabled="true"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-
-        </activity>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconIvory"
+            android:targetActivity=".YouDoActivity"
+            android:label="@string/title_activity_main"
+            android:icon="@mipmap/ic_launcher_ivory"
+            android:roundIcon="@mipmap/ic_launcher_ivory_round"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconSand"
+            android:targetActivity=".YouDoActivity"
+            android:label="@string/title_activity_main"
+            android:icon="@mipmap/ic_launcher_sand"
+            android:roundIcon="@mipmap/ic_launcher_sand_round"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconOnyx"
+            android:targetActivity=".YouDoActivity"
+            android:label="@string/title_activity_main"
+            android:icon="@mipmap/ic_launcher_onyx"
+            android:roundIcon="@mipmap/ic_launcher_onyx_round"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".IconLinen"
+            android:targetActivity=".YouDoActivity"
+            android:label="@string/title_activity_main"
+            android:icon="@mipmap/ic_launcher_linen"
+            android:roundIcon="@mipmap/ic_launcher_linen_round"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
 
         <receiver
             android:name=".SessionNotificationReceiver"

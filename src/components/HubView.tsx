@@ -4,13 +4,21 @@ import BoardView from './BoardView';
 import type { PaceRow, PaceWindow } from '../lib/paceBoard';
 import UserProfileSheet from './UserProfileSheet';
 import HubAuthGate from './HubAuthGate';
-import PrivateHubUnderDevelopment from './PrivateHubUnderDevelopment';
+import PrivateHubView from './PrivateHubView';
+import { requestOpenDm } from './hub/openDm';
 
 export default function HubView({
   onOpenBoardSettings,
   activeTab = 'social',
+  personalPace,
   onSwitchToPrivate,
   onSwitchToPublic,
+  pendingCount,
+  refreshPendingCount,
+  refreshDmInbox,
+  refreshSquadChat,
+  dmsTabAttention,
+  roomsTabAttention,
 }: {
   onOpenBoardSettings: () => void;
   activeTab?: 'social' | 'private';
@@ -47,18 +55,14 @@ export default function HubView({
     return (
       <div className="w-full">
         <div key={activeTab} className="hub-screen-transition overflow-x-hidden">
-          {activeTab === 'social' ? (
-            <HubAuthGate
-              tab={activeTab}
-              isOffline={!isOnline}
-              onSwitchTab={(target) => {
-                if (target === 'private') onSwitchToPrivate?.();
-                else onSwitchToPublic?.();
-              }}
-            />
-          ) : (
-            <PrivateHubUnderDevelopment onSwitchToPublic={onSwitchToPublic} />
-          )}
+          <HubAuthGate
+            tab={activeTab}
+            isOffline={!isOnline}
+            onSwitchTab={(target) => {
+              if (target === 'private') onSwitchToPrivate?.();
+              else onSwitchToPublic?.();
+            }}
+          />
         </div>
       </div>
     );
@@ -77,7 +81,16 @@ export default function HubView({
             }}
           />
         ) : (
-          <PrivateHubUnderDevelopment onSwitchToPublic={onSwitchToPublic} />
+          <PrivateHubView
+            personalPace={personalPace}
+            onSwitchToPublic={onSwitchToPublic}
+            pendingCount={pendingCount}
+            refreshPendingCount={refreshPendingCount}
+            refreshDmInbox={refreshDmInbox}
+            refreshSquadChat={refreshSquadChat}
+            dmsTabAttention={dmsTabAttention}
+            roomsTabAttention={roomsTabAttention}
+          />
         )}
       </div>
 
@@ -90,8 +103,10 @@ export default function HubView({
           setProfileBoardPreview(null);
         }}
         onMessage={() => {
+          const target = profileUserId;
           setProfileUserId(null);
           onSwitchToPrivate?.();
+          if (target) requestOpenDm(target);
         }}
       />
     </div>

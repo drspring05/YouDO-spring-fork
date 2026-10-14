@@ -76,7 +76,7 @@ export function AmbientScreen({
   };
 
   return (
-    <Overlay open scrim={false} align="full">
+    <Overlay open scrim={false} align="full" fullWidth="bleed">
       <div className="h-full bg-base text-content-primary flex flex-col justify-between px-6 pb-6 fade-in relative overflow-hidden">
         <div className="pointer-events-none absolute inset-0">
           <div

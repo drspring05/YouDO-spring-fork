@@ -1,3 +1,4 @@
+import { useUiPrefs } from '../hooks/useUiPrefs';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Browser } from '@capacitor/browser';
 import { Capacitor } from '@capacitor/core';
@@ -9,22 +10,26 @@ import {
   Check,
   CheckCircle2,
   ChevronRight,
+  Gauge,
   Clock,
   Download,
   Edit2,
   Flame,
   Hash,
   History,
+  Heart,
   Info,
   KeyRound,
   LogIn,
   LogOut,
-  Lock,
   Mail,
   MessageCircle,
   MessageSquare,
   MonitorSmartphone,
   Moon,
+  Palette,
+  Droplets,
+  Undo2,
   RefreshCw,
   Send,
   ShieldCheck,
@@ -46,9 +51,10 @@ import {
   saveNotificationPreferences,
   checkNotificationPermission,
   requestNotificationPermission,
-  scheduleMorningBriefing,
+  refreshMorningBriefing,
   extractBriefingData,
   buildMorningBriefingContent,
+  calculateNextBriefingTime,
   sendTestBriefingNotification,
   type NotificationPreferences,
   type RoomNotificationMode,
@@ -56,6 +62,7 @@ import {
 import { useReducedEffects } from '../hooks/useReducedEffects';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../hooks/useTheme';
+import { ACCENT_COLORS, ACCENT_SWATCHES, resolveAccent } from '../lib/accentColors';
 import { visitSnapshotLabel } from '../lib/cloudBackup';
 import type { BackupSummary } from '../lib/backup';
 import { formatBackupStamp, formatDuration } from '../lib/format';
@@ -65,11 +72,14 @@ import {  requestAccountAccess, STORAGE_KEYS } from '../lib/storageKeys';
 import { hapticTick, setHapticsPreference } from '../lib/haptics';
 import { clampStreakBarHours, MAX_STREAK_BAR_HOURS, MIN_STREAK_BAR_HOURS } from '../lib/focusTrends';
 import { PACE_CHEATING_GUIDE, PACE_HONEST_QUOTE, paceWindowTotals } from '../lib/paceBoard';
-import { todayISO } from '../lib/dates';
+import { localISODate, todayISO } from '../lib/dates';
 import { checkAppUpdateStatus, type AppRelease } from '../lib/appUpdate';
 import UpdateAction from './UpdateAction';
 import { APP_VERSION } from '../lib/version';
 import SignedInDevices from './SignedInDevices';
+import SupportSheet from './SupportSheet';
+import AppIconPicker from './AppIconPicker';
+import { syncPushPreferences } from '../lib/pushPreferences';
 import CommunityHashtagProfileField from './community/CommunityHashtagProfileField';
 import type { CommunityHashtagContext } from '../lib/communityHashtags';
 import { parseSyncConflictRecord } from '../lib/syncConflictRecord';
@@ -94,11 +104,17 @@ interface Props {
   initialTab?: SettingsTab;
   streakBarHours: number;
   onStreakBarHoursChange: (hours: number) => void;
+  /** The current and best streak, so the briefing preview matches the real one. */
+  briefingStreak?: { current: number; best: number };
+  /** Admins only: the Admin Hub row (the backup to holding the Settings button). */
+  onOpenAdminHub?: () => void;
+  adminPending?: number;
 }
 
 function SectionLabel({ children, icon }: { children: React.ReactNode; icon?: React.ReactNode }) {
+  const [{ legacyStyle }] = useUiPrefs();
   return (
-    <h2 className="settings-section-label text-[10px] font-bold uppercase tracking-[0.16em] text-content-muted mb-2.5 px-1 flex items-center gap-1.5">
+    <h2 className={legacyStyle ? 'settings-section-label text-[10px] font-bold uppercase tracking-[0.16em] text-content-muted mb-2.5 px-1 flex items-center gap-1.5' : 'settings-section-label uppercase mb-2 flex items-center gap-1.5'}>
       {icon}
       <span>{children}</span>
     </h2>
@@ -129,6 +145,9 @@ export default function SettingsSheet({
   initialTab,
   streakBarHours,
   onStreakBarHoursChange,
+  briefingStreak,
+  onOpenAdminHub,
+  adminPending = 0,
 }: Props) {
   const {
     exportBackup,
@@ -162,6 +181,7 @@ export default function SettingsSheet({
 
   const [theme, setTheme] = useTheme();
   const [reducedEffects, setReducedEffects] = useReducedEffects();
+  const [{ legacyStyle, liquidGlass }, setUiPref] = useUiPrefs();
   const publicBoardRef = useRef<HTMLElement>(null);
   const [activeTab, setActiveTab] = useState<SettingsTab>(focusSection === 'public-board' ? 'board' : (initialTab ?? 'account'));
   const [highlightBoard, setHighlightBoard] = useState(focusSection === 'public-board');
@@ -218,6 +238,7 @@ export default function SettingsSheet({
   };
 
   const [trashOpen, setTrashOpen] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(false);
   const [trashRestoreError, setTrashRestoreError] = useState<string | null>(null);
   const [streakBarHelpOpen, setStreakBarHelpOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -250,14 +271,19 @@ export default function SettingsSheet({
     setNotifPrefs((prev) => {
       const next = updater(prev);
       saveNotificationPreferences(next);
-      void scheduleMorningBriefing(tasks, goals, streakBarHours, 0, { force: true });
+      void refreshMorningBriefing(tasks, goals);
+      void syncPushPreferences(user?.id, next);
       return next;
     });
   };
 
+  // The preview describes the morning it will arrive, like the real briefing.
+  const streakCurrent = briefingStreak?.current ?? 0;
+  const streakBest = briefingStreak?.best ?? 0;
   const briefingData = useMemo(() => {
-    return extractBriefingData(tasks, goals, 0, 0, undefined, notifPrefs.morningBriefing.selectedGoalId);
-  }, [tasks, goals, notifPrefs.morningBriefing.selectedGoalId]);
+    const deliveryDay = localISODate(calculateNextBriefingTime(notifPrefs.morningBriefing.time));
+    return extractBriefingData(tasks, goals, streakCurrent, streakBest, deliveryDay, notifPrefs.morningBriefing.selectedGoalId);
+  }, [tasks, goals, streakCurrent, streakBest, notifPrefs.morningBriefing.time, notifPrefs.morningBriefing.selectedGoalId]);
 
   const briefingPreview = useMemo(() => {
     return buildMorningBriefingContent(briefingData, notifPrefs.morningBriefing);
@@ -436,7 +462,7 @@ export default function SettingsSheet({
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (trashOpen || editProfileOpen || securityOpen || restoreOpen) return;
+    if (trashOpen || editProfileOpen || securityOpen || restoreOpen || supportOpen) return;
     if (e.touches.length !== 1) return;
 
     const target = e.target as HTMLElement | null;
@@ -526,12 +552,14 @@ export default function SettingsSheet({
   return (
     <Overlay open={open} onClose={onClose} align="full">
     <div
-      className="settings-shell app-frame h-full w-full max-w-md mx-auto bg-base page-slide-in flex flex-col overflow-hidden border-x border-subtle"
+      className={legacyStyle ? 'settings-shell app-frame h-full w-full max-w-md mx-auto bg-base page-slide-in flex flex-col overflow-hidden border-x border-subtle' : 'settings-shell app-frame h-full w-full max-w-md mx-auto bg-base page-slide-in flex flex-col overflow-hidden'}
     >
       {/* ── 1. Clean Top Bar ── */}
       <div
-        className="settings-header flex items-center gap-3 px-4 border-b border-subtle shrink-0 bg-elevated"
-        style={{ paddingTop: 'max(1rem, var(--safe-area-top))', paddingBottom: '0.875rem' }}
+        className={legacyStyle ? 'settings-header flex items-center gap-3 px-4 border-b border-subtle shrink-0 bg-elevated' : 'settings-header flex items-center gap-2 px-3 shrink-0'}
+        style={legacyStyle
+          ? { paddingTop: 'max(1rem, var(--safe-area-top))', paddingBottom: '0.875rem' }
+          : { paddingTop: 'max(0.75rem, var(--safe-area-top))', paddingBottom: '0.75rem' }}
       >
         <button
           onClick={
@@ -539,28 +567,28 @@ export default function SettingsSheet({
               ? () => setTrashOpen(false)
               : onClose
           }
-          className="p-2 -ml-1.5 rounded-xl text-content-secondary hover:text-content-primary hover:bg-surface transition-colors active:scale-95 flex items-center justify-center"
+          className={legacyStyle ? 'p-2 -ml-1.5 rounded-xl text-content-secondary hover:text-content-primary hover:bg-surface transition-colors active:scale-95 flex items-center justify-center' : 'glass rounded-full transition-opacity active:opacity-60 flex items-center justify-center'}
           aria-label="Back"
         >
-          <ArrowLeft size={20} />
+          {legacyStyle ? <ArrowLeft size={20} /> : <ArrowLeft size={21} strokeWidth={2.2} />}
         </button>
         <div className="min-w-0">
-          <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-primary">YouDO</p>
-          <h1 className="text-[18px] leading-5 font-bold text-content-primary tracking-tight">
+          {legacyStyle && <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-primary">YouDO</p>}
+          <h1 className={legacyStyle ? 'text-[18px] leading-5 font-bold text-content-primary tracking-tight' : 'font-display text-[28px] leading-[34px] font-bold text-content-primary tracking-tight'}>
             {trashOpen ? 'Recently Deleted' : 'Settings'}
           </h1>
-          {!trashOpen && <p className="mt-0.5 text-[11px] text-content-muted">Your workspace, focus rules and privacy</p>}
+          {!trashOpen && <p className={legacyStyle ? 'mt-0.5 text-[11px] text-content-muted' : 'text-[13px] text-content-secondary'}>Your workspace, focus rules and privacy</p>}
         </div>
       </div>
 
       {/* ── 2. Tab Navigation Strip ── */}
       {!trashOpen && (
-        <div className="settings-tab-bar shrink-0 px-3 pt-2 pb-2.5 bg-elevated/95 backdrop-blur-md border-b border-subtle">
+        <div className={legacyStyle ? 'settings-tab-bar shrink-0 px-3 pt-2 pb-2.5 bg-elevated/95 backdrop-blur-md border-b border-subtle' : 'settings-tab-bar shrink-0 px-4 pt-2 pb-3'}>
           <div
             ref={tabBarRef}
             role="tablist"
             aria-label="Settings categories"
-            className="relative flex items-center gap-1 overflow-x-auto overscroll-x-contain no-scrollbar scroll-smooth touch-pan-x p-1 bg-surface/90 rounded-2xl border border-subtle/80 shadow-inner"
+            className={legacyStyle ? 'relative flex items-center gap-1 overflow-x-auto overscroll-x-contain no-scrollbar scroll-smooth touch-pan-x p-1 bg-surface/90 rounded-2xl border border-subtle/80 shadow-inner' : 'ios-segmented relative overflow-x-auto overscroll-x-contain no-scrollbar scroll-smooth touch-pan-x'}
           >
             {tabs.map((tab, idx) => {
               const isActive = activeTab === tab.id;
@@ -579,13 +607,17 @@ export default function SettingsSheet({
                   tabIndex={isActive ? 0 : -1}
                   onKeyDown={(e) => handleTabKeyDown(e, idx)}
                   onClick={() => handleTabClick(tab.id)}
-                  className={`shrink-0 flex-none px-3.5 py-1.5 rounded-xl text-[12px] tracking-tight whitespace-nowrap transition-all duration-200 flex items-center justify-center gap-1.5 select-none active:scale-[0.98] ${
-                    isActive
-                      ? 'bg-primary text-on-primary shadow-sm shadow-primary/25 font-bold'
-                      : 'text-content-secondary hover:text-content-primary hover:bg-white/5 font-semibold'
-                  }`}
+                  className={legacyStyle
+                    ? `shrink-0 flex-none px-3.5 py-1.5 rounded-xl text-[12px] tracking-tight whitespace-nowrap transition-all duration-200 flex items-center justify-center gap-1.5 select-none active:scale-[0.98] ${
+                        isActive
+                          ? 'bg-primary text-on-primary shadow-sm shadow-primary/25 font-bold'
+                          : 'text-content-secondary hover:text-content-primary hover:bg-white/5 font-semibold'
+                      }`
+                    : `shrink-0 flex-none px-3.5 py-1.5 !flex-none whitespace-nowrap select-none ${isActive ? 'font-semibold' : 'font-medium'}`}
                 >
-                  <Icon size={13} className={isActive ? 'text-on-primary' : 'text-content-muted'} />
+                  {legacyStyle
+                    ? <Icon size={13} className={isActive ? 'text-on-primary' : 'text-content-muted'} />
+                    : <Icon size={14} className={isActive ? 'text-primary' : 'text-content-secondary'} />}
                   <span>{tab.label}</span>
                   {tab.badge && (
                     <span
@@ -701,9 +733,34 @@ export default function SettingsSheet({
           tabIndex={activeTab === 'account' ? 0 : -1}
           className={activeTab === 'account' ? 'space-y-5 fade-in outline-none' : 'hidden'}
         >
+          {onOpenAdminHub && (
+            <section>
+              <button
+                type="button"
+                onClick={onOpenAdminHub}
+                className="settings-card flex w-full items-center gap-3 rounded-2xl border border-subtle bg-elevated p-4 text-left"
+                aria-label={adminPending > 0 ? `Admin Hub, ${adminPending} ${adminPending === 1 ? 'item' : 'items'} waiting` : 'Admin Hub'}
+              >
+                <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary-soft text-primary">
+                  <Gauge size={16} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-semibold text-content-primary">Admin Hub</span>
+                  <span className="mt-0.5 block text-[11px] text-content-muted">Tip: hold the Settings button to open it from anywhere</span>
+                </span>
+                {adminPending > 0 && (
+                  <span className="grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-on-primary" aria-hidden>
+                    {adminPending > 99 ? '99+' : adminPending}
+                  </span>
+                )}
+                <ChevronRight size={16} className="shrink-0 text-content-muted" />
+              </button>
+            </section>
+          )}
+
           {/* ── SECTION 1: ACCOUNT & SYNC ── */}
           <section>
-          <SectionLabel icon={<ShieldCheck size={13} className="text-secondary" />}>ACCOUNT &amp; SYNC</SectionLabel>
+          <SectionLabel icon={<ShieldCheck size={13} className="text-primary" />}>ACCOUNT &amp; SYNC</SectionLabel>
           <div className="settings-card settings-account-card relative rounded-2xl border border-subtle/80 bg-elevated overflow-hidden shadow-xl">
             {user && (
               <div className="relative">
@@ -1168,7 +1225,7 @@ export default function SettingsSheet({
                   <div className="relative border-t border-subtle/80 bg-surface/40 px-4 sm:px-5 py-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5">
-                        <History size={13} className="text-secondary" />
+                        <History size={13} className="text-primary" />
                         <h4 className="text-[12px] font-bold text-content-primary">Cloud Restore Points</h4>
                       </div>
                       <button
@@ -1190,7 +1247,7 @@ export default function SettingsSheet({
 
                     {restoreLoading && (
                       <div className="py-6 text-center text-xs text-content-muted flex items-center justify-center gap-2">
-                        <RefreshCw size={13} className="animate-spin text-secondary" />
+                        <RefreshCw size={13} className="animate-spin text-primary" />
                         <span>Loading copies…</span>
                       </div>
                     )}
@@ -1301,7 +1358,7 @@ export default function SettingsSheet({
                   <div className="relative border-t border-subtle/80 bg-surface/40 px-4 sm:px-5 py-4 space-y-3.5">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5">
-                        <KeyRound size={13} className="text-secondary" />
+                        <KeyRound size={13} className="text-primary" />
                         <h4 className="text-[12px] font-bold text-content-primary">Account Security</h4>
                       </div>
                       <button
@@ -1685,7 +1742,7 @@ export default function SettingsSheet({
       >
         {/* ── SECTION 4: APPEARANCE & EXPERIENCE ── */}
         <section>
-          <SectionLabel icon={<Sparkles size={13} className="text-secondary" />}>APPEARANCE &amp; EXPERIENCE</SectionLabel>
+          <SectionLabel icon={<Sparkles size={13} className="text-primary" />}>APPEARANCE &amp; EXPERIENCE</SectionLabel>
           <div className="settings-card bg-elevated rounded-2xl border border-subtle overflow-hidden shadow-lg divide-y divide-white/5">
             <div className="settings-data-row p-4 flex items-center justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -1702,7 +1759,7 @@ export default function SettingsSheet({
               <div className="settings-segment flex bg-base p-1 rounded-xl border border-subtle shrink-0">
                 <button
                   type="button"
-                  onClick={() => setTheme({ darkMode: true })}
+                  onClick={() => setTheme((prev) => ({ ...prev, darkMode: true }))}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${
                     theme.darkMode
                       ? 'bg-primary text-on-primary'
@@ -1713,7 +1770,7 @@ export default function SettingsSheet({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setTheme({ darkMode: false })}
+                  onClick={() => setTheme((prev) => ({ ...prev, darkMode: false }))}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${
                     !theme.darkMode
                       ? 'bg-primary text-on-primary'
@@ -1723,6 +1780,52 @@ export default function SettingsSheet({
                   <Sun size={12} /> Light
                 </button>
               </div>
+            </div>
+
+            {!legacyStyle && <div className="settings-data-row p-4 flex flex-col items-stretch gap-3">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="w-9 h-9 rounded-xl bg-primary-soft flex items-center justify-center text-primary shrink-0">
+                  <Palette size={16} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-xs font-semibold text-content-primary">Accent Color</h3>
+                  <p className="text-[10.5px] text-content-secondary font-medium">{ACCENT_SWATCHES[resolveAccent(theme)].label} tints buttons, rings and links</p>
+                </div>
+              </div>
+              <div role="radiogroup" aria-label="Accent color" className="flex items-center justify-between gap-1 px-1">
+                {ACCENT_COLORS.map((accent) => {
+                  const swatch = ACCENT_SWATCHES[accent];
+                  const selected = resolveAccent(theme) === accent;
+                  return (
+                    <button
+                      key={accent}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      aria-label={swatch.label}
+                      title={swatch.label}
+                      onClick={() => setTheme((prev) => ({ ...prev, accent }))}
+                      className="accent-swatch"
+                      style={{ background: theme.darkMode ? swatch.dark : swatch.light }}
+                    >
+                      {selected && <Check size={16} strokeWidth={3} />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>}
+
+            <div className="settings-data-row p-4 flex flex-col items-stretch gap-3">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="w-9 h-9 rounded-xl bg-primary-soft flex items-center justify-center text-primary shrink-0">
+                  <Smartphone size={16} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-xs font-semibold text-content-primary">App Icon</h3>
+                  <p className="text-[10.5px] text-content-secondary font-medium">Pick the icon on your home screen</p>
+                </div>
+              </div>
+              <AppIconPicker />
             </div>
 
             <div className="settings-data-row p-4 flex items-center justify-between gap-3">
@@ -1750,6 +1853,39 @@ export default function SettingsSheet({
                 </div>
               </div>
               <Toggle checked={reducedEffects} onChange={() => setReducedEffects(!reducedEffects)} label="Reduced effects" />
+            </div>
+
+            <div className="settings-data-row p-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="w-9 h-9 rounded-xl bg-primary-soft flex items-center justify-center text-primary shrink-0">
+                  <Droplets size={16} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-xs font-semibold text-content-primary">Liquid Glass</h3>
+                  <p className="text-[10.5px] text-content-secondary font-medium">
+                    {reducedEffects
+                      ? 'Paused while Reduced Effects is on.'
+                      : legacyStyle
+                        ? 'Bouncy icon buttons. The glass tab pill is part of the new look.'
+                        : liquidGlass
+                          ? 'Glass bars and buttons that catch the light, a gliding tab pill and bouncy buttons.'
+                          : 'Off: solid bars and buttons, no glass or motion effects.'}
+                  </p>
+                </div>
+              </div>
+              <Toggle checked={liquidGlass} onChange={() => setUiPref('liquidGlass', !liquidGlass)} label="Liquid Glass" />
+            </div>
+            <div className="settings-data-row p-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="w-9 h-9 rounded-xl bg-secondary-soft flex items-center justify-center text-secondary shrink-0">
+                  <Undo2 size={16} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-xs font-semibold text-content-primary">Classic Look</h3>
+                  <p className="text-[10.5px] text-content-secondary font-medium">The v7 design: its header, nav bar and task cards.</p>
+                </div>
+              </div>
+              <Toggle checked={legacyStyle} onChange={() => setUiPref('legacyStyle', !legacyStyle)} label="Classic look" />
             </div>
           </div>
         </section>
@@ -2152,6 +2288,9 @@ export default function SettingsSheet({
                     </button>
                   </div>
                   <div className="pt-1">
+                    {briefingPreview.summaryText && (
+                      <div className="mb-0.5 text-[10.5px] text-content-muted">YouDO · {briefingPreview.summaryText}</div>
+                    )}
                     <div className="text-[12px] font-bold text-content-primary flex items-center gap-1.5">
                       {briefingPreview.title}
                     </div>
@@ -2164,90 +2303,114 @@ export default function SettingsSheet({
             )}
           </div>
 
-          {/* PRIVATE HUB NOTIFICATIONS CARD (LOCKED) */}
-          <div className={`settings-card bg-elevated rounded-2xl border border-subtle p-4 shadow-lg mt-2.5 space-y-3 relative overflow-hidden transition-opacity ${notifPrefs.enabled ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
+          {/* PRIVATE HUB NOTIFICATIONS CARD */}
+          <div className={`settings-card bg-elevated rounded-2xl border border-subtle p-4 shadow-lg mt-2.5 space-y-3 transition-opacity ${notifPrefs.enabled ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-start gap-3 min-w-0 flex-1">
                 <div className="w-9 h-9 rounded-xl bg-primary-soft flex items-center justify-center text-primary shrink-0 mt-0.5">
                   <MessageSquare size={16} />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-xs font-semibold text-content-primary">Private Hub Notifications</h3>
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-primary/15 text-primary text-[9.5px] font-bold uppercase tracking-wider">
-                      <Lock size={10} /> Locked
-                    </span>
-                  </div>
+                  <h3 className="text-xs font-semibold text-content-primary">Private Hub</h3>
                   <p className="text-[10.5px] text-content-secondary font-medium mt-0.5 leading-snug">
-                    Direct messages, room chats, and companion invites
+                    Direct messages, room chats, requests and invites
                   </p>
                 </div>
               </div>
-              <div className="opacity-50 pointer-events-none">
-                <Toggle
-                  checked={false}
-                  onChange={() => {}}
-                  label="Private hub notifications (Locked)"
-                />
-              </div>
+              <Toggle
+                checked={notifPrefs.privateHub.enabled}
+                onChange={() =>
+                  updateNotifPrefs((p) => ({
+                    ...p,
+                    privateHub: { ...p.privateHub, enabled: !p.privateHub.enabled },
+                  }))
+                }
+                label="Private hub notifications"
+              />
             </div>
 
-            {/* Locked feature options */}
-            <div className="space-y-3 pt-2 border-t border-subtle opacity-60 select-none">
-              <div className="p-2.5 rounded-xl bg-base/60 border border-subtle/80 flex items-center gap-2.5 text-[11px] text-content-muted">
-                <Lock size={13} className="shrink-0 text-primary" />
-                <span>Locked while Private Hub is under development. These preferences will unlock automatically when Private Hub launches.</span>
-              </div>
-
-              <div className="flex items-center justify-between gap-3 pointer-events-none">
-                <div className="min-w-0 flex-1">
-                  <h4 className="text-[11.5px] font-semibold text-content-primary">Direct Messages</h4>
-                  <p className="text-[10px] text-content-secondary">Alert when friends send you a direct message</p>
+            {notifPrefs.privateHub.enabled && (
+              <div className="space-y-3 pt-2 border-t border-subtle">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-[11.5px] font-semibold text-content-primary">Direct Messages</h4>
+                    <p className="text-[10px] text-content-secondary">When a friend sends you a message</p>
+                  </div>
+                  <Toggle
+                    checked={notifPrefs.privateHub.directMessages}
+                    onChange={() =>
+                      updateNotifPrefs((p) => ({
+                        ...p,
+                        privateHub: { ...p.privateHub, directMessages: !p.privateHub.directMessages },
+                      }))
+                    }
+                    label="Direct message notifications"
+                  />
                 </div>
-                <Toggle
-                  checked={false}
-                  onChange={() => {}}
-                  label="Direct messages (Locked)"
-                />
-              </div>
 
-              <div className="flex items-center justify-between gap-3 pointer-events-none">
-                <div className="min-w-0 flex-1">
-                  <h4 className="text-[11.5px] font-semibold text-content-primary">Requests &amp; Invites</h4>
-                  <p className="text-[10px] text-content-secondary">Friend requests and room invitations</p>
+                {notifPrefs.privateHub.directMessages && (
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-[11.5px] font-semibold text-content-primary">Show Message Text</h4>
+                      <p className="text-[10px] text-content-secondary">Off shows only who wrote, not what</p>
+                    </div>
+                    <Toggle
+                      checked={notifPrefs.privateHub.messagePreviews !== false}
+                      onChange={() =>
+                        updateNotifPrefs((p) => ({
+                          ...p,
+                          privateHub: { ...p.privateHub, messagePreviews: p.privateHub.messagePreviews === false },
+                        }))
+                      }
+                      label="Show message text in notifications"
+                    />
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-[11.5px] font-semibold text-content-primary">Requests &amp; Invites</h4>
+                    <p className="text-[10px] text-content-secondary">Friend requests, room invites and join requests</p>
+                  </div>
+                  <Toggle
+                    checked={notifPrefs.privateHub.friendRequests || notifPrefs.privateHub.roomInvites}
+                    onChange={() =>
+                      updateNotifPrefs((p) => {
+                        const next = !(p.privateHub.friendRequests || p.privateHub.roomInvites);
+                        return { ...p, privateHub: { ...p.privateHub, friendRequests: next, roomInvites: next } };
+                      })
+                    }
+                    label="Request and invite notifications"
+                  />
                 </div>
-                <Toggle
-                  checked={false}
-                  onChange={() => {}}
-                  label="Requests and invites (Locked)"
-                />
-              </div>
 
-              <div className="pt-1 pointer-events-none">
-                <div className="flex items-center justify-between mb-1.5">
-                  <div>
-                    <h4 className="text-[11.5px] font-semibold text-content-primary">Room Chat Messages</h4>
-                    <p className="text-[10px] text-content-secondary">Control noise from 4-person squad rooms</p>
+                <div className="pt-1">
+                  <h4 className="text-[11.5px] font-semibold text-content-primary">Room Chat</h4>
+                  <p className="text-[10px] text-content-secondary mb-1.5">How much your rooms can notify you</p>
+                  <div className="settings-segment flex bg-base p-1 rounded-xl border border-subtle gap-1" role="radiogroup" aria-label="Room chat notifications">
+                    {(['all', 'mentions', 'off'] as RoomNotificationMode[]).map((mode) => {
+                      const active = notifPrefs.privateHub.roomMessages === mode;
+                      return (
+                        <button
+                          key={mode}
+                          type="button"
+                          role="radio"
+                          aria-checked={active}
+                          onClick={() =>
+                            updateNotifPrefs((p) => ({ ...p, privateHub: { ...p.privateHub, roomMessages: mode, roomMessagesChosen: true } }))
+                          }
+                          className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold transition ${
+                            active ? 'bg-primary text-on-primary' : 'text-content-secondary hover:text-content-primary'
+                          }`}
+                        >
+                          {mode === 'all' ? 'All messages' : mode === 'mentions' ? '@Mentions' : 'Muted'}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
-                <div className="settings-segment flex bg-base p-1 rounded-xl border border-subtle gap-1">
-                  {(['all', 'mentions', 'off'] as RoomNotificationMode[]).map((mode) => (
-                    <button
-                      key={mode}
-                      type="button"
-                      disabled
-                      className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold transition ${
-                        mode === 'all'
-                          ? 'bg-primary/20 text-content-secondary'
-                          : 'text-content-muted'
-                      }`}
-                    >
-                      {mode === 'all' ? 'All Messages' : mode === 'mentions' ? '@Mentions' : 'Muted'}
-                    </button>
-                  ))}
-                </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* PUBLIC HUB NOTIFICATIONS CARD */}
@@ -2280,7 +2443,7 @@ export default function SettingsSheet({
               <div className="space-y-3 pt-2 border-t border-subtle">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <MessageSquare size={13} className="text-secondary shrink-0" />
+                    <MessageSquare size={13} className="text-primary shrink-0" />
                     <div className="min-w-0 flex-1">
                       <h4 className="text-[11.5px] font-semibold text-content-primary">Community Chat Messages</h4>
                       <p className="text-[10px] text-content-secondary">Alerts for new messages in public chat</p>
@@ -2300,7 +2463,7 @@ export default function SettingsSheet({
 
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <Hash size={13} className="text-secondary shrink-0" />
+                    <Hash size={13} className="text-primary shrink-0" />
                     <div className="min-w-0 flex-1">
                       <h4 className="text-[11.5px] font-semibold text-content-primary">Hashtag Community Updates</h4>
                       <p className="text-[10px] text-content-secondary">Alerts for your selected exam hashtag</p>
@@ -2326,7 +2489,7 @@ export default function SettingsSheet({
             <div className={`settings-card bg-elevated rounded-2xl border border-subtle p-4 shadow-lg mt-2.5 space-y-3 transition-opacity ${notifPrefs.enabled ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-3 min-w-0 flex-1">
-                  <div className="w-9 h-9 rounded-xl bg-warning/15 flex items-center justify-center text-warning shrink-0 mt-0.5">
+                  <div className="w-9 h-9 rounded-xl bg-primary-soft flex items-center justify-center text-primary shrink-0 mt-0.5">
                     <ShieldCheck size={16} />
                   </div>
                   <div className="min-w-0 flex-1">
@@ -2356,7 +2519,7 @@ export default function SettingsSheet({
                   {/* New Hashtag Requests */}
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <Hash size={13} className="text-secondary shrink-0" />
+                      <Hash size={13} className="text-primary shrink-0" />
                       <div className="min-w-0 flex-1">
                         <h4 className="text-[11.5px] font-semibold text-content-primary">New Hashtag Requests</h4>
                         <p className="text-[10px] text-content-secondary">Alerts when users submit new exam room requests</p>
@@ -2404,7 +2567,7 @@ export default function SettingsSheet({
                   {/* Support Chat Replies */}
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <MessageSquare size={13} className="text-secondary shrink-0" />
+                      <MessageSquare size={13} className="text-primary shrink-0" />
                       <div className="min-w-0 flex-1">
                         <h4 className="text-[11.5px] font-semibold text-content-primary">Support Chat Replies</h4>
                         <p className="text-[10px] text-content-secondary">Alerts when a requester answers your note in Support Chat</p>
@@ -2632,7 +2795,7 @@ export default function SettingsSheet({
       >
         {/* ── SECTION 6: UPDATES & COMMUNITY ── */}
         <section>
-          <SectionLabel icon={<Info size={13} className="text-content-muted" />}>UPDATES &amp; COMMUNITY</SectionLabel>
+          <SectionLabel icon={<Info size={13} className="text-primary" />}>UPDATES &amp; COMMUNITY</SectionLabel>
 
           {/* App updates card */}
           <div className="settings-card bg-elevated rounded-2xl border border-subtle overflow-hidden shadow-lg mb-2.5">
@@ -2737,6 +2900,25 @@ export default function SettingsSheet({
               </div>
               <ChevronRight size={16} className="shrink-0 text-content-muted" />
             </button>
+
+            <button
+              type="button"
+              onClick={() => setSupportOpen(true)}
+              className="settings-data-row w-full p-4 flex flex-nowrap items-center justify-between gap-3 text-left hover:bg-white/2 transition"
+            >
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                <div className="size-9 shrink-0 rounded-xl bg-primary-soft text-primary grid place-items-center">
+                  <Heart size={16} />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-xs font-semibold text-content-primary">Support YouDO</h3>
+                  <p className="text-[10.5px] text-content-secondary font-medium leading-relaxed">
+                    Optional UPI support and the Founding Backer badge
+                  </p>
+                </div>
+              </div>
+              <ChevronRight size={16} className="shrink-0 text-content-muted" />
+            </button>
           </div>
           <p className="mt-2 px-1 text-[10px] leading-relaxed text-content-muted">
             For a bug, mention what you were doing, what happened and what you expected. Remove personal information from screenshots.
@@ -2747,6 +2929,7 @@ export default function SettingsSheet({
       </div>
       )}
     </div>
+    <SupportSheet open={supportOpen} onClose={() => setSupportOpen(false)} />
     </Overlay>
   );
 }

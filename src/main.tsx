@@ -5,13 +5,23 @@ import App from './App.tsx';
 import { StoreProvider } from './store';
 import { AuthProvider } from './contexts/AuthContext';
 import AuthGate from './components/AuthGate';
+import '@fontsource-variable/inter/opsz.css';
 import './index.css';
+import { installUiStyle } from './uiStyle';
+import { installPressBounce } from './lib/pressBounce';
 import ExperiencePreferences from './components/ExperiencePreferences';
 import { registerWebUpdates } from './lib/webUpdate';
+import { applyWebAppIcon } from './lib/appIcon';
+import { applyStoredTheme } from './hooks/useTheme';
 
 if (Capacitor.isNativePlatform()) {
   document.documentElement.dataset.nativeShell = 'true';
 }
+
+applyStoredTheme();
+installUiStyle();
+installPressBounce();
+applyWebAppIcon();
 
 interface ErrorBoundaryState {
   hasError: boolean;
@@ -49,7 +59,7 @@ class GlobalErrorBoundary extends Component<{ children: ReactNode }, ErrorBounda
           <div className="flex gap-3 w-full max-w-xs">
             <button
               onClick={() => window.location.reload()}
-              className="flex-1 py-3 px-4 rounded-xl bg-primary hover:bg-primary-glow font-bold text-xs text-white transition"
+              className="flex-1 py-3 px-4 rounded-xl bg-primary hover:bg-primary-glow font-bold text-xs text-on-primary transition"
             >
               Reload App
             </button>

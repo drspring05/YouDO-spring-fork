@@ -3,8 +3,9 @@ import { AlertTriangle, Calendar, FileText, Flame, ListChecks, Plus, Clock, Clou
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
-import { ensureNotificationChannels, scheduleMorningBriefing } from './lib/notifications';
+import { ensureNotificationChannels, getNotificationPreferences, scheduleMorningBriefing } from './lib/notifications';
 import { initPushNotifications } from './lib/pushNotifications';
+import { syncPushPreferences } from './lib/pushPreferences';
 import type { GoalKind, GoalNode, Task, View, TaskSession } from './types';
 import { useNavigationSync } from './hooks/useNavigationSync';
 import { formatDDMMYYYY, hasGoalExecutionState, isBacklogTask, isGoalEndpoint, isOpenBacklogTask, isTaskComplete, isToday, pathNodes, pathTitles, todayISO, useStore, useSessionStore, findGoal } from './store';
@@ -35,12 +36,16 @@ import { checkDeviceClock, clearClockIncident } from './lib/deviceClock';
 import UpdateNotice from './components/UpdateNotice';
 import { useCommunityActivity } from './hooks/useCommunityActivity';
 import { useHubAttention } from './hooks/useHubAttention';
+import { useIsCommunityAdmin } from './hooks/useIsCommunityAdmin';
+import { useFocusStatusShare } from './hooks/useFocusStatusShare';
+import { ADMIN_QUEUE_EVENT, useAdminHubCounts } from './hooks/useAdminHubCounts';
 import { useAuth } from './contexts/AuthContext';
 import { closeTopOverlay } from './lib/overlayNavigation';
 import { FALLBACK_APP_QUOTES, fetchAppQuotes, loadCachedAppQuotes, type AppQuote } from './lib/appQuotes';
 import { taskStepStates } from './lib/goalTree';
 import { hapticSuccess } from './lib/haptics';
 import GoalDestinationSheet from './components/GoalDestinationSheet';
+import { useUiPrefs } from './hooks/useUiPrefs';
 
 // Keep Today/session controls in the initial bundle. The PWA precaches these
 // chunks and Android packages them locally, so installed offline use is retained.
@@ -49,6 +54,7 @@ const BlueprintStudio = lazy(() => import('./components/BlueprintStudio'));
 const CalendarView = lazy(() => import('./components/CalendarView'));
 const HubView = lazy(() => import('./components/HubView'));
 const SettingsSheet = lazy(() => import('./components/SettingsSheet'));
+const AdminHubSheet = lazy(() => import('./components/AdminHubSheet'));
 
 const pickQuote = (quotes: AppQuote[]): AppQuote | null => quotes.length
   ? quotes[Math.floor(Math.random() * quotes.length)]
@@ -73,8 +79,8 @@ function YouDoIcon({ size = 18 }: { size?: number }) {
         strokeLinejoin="round"
       />
       <path
-        d="M19 4.5L12 13.25L9.25 10"
-        style={{ stroke: 'var(--secondary)' }}
+        d="M19 4.5L12 13.25L8.9 9.6"
+        style={{ stroke: 'var(--accent-tick, var(--secondary))' }}
         strokeWidth="2.5"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -83,6 +89,7 @@ function YouDoIcon({ size = 18 }: { size?: number }) {
   );
 }
 
+/** The YouDO wordmark: the Classic Look masthead and the top right of the header. */
 function YouDoWordmark() {
   return (
     <span className="youdo-wordmark" aria-label="YouDO">
@@ -170,9 +177,13 @@ function AppInner() {
   } = useSessionStore();
 
   const [{ darkMode }] = useTheme();
+  const [{ legacyStyle }] = useUiPrefs();
   const { user: activityUser } = useAuth();
   const { pacePrefs: activityPrefs } = useStore();
   useCommunityActivity(activityUser?.id, activityPrefs.optedIn);
+  const isCommunityAdmin = useIsCommunityAdmin(activityUser?.id);
+  // Room-mates see when you are focusing (never what on).
+  useFocusStatusShare(activityUser?.id, activeSession);
   const {
     privatePending: hubPrivatePending,
     communityUnread: hubCommunityUnread,
@@ -184,6 +195,8 @@ function AppInner() {
     refreshDmInbox: refreshHubDmInbox,
     refreshSquadChat: refreshHubSquadChat,
   } = useHubAttention(activityUser?.id, activityPrefs.optedIn);
+  const { queue: adminQueue } = useAdminHubCounts(isCommunityAdmin);
+  const [adminHubOpen, setAdminHubOpen] = useState(false);
   const { clockBlocked, clockReady, setClockBlocked } = useClockIntegrity();
   const [clockVerifyBusy, setClockVerifyBusy] = useState(false);
   const [clockVerifyError, setClockVerifyError] = useState<string | null>(null);
@@ -201,7 +214,7 @@ function AppInner() {
   const [sliceNodes, setSliceNodes] = useState<GoalNode[]>([]);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
-  const [descModalData, setDescModalData] = useState<{ title: string; description: string } | null>(null);
+  const [descModalData, setDescModalData] = useState<{ title: string; description: string; steps?: { label: string; done: boolean }[] } | null>(null);
 
   // Session UI states
   const [showAmbient, setShowAmbient] = useState(false);
@@ -328,6 +341,11 @@ function AppInner() {
         }
       }
       window.dispatchEvent(new Event('youdo:blueprint-back-request'));
+      return true;
+    }
+    if (adminHubOpen) {
+      setAdminHubOpen(false);
+      window.dispatchEvent(new Event(ADMIN_QUEUE_EVENT));
       return true;
     }
     if (settingsOpen) {
@@ -548,15 +566,32 @@ function AppInner() {
     if (window.history.state?.modal) window.history.back();
   }, []);
 
+  /** Hold Settings, or Settings → Admin Hub. From Settings it takes over its back-button entry. */
+  const openAdminHub = useCallback(() => {
+    if (settingsOpen) {
+      setSettingsOpen(false);
+      setSettingsFocus(null);
+    } else {
+      pushModalState();
+    }
+    setAdminHubOpen(true);
+  }, [settingsOpen, pushModalState]);
+
+  const closeAdminHub = useCallback(() => {
+    setAdminHubOpen(false);
+    window.dispatchEvent(new Event(ADMIN_QUEUE_EVENT));
+    if (window.history.state?.modal) window.history.back();
+  }, []);
+
   const closeSliceNode = useCallback(() => {
     setSliceNodes([]);
     if (window.history.state?.modal) window.history.back();
   }, []);
 
   const openDescriptionModal = useCallback(
-    (title: string, description: string) => {
+    (title: string, description: string, steps?: { label: string; done: boolean }[]) => {
       pushModalState();
-      setDescModalData({ title, description });
+      setDescModalData({ title, description, steps });
     },
     [pushModalState],
   );
@@ -662,7 +697,9 @@ function AppInner() {
   }, [activeSession?.isPaused, nativeSessionReady]);
 
   useEffect(() => {
-    const chrome = darkMode ? '#11100E' : '#E6E0D4';
+    const chrome = legacyStyle
+      ? (darkMode ? '#11100E' : '#E6E0D4')
+      : (darkMode ? '#000000' : '#F2F2F7');
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', chrome);
     const initStatusBar = async () => {
       try {
@@ -674,7 +711,7 @@ function AppInner() {
       }
     };
     void initStatusBar();
-  }, [darkMode]);
+  }, [darkMode, legacyStyle]);
 
   const [todaySubTab, setTodaySubTab] = useState<'today' | 'backlog'>('today');
   const [activeCategoryFilter, setActiveCategoryFilter] = useState<string>('all');
@@ -831,6 +868,16 @@ function AppInner() {
     void scheduleMorningBriefing(tasks, goals, streakStatus.current, streakStatus.best);
   }, [tasks, goals, streakStatus]);
 
+  /** A tapped Hub notification goes straight to its place: no glance card on
+   *  top, and the Hub's start-up default must not switch the tab back. */
+  const openHubFromNotification = useCallback((tab: 'social' | 'private') => {
+    briefingPromptedRef.current = true;
+    setBriefingOpen(false);
+    initialHubSubTabSetRef.current = true;
+    handleNavigateTab('board');
+    setHubSubTab(tab);
+  }, [handleNavigateTab]);
+
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
 
@@ -862,14 +909,9 @@ function AppInner() {
         extra.type === 'friend_request' ||
         extra.type === 'room_invite'
       ) {
-        handleNavigateTab('board');
-        setHubSubTab('private');
-      } else if (extra.type === 'community') {
-        handleNavigateTab('board');
-        setHubSubTab('social');
-      } else if (extra.type === 'admin_hub') {
-        handleNavigateTab('board');
-        setHubSubTab('social');
+        openHubFromNotification('private');
+      } else if (extra.type === 'community' || extra.type === 'admin_hub') {
+        openHubFromNotification('social');
       }
     }).then((handle) => {
       tapSub = handle;
@@ -879,7 +921,12 @@ function AppInner() {
       tapSub?.remove();
       receiveSub?.remove();
     };
-  }, [handleNavigateTab, tasks, goals, streakStatus]);
+  }, [handleNavigateTab, openHubFromNotification, tasks, goals, streakStatus]);
+
+  // The server decides what to push while the app is closed; keep it in step with Settings.
+  useEffect(() => {
+    if (activityUser?.id) void syncPushPreferences(activityUser.id, getNotificationPreferences());
+  }, [activityUser?.id]);
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
@@ -889,13 +936,14 @@ function AppInner() {
           handleNavigateTab('tasks');
           setTodaySubTab('today');
         } else if (route === 'social' || route === 'board') {
-          handleNavigateTab('board');
-          setHubSubTab('social');
+          openHubFromNotification('social');
+        } else if (route === 'private') {
+          openHubFromNotification('private');
         }
       },
     });
     return cleanup;
-  }, [activityUser?.id, handleNavigateTab]);
+  }, [activityUser?.id, handleNavigateTab, openHubFromNotification]);
 
   const backlogByDate = useMemo(() => {
     const groups: Record<string, Task[]> = {};
@@ -980,12 +1028,12 @@ function AppInner() {
     setOverId(null);
   };
 
+  // Filters for Scheduled only: the backlog has to be cleared either way.
   const categoryChips = useMemo(() => {
-    const activeTasksList = todaySubTab === 'today' ? todayTasks : backlogTasks;
     const map = new Map<string, { id: string; label: string; count: number }>();
 
     let quickCount = 0;
-    for (const t of activeTasksList) {
+    for (const t of todayTasks) {
       if (isTaskComplete(t)) continue;
       if (!t.goalNodeId) {
         quickCount++;
@@ -1012,7 +1060,7 @@ function AppInner() {
       list.push({ id: 'quick', label: '⚡ Quick Tasks', count: quickCount });
     }
     return list;
-  }, [todaySubTab, todayTasks, backlogTasks, goals]);
+  }, [todayTasks, goals]);
 
   const filteredTodayTasks = useMemo(() => {
     if (activeCategoryFilter === 'all') return todayTasks;
@@ -1155,12 +1203,13 @@ function AppInner() {
         />
       )}
       <div
-        className="app-frame relative min-h-screen w-full max-w-md mx-auto px-4 pb-28 overflow-x-hidden"
+        className={`app-frame relative min-h-screen w-full max-w-md mx-auto px-4 ${legacyStyle ? 'pb-28' : 'pb-36'} overflow-x-hidden`}
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
       >
         {/* Header */}
+        {legacyStyle ? (
         <header className="pt-[max(0.75rem,var(--safe-area-top))] pb-1 space-y-3 shrink-0">
           <div className="space-y-2 relative">
             <div className="app-masthead">
@@ -1234,9 +1283,69 @@ function AppInner() {
             )}
           </div>
         </header>
+        ) : (
+        <header className="app-header shrink-0">
+          <div className="app-header-row">
+            {/* The date and the day's tally sit beside the large title, not above and below it. */}
+            <div className="app-title-line min-w-0">
+              <h1 className="app-large-title">
+                {view === 'goals' ? 'Goals' : view === 'calendar' ? 'Calendar' : view === 'board' ? 'Hub' : 'Today'}
+              </h1>
+              {view === 'tasks' && (
+                <div className="app-title-meta min-w-0">
+                  <span className="app-header-date">
+                    {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+                  </span>
+                  <span
+                    className="app-header-subtitle"
+                    aria-label={`Today progress ${todayDone} of ${todayCount}, ${todayProgress} percent`}
+                  >
+                    {todayCount === 0 ? 'Nothing planned yet' : `${todayDone} of ${todayCount} done · ${todayProgress}%`}
+                  </span>
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => openHelp()}
+              className="app-header-brand"
+              aria-label="Open YouDO guide"
+              title="Guide"
+            >
+              <YouDoWordmark />
+            </button>
+          </div>
+          {/* Today's progress, a thin glowing bar over the quote. */}
+          {view === 'tasks' && (
+            <div className="today-bar" aria-hidden="true">
+              {todayProgress > 0 && <span className="today-bar-fill" style={{ width: `${todayProgress}%` }} />}
+            </div>
+          )}
+          {randomQuote && view === 'tasks' && (
+            <blockquote className="quote-ticker">
+              <div
+                className={`quote-ticker-track ${
+                  randomQuote.text.length >= 80
+                    ? 'quote-ticker-track-fast'
+                    : randomQuote.text.length >= 60
+                      ? 'quote-ticker-track-medium'
+                      : 'quote-ticker-track-steady'
+                }`}
+              >
+                {[0, 1].map((copy) => (
+                  <p key={copy} className="quote-ticker-item" aria-hidden={copy === 1}>
+                    “{randomQuote.text}”
+                    {randomQuote.author !== 'Unknown' && <cite>{' — '}{randomQuote.author}</cite>}
+                  </p>
+                ))}
+              </div>
+            </blockquote>
+          )}
+        </header>
+        )}
 
         {/* Main View Area */}
-        <main className={`overflow-x-hidden ${view === 'board' || view === 'calendar' ? 'mt-2' : 'mt-3'}`}>
+        <main className={`overflow-x-hidden ${legacyStyle ? (view === 'board' || view === 'calendar' ? 'mt-2' : 'mt-3') : 'mt-2'}`}>
           <div
             key={`${view}-${goalPathIds.join('-')}`}
             className={`w-full overflow-x-hidden ${
@@ -1251,7 +1360,7 @@ function AppInner() {
             {view === 'tasks' ? (
               <div className="space-y-3">
                 {activityUser && tasks.length === 0 && goals.length === 0 && (
-                  <div className="p-3.5 bg-primary-soft border border-subtle flex items-center justify-between gap-3 rounded-[16px]">
+                  <div className={legacyStyle ? 'p-3.5 bg-primary-soft border border-subtle flex items-center justify-between gap-3 rounded-[16px]' : 'p-4 bg-surface shadow-card flex items-center justify-between gap-3 rounded-[16px]'}>
                     <div className="flex items-center gap-2.5 min-w-0">
                       <Cloud className="w-4 h-4 text-primary shrink-0" />
                       <div className="min-w-0">
@@ -1265,7 +1374,7 @@ function AppInner() {
                         const ok = await restoreFromCloud();
                         setCloudHint(ok ? 'Restored from cloud.' : 'No cloud backup for this account.');
                       }}
-                      className="px-3 py-1.5 rounded-xl bg-primary text-on-primary text-xs font-semibold shrink-0"
+                      className={legacyStyle ? 'px-3 py-1.5 rounded-xl bg-primary text-on-primary text-xs font-semibold shrink-0' : 'h-8 px-4 rounded-full bg-primary text-on-primary text-xs font-semibold shrink-0'}
                     >
                       Restore
                     </button>
@@ -1275,6 +1384,7 @@ function AppInner() {
                   <p className="text-[12px] text-content-secondary px-1">{cloudHint}</p>
                 )}
 
+                {legacyStyle ? (
                 <div className="flex items-center gap-1 p-1 rounded-[16px] bg-surface border border-subtle w-full">
                   <button
                     onClick={() => startTransition(() => setTodaySubTab('today'))}
@@ -1304,6 +1414,26 @@ function AppInner() {
                     </span>
                   </button>
                 </div>
+                ) : (
+                <div className="ios-segmented w-full" role="group" aria-label="Today list">
+                  <button
+                    type="button"
+                    aria-pressed={todaySubTab === 'today'}
+                    onClick={() => startTransition(() => setTodaySubTab('today'))}
+                  >
+                    <span>Scheduled</span>
+                    <span className="ios-segmented-count">{openTodayCount}</span>
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={todaySubTab === 'backlog'}
+                    onClick={() => startTransition(() => setTodaySubTab('backlog'))}
+                  >
+                    <span>Backlog</span>
+                    <span className={`ios-segmented-count ${openBacklogCount > 0 ? 'is-alert' : ''}`}>{openBacklogCount}</span>
+                  </button>
+                </div>
+                )}
 
                 {streakStatus.revive?.active && (
                   <button
@@ -1313,7 +1443,7 @@ function AppInner() {
                         startTransition(() => setTodaySubTab('backlog'));
                       }
                     }}
-                    className="w-full text-left bg-surface border border-subtle rounded-[16px] px-3.5 py-2.5 flex items-center justify-between gap-3"
+                    className={legacyStyle ? 'w-full text-left bg-surface border border-subtle rounded-[16px] px-3.5 py-2.5 flex items-center justify-between gap-3' : 'w-full text-left bg-surface shadow-card rounded-[16px] px-4 py-3 flex items-center justify-between gap-3'}
                   >
                     <div className="min-w-0">
                       <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">
@@ -1331,30 +1461,42 @@ function AppInner() {
                 )}
 
                 {/* Smart Goal & Category Filter Chips */}
-                {categoryChips.length > 1 && (
-                  <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 text-[11px] fade-in">
+                {todaySubTab === 'today' && categoryChips.length > 1 && (
+                  <div className={`flex items-center overflow-x-auto no-scrollbar py-1 fade-in ${legacyStyle ? 'gap-1.5 text-[11px]' : 'gap-2 text-[13px]'}`}>
                     <button
                       onClick={() => setActiveCategoryFilter('all')}
-                      className={`px-2.5 py-1 rounded-xl font-bold whitespace-nowrap border transition ${
-                        activeCategoryFilter === 'all'
-                          ? 'bg-primary text-white border-primary'
-                          : 'bg-surface border-subtle text-content-secondary hover:bg-elevated'
-                      }`}
+                      className={legacyStyle
+                        ? `px-2.5 py-1 rounded-xl font-bold whitespace-nowrap border transition ${
+                            activeCategoryFilter === 'all'
+                              ? 'bg-primary text-on-primary border-primary'
+                              : 'bg-surface border-subtle text-content-secondary hover:bg-elevated'
+                          }`
+                        : `h-8 px-3.5 rounded-full font-semibold whitespace-nowrap transition ${
+                            activeCategoryFilter === 'all'
+                              ? 'bg-primary text-on-primary'
+                              : 'bg-fill text-content-primary'
+                          }`}
                     >
-                      All ({todaySubTab === 'today' ? openTodayCount : openBacklogCount})
+                      All ({openTodayCount})
                     </button>
                     {categoryChips.map((chip) => (
                       <button
                         key={chip.id}
                         onClick={() => setActiveCategoryFilter(chip.id)}
-                        className={`px-2.5 py-1 rounded-xl font-bold whitespace-nowrap border transition flex items-center gap-1 ${
-                          activeCategoryFilter === chip.id
-                            ? 'bg-primary text-white border-primary'
-                            : 'bg-surface border-subtle text-content-secondary hover:bg-elevated'
-                        }`}
+                        className={legacyStyle
+                          ? `px-2.5 py-1 rounded-xl font-bold whitespace-nowrap border transition flex items-center gap-1 ${
+                              activeCategoryFilter === chip.id
+                                ? 'bg-primary text-on-primary border-primary'
+                                : 'bg-surface border-subtle text-content-secondary hover:bg-elevated'
+                            }`
+                          : `h-8 px-3.5 rounded-full font-semibold whitespace-nowrap transition flex items-center gap-1.5 ${
+                              activeCategoryFilter === chip.id
+                                ? 'bg-primary text-on-primary'
+                                : 'bg-fill text-content-primary'
+                            }`}
                       >
                         <span className="truncate max-w-[130px]">{chip.label}</span>
-                        <span className="text-[9.5px] font-semibold px-1.5 py-0.2 rounded-full bg-white/10 text-content-muted">
+                        <span className={legacyStyle ? 'text-[9.5px] font-semibold px-1.5 py-0.2 rounded-full bg-white/10 text-content-muted' : 'text-[11px] font-semibold tabular-nums opacity-70'}>
                           {chip.count}
                         </span>
                       </button>
@@ -1649,11 +1791,11 @@ function AppInner() {
         {view === 'tasks' && (
           <button
             onClick={() => openAddTask()}
-            className="fixed bottom-20 right-4 w-12 h-12 rounded-full text-on-primary grid place-items-center bg-primary shadow-elevated z-30"
+            className={legacyStyle ? 'fixed bottom-20 right-4 w-12 h-12 rounded-full text-on-primary grid place-items-center bg-primary shadow-elevated z-30' : 'fab'}
             title="Add task"
             aria-label="Add new task"
           >
-            <Plus size={24} />
+            {legacyStyle ? <Plus size={24} /> : <Plus size={26} strokeWidth={2.4} />}
           </button>
         )}
 
@@ -1667,6 +1809,8 @@ function AppInner() {
           showHubNavDot={showHubNavDot}
           hubCommunityUnread={hubCommunityUnread}
           hubPrivateAttention={privateHubAttention}
+          onOpenAdminHub={isCommunityAdmin ? openAdminHub : undefined}
+          adminPending={adminQueue.total}
           todayCount={todayCount}
           todayDone={todayDone}
           goalsCount={goals.length}
@@ -1751,7 +1895,15 @@ function AppInner() {
             focusSection={settingsFocus ?? undefined}
             streakBarHours={streakMeta.barHours}
             onStreakBarHoursChange={setStreakBarHours}
+            briefingStreak={{ current: streakStatus.current, best: streakStatus.best }}
+            onOpenAdminHub={isCommunityAdmin ? openAdminHub : undefined}
+            adminPending={adminQueue.total}
           />
+        </Suspense>
+      )}
+      {adminHubOpen && activityUser && (
+        <Suspense fallback={null}>
+          <AdminHubSheet userId={activityUser.id} onClose={closeAdminHub} />
         </Suspense>
       )}
 
@@ -1766,13 +1918,26 @@ function AppInner() {
                   <FileText size={18} />
                 </div>
                 <div className="min-w-0">
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Full Description</span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-primary">{descModalData.description ? 'Full Description' : 'Details'}</span>
                   <h3 className="text-[16px] font-bold text-content-primary leading-snug break-words">{descModalData.title}</h3>
                 </div>
               </div>
             </div>
-            <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar text-[14px] leading-relaxed text-content-primary whitespace-pre-wrap font-medium bg-surface p-4 rounded-2xl border border-subtle shadow-sm">
-              {descModalData.description}
+            <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar flex flex-col gap-3">
+              {descModalData.description && (
+                <div className="text-[14px] leading-relaxed text-content-primary whitespace-pre-wrap font-medium bg-surface p-4 rounded-2xl border border-subtle shadow-sm">
+                  {descModalData.description}
+                </div>
+              )}
+              {descModalData.steps && descModalData.steps.length > 0 && (
+                <ol className="bg-surface rounded-2xl border border-subtle shadow-sm divide-y divide-subtle">
+                  {descModalData.steps.map((step, i) => (
+                    <li key={i} className={`px-4 py-2.5 text-[14px] leading-snug break-words ${step.done ? 'text-content-muted line-through' : 'text-content-primary'}`}>
+                      {step.label}
+                    </li>
+                  ))}
+                </ol>
+              )}
             </div>
             <button onClick={closeDescriptionModal} className="w-full h-12 mt-2 rounded-2xl bg-surface border border-subtle text-[13px] font-bold text-content-secondary hover:text-content-primary hover:bg-elevated transition-all shadow-sm shrink-0">
               Close
@@ -1978,20 +2143,41 @@ function AppInner() {
 }
 
 function EmptyState({ onAdd }: { onAdd: () => void }) {
-  return (
-    <div className="mt-16 flex flex-col items-center justify-center text-center px-6 fade-in">
-      <div className="w-16 h-16 rounded-[16px] bg-surface shadow-card border border-subtle flex items-center justify-center mb-5">
-        <ListChecks size={28} className="text-primary" />
+  const [{ legacyStyle }] = useUiPrefs();
+  if (legacyStyle) {
+    return (
+      <div className="mt-16 flex flex-col items-center justify-center text-center px-6 fade-in">
+        <div className="w-16 h-16 rounded-[16px] bg-surface shadow-card border border-subtle flex items-center justify-center mb-5">
+          <ListChecks size={28} className="text-primary" />
+        </div>
+        <h3 className="text-[16px] font-semibold text-content-primary tracking-tight">Nothing on today</h3>
+        <p className="mt-2 text-[13px] text-content-secondary max-w-[260px] leading-relaxed">
+          Schedule a piece from Goals, or add a quick task for this date.
+        </p>
+        <button
+          onClick={onAdd}
+          className="mt-7 flex items-center gap-2 px-5 py-2.5 rounded-[12px] bg-primary text-on-primary text-[13px] font-semibold"
+        >
+          <Plus size={16} />
+          Add Quick Task
+        </button>
       </div>
-      <h3 className="text-[16px] font-semibold text-content-primary tracking-tight">Nothing on today</h3>
-      <p className="mt-2 text-[13px] text-content-secondary max-w-[260px] leading-relaxed">
+    );
+  }
+  return (
+    <div className="mt-14 flex flex-col items-center justify-center text-center px-6 fade-in">
+      <div className="w-20 h-20 rounded-[24px] bg-primary-soft flex items-center justify-center mb-5">
+        <ListChecks size={36} strokeWidth={1.8} className="text-primary" />
+      </div>
+      <h3 className="text-[22px] font-bold text-content-primary">Nothing on today</h3>
+      <p className="mt-2 text-[15px] text-content-secondary max-w-[280px] leading-snug">
         Schedule a piece from Goals, or add a quick task for this date.
       </p>
       <button
         onClick={onAdd}
-        className="mt-7 flex items-center gap-2 px-5 py-2.5 rounded-[12px] bg-primary text-on-primary text-[13px] font-semibold"
+        className="btn-primary mt-7 h-[50px] flex items-center gap-2 px-6 text-[17px]"
       >
-        <Plus size={16} />
+        <Plus size={20} strokeWidth={2.4} />
         Add Quick Task
       </button>
     </div>

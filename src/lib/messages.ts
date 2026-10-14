@@ -91,14 +91,11 @@ export function markSquadChatRead(userId: string, squadId: string, readAtIso?: s
   }
 }
 
-/** True if any joined squad has chat messages from others since last read (24h window). */
-export async function squadRoomsHaveUnreadChat(userId: string): Promise<boolean> {
-  const squads = await fetchMySquads(userId);
-  if (squads.length === 0) return false;
-
+/** Unread chat messages from others per room since you last read it (24h window). */
+export async function fetchSquadUnreadCounts(userId: string, squadIds: string[]): Promise<Record<string, number>> {
+  if (squadIds.length === 0) return {};
   const readMap = loadSquadChatReadMap(userId);
   const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const squadIds = squads.map((s) => s.id);
 
   const { data, error } = await supabase
     .from('squad_messages')
@@ -108,15 +105,23 @@ export async function squadRoomsHaveUnreadChat(userId: string): Promise<boolean>
     .gte('created_at', cutoff);
 
   if (error) {
-    console.error('squadRoomsHaveUnreadChat error:', error);
-    return false;
+    console.error('fetchSquadUnreadCounts error:', error);
+    return {};
   }
 
+  const counts: Record<string, number> = {};
   for (const row of data ?? []) {
     const lastRead = readMap[row.squad_id];
-    if (!lastRead || row.created_at > lastRead) return true;
+    if (!lastRead || row.created_at > lastRead) counts[row.squad_id] = (counts[row.squad_id] ?? 0) + 1;
   }
-  return false;
+  return counts;
+}
+
+/** True if any joined squad has chat messages from others since last read (24h window). */
+export async function squadRoomsHaveUnreadChat(userId: string): Promise<boolean> {
+  const squads = await fetchMySquads(userId);
+  const counts = await fetchSquadUnreadCounts(userId, squads.map((s) => s.id));
+  return Object.keys(counts).length > 0;
 }
 
 // -- DIRECT MESSAGES --

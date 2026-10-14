@@ -3,6 +3,7 @@ import { Plus, X, List, Hash, Type } from 'lucide-react';
 import type { BlueprintStudioController } from './blueprintStudioState';
 import { findGoal } from '../../lib/goalTree';
 import { numberedBlueprintTitles, normalizeBlueprintTitles } from '../../lib/blueprintStudio';
+import { TITLE_MAX, isTitleTooLong, longLinesMessage } from '../../lib/titleLimit';
 
 export interface StudioBulkAddModalProps {
   controller: BlueprintStudioController;
@@ -55,8 +56,13 @@ export function StudioBulkAddModal({ controller }: StudioBulkAddModalProps) {
   }, [mode, singleTitle, listText, prefix, startNum, sequenceCount]);
 
   const totalCreated = computedTitles.length * Math.max(1, targetNodeIds.length);
+  // Names stay short; details belong in each item's Description.
+  const tooLong = mode === 'list'
+    ? longLinesMessage(listText.split('\n'))
+    : computedTitles.some(isTitleTooLong) ? `Keep each name to ${TITLE_MAX} characters or fewer.` : null;
 
   const handleAdd = () => {
+    if (tooLong) return;
     if (computedTitles.length > 0) {
       addChildrenInside(targetNodeIds, computedTitles);
     }
@@ -101,51 +107,31 @@ export function StudioBulkAddModal({ controller }: StudioBulkAddModalProps) {
 
         {/* Mode Switcher */}
         <div className="px-4 sm:px-5 pt-3 pb-1 border-b border-border-subtle/50 bg-elevated/40">
-          <div className="flex p-1 bg-surface border border-border-subtle rounded-xl gap-1" role="tablist">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={mode === 'list'}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-medium transition-colors ${
-                mode === 'list'
-                  ? 'bg-primary-soft text-primary font-semibold shadow-sm'
-                  : 'text-content-secondary hover:text-content-primary hover:bg-elevated'
-              }`}
-              onClick={() => setMode('list')}
-            >
-              <List size={14} />
-              <span>Multi-line List</span>
-            </button>
-
-            <button
-              type="button"
-              role="tab"
-              aria-selected={mode === 'one'}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-medium transition-colors ${
-                mode === 'one'
-                  ? 'bg-primary-soft text-primary font-semibold shadow-sm'
-                  : 'text-content-secondary hover:text-content-primary hover:bg-elevated'
-              }`}
-              onClick={() => setMode('one')}
-            >
-              <Type size={14} />
-              <span>Single Item</span>
-            </button>
-
-            <button
-              type="button"
-              role="tab"
-              aria-selected={mode === 'numbered'}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-medium transition-colors ${
-                mode === 'numbered'
-                  ? 'bg-primary-soft text-primary font-semibold shadow-sm'
-                  : 'text-content-secondary hover:text-content-primary hover:bg-elevated'
-              }`}
-              onClick={() => setMode('numbered')}
-            >
-              <Hash size={14} />
-              <span>Numbered Sequence</span>
-            </button>
+          {/* Short labels with the icon above, so no option ever wraps on a phone. */}
+          <div className="grid grid-cols-3 p-1 bg-surface border border-border-subtle rounded-xl gap-1" role="tablist" aria-label="How to add">
+            {([
+              ['list', List, 'List', 'Multi-line List'],
+              ['one', Type, 'Single', 'Single Item'],
+              ['numbered', Hash, 'Numbered', 'Numbered Sequence'],
+            ] as const).map(([value, Icon, label, fullLabel]) => (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                aria-selected={mode === value}
+                aria-label={fullLabel}
+                title={fullLabel}
+                className={`flex min-w-0 flex-col items-center justify-center gap-1 py-2 px-1 rounded-lg text-xs whitespace-nowrap transition-colors ${
+                  mode === value
+                    ? 'bg-primary-soft text-primary font-semibold shadow-sm'
+                    : 'font-medium text-content-secondary hover:text-content-primary hover:bg-elevated'
+                }`}
+                onClick={() => setMode(value)}
+              >
+                <Icon size={16} aria-hidden />
+                <span>{label}</span>
+              </button>
+            ))}
           </div>
         </div>
 
@@ -162,6 +148,7 @@ export function StudioBulkAddModal({ controller }: StudioBulkAddModalProps) {
                 className="w-full px-3.5 py-2 text-sm bg-base border border-border-subtle rounded-xl text-content-primary placeholder:text-content-muted focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
                 placeholder="e.g. Overview & Introduction"
                 value={singleTitle}
+                maxLength={TITLE_MAX}
                 onChange={(e) => setSingleTitle(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
@@ -209,6 +196,7 @@ export function StudioBulkAddModal({ controller }: StudioBulkAddModalProps) {
                   className="w-full px-3.5 py-2 text-sm bg-base border border-border-subtle rounded-xl text-content-primary placeholder:text-content-muted focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
                   placeholder="e.g. Chapter, Lecture, or Step"
                   value={prefix}
+                  maxLength={TITLE_MAX - 4}
                   onChange={(e) => setPrefix(e.target.value)}
                 />
               </div>
@@ -258,6 +246,7 @@ export function StudioBulkAddModal({ controller }: StudioBulkAddModalProps) {
                 {totalCreated} total {totalCreated === 1 ? 'node' : 'nodes'}
               </span>
             </div>
+            {tooLong && <p role="alert" className="text-[11px] font-semibold text-error">{tooLong}</p>}
             <p className="text-[11px] text-content-muted">
               Duplicate titles within the same parent will be automatically skipped without error.
             </p>
@@ -275,7 +264,7 @@ export function StudioBulkAddModal({ controller }: StudioBulkAddModalProps) {
           </button>
           <button
             type="button"
-            disabled={computedTitles.length === 0}
+            disabled={computedTitles.length === 0 || Boolean(tooLong)}
             className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-on-primary bg-primary hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl transition-all shadow-sm"
             onClick={handleAdd}
           >

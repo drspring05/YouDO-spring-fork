@@ -268,6 +268,8 @@ export async function createSquad(
     }
   }
 
+  // Every rooms list re-reads, so the new room shows at once.
+  dispatchPrivateHubSync('squads');
   return { ok: true, squad: data as Squad };
 }
 
@@ -310,11 +312,11 @@ export async function updateSquadPrivacy(
 }
 
 export async function getSquadDetails(squadId: string): Promise<{ squad: Squad; members: SquadMember[] } | null> {
-  const { data: squad, error: squadErr } = await supabase
-    .from('squads')
-    .select('*')
-    .eq('id', squadId)
-    .single();
+  // The room and its members load together, not one after the other.
+  const [{ data: squad, error: squadErr }, { data: members, error: memErr }] = await Promise.all([
+    supabase.from('squads').select('*').eq('id', squadId).single(),
+    supabase.from('squad_members').select('*').eq('squad_id', squadId),
+  ]);
 
   if (squadErr || !squad) {
     if (squadErr) console.error('getSquadDetails squad:', squadErr);
@@ -322,11 +324,6 @@ export async function getSquadDetails(squadId: string): Promise<{ squad: Squad; 
   }
 
   normalizeSquadPrivacyInPlace(squad);
-
-  const { data: members, error: memErr } = await supabase
-    .from('squad_members')
-    .select('*')
-    .eq('squad_id', squadId);
 
   if (memErr || !members) {
     if (memErr) console.error('getSquadDetails members:', memErr);
@@ -434,15 +431,34 @@ export async function fetchPendingSquadInvites(userId: string): Promise<PendingS
     .filter((inv) => inv.squads !== null);
 }
 
-export async function acceptSquadJoinRequest(squadId: string, memberUserId: string): Promise<boolean> {
-  const { error } = await supabase
-    .from('squad_members')
-    .update({ status: 'accepted' })
-    .eq('squad_id', squadId)
-    .eq('user_id', memberUserId)
-    .in('status', ['pending', 'invited']);
-  if (!error) dispatchPrivateHubSync('squads');
-  return !error;
+export interface SquadActionResult {
+  ok: boolean;
+  error?: string;
+}
+
+/**
+ * Accepting goes through server functions (hub_room_membership.sql): a plain
+ * update is refused by RLS without an error, which left Accept doing nothing.
+ */
+async function runSquadAction(fn: string, args: Record<string, string>, fallback: string): Promise<SquadActionResult> {
+  try {
+    const { error } = await supabase.rpc(fn, args);
+    if (error) return { ok: false, error: error.message || fallback };
+    dispatchPrivateHubSync('squads');
+    dispatchPrivateHubSync('pending');
+    return { ok: true };
+  } catch {
+    return { ok: false, error: fallback };
+  }
+}
+
+/** A room admin approves someone's request to join. */
+export function acceptSquadJoinRequest(squadId: string, memberUserId: string): Promise<SquadActionResult> {
+  return runSquadAction(
+    'approve_squad_join_request',
+    { target_squad: squadId, requester: memberUserId },
+    'Could not approve the request. Try again.',
+  );
 }
 
 export async function declineSquadJoinRequest(squadId: string, memberUserId: string): Promise<boolean> {
@@ -456,14 +472,9 @@ export async function declineSquadJoinRequest(squadId: string, memberUserId: str
   return !error;
 }
 
-export async function acceptSquadInvite(squadId: string, userId: string) {
-  const { error } = await supabase
-    .from('squad_members')
-    .update({ status: 'accepted' })
-    .eq('squad_id', squadId)
-    .eq('user_id', userId);
-  if (!error) dispatchPrivateHubSync('squads');
-  return !error;
+/** The signed-in member accepts an invite to a room. */
+export function acceptSquadInvite(squadId: string): Promise<SquadActionResult> {
+  return runSquadAction('accept_squad_invite', { target_squad: squadId }, 'Could not join the room. Try again.');
 }
 
 export async function fetchMySquads(userId: string): Promise<Squad[]> {
@@ -480,6 +491,75 @@ export async function fetchMySquads(userId: string): Promise<Squad[]> {
   return data
     .map((row) => squadFromJoinedRow(row.squads))
     .filter((s): s is Squad => s != null);
+}
+
+/** A room as the Rooms list shows it: your role, who is in it, what waits for you. */
+export interface RoomSummary {
+  squad: Squad;
+  role: SquadMemberRole;
+  /** Accepted members, at most ROOM_MEMBER_LIMIT. */
+  members: Profile[];
+  /** Join requests waiting for an admin; always 0 for members. */
+  pendingRequests: number;
+}
+
+/** Matches the limit enforced by hub_room_membership.sql. */
+export const ROOM_MEMBER_LIMIT = 4;
+
+export async function fetchMyRoomSummaries(userId: string): Promise<RoomSummary[]> {
+  const { data: mine, error } = await supabase
+    .from('squad_members')
+    .select('squad_id, role, squads(*)')
+    .eq('user_id', userId)
+    .eq('status', 'accepted');
+  if (error || !mine?.length) {
+    if (error) console.error('fetchMyRoomSummaries error:', error);
+    return [];
+  }
+
+  const ids = mine.map((row) => row.squad_id as string);
+  const { data: everyone } = await supabase
+    .from('squad_members')
+    .select('squad_id, user_id, status')
+    .in('squad_id', ids)
+    .in('status', ['accepted', 'pending']);
+  const memberRows = (everyone ?? []) as { squad_id: string; user_id: string; status: string }[];
+  const memberIds = [...new Set(memberRows.filter((r) => r.status === 'accepted').map((r) => r.user_id))];
+  const { data: profiles } = memberIds.length
+    ? await supabase.from('profiles').select('*').in('id', memberIds)
+    : { data: [] as Profile[] };
+  const profileById = new Map(((profiles ?? []) as Profile[]).map((p) => [p.id, p]));
+
+  return mine
+    .map((row): RoomSummary | null => {
+      const squad = squadFromJoinedRow(row.squads);
+      if (!squad) return null;
+      const inRoom = memberRows.filter((r) => r.squad_id === squad.id);
+      const role = row.role === 'admin' ? 'admin' : 'member';
+      return {
+        squad,
+        role,
+        members: inRoom
+          .filter((r) => r.status === 'accepted')
+          .map((r) => profileById.get(r.user_id))
+          .filter((p): p is Profile => Boolean(p)),
+        pendingRequests: role === 'admin' ? inRoom.filter((r) => r.status === 'pending').length : 0,
+      };
+    })
+    .filter((s): s is RoomSummary => s !== null)
+    .sort((a, b) => b.pendingRequests - a.pendingRequests || a.squad.name.localeCompare(b.squad.name));
+}
+
+/** The creator deletes a room for everyone (server-checked). */
+export async function deleteSquad(squadId: string): Promise<SquadActionResult> {
+  return runSquadAction('delete_squad', { target_squad: squadId }, 'Could not delete the room. Try again.');
+}
+
+/** Leave a room you belong to. */
+export async function leaveSquad(squadId: string, userId: string): Promise<boolean> {
+  const { error } = await supabase.from('squad_members').delete().eq('squad_id', squadId).eq('user_id', userId);
+  if (!error) dispatchPrivateHubSync('squads');
+  return !error;
 }
 
 export interface IncomingSquadJoinRequest {

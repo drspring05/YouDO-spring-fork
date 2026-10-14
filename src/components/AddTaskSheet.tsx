@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
+import { TITLE_MAX, isTitleTooLong } from '../lib/titleLimit';
+import TitleCounter from './TitleCounter';
 import { Calendar } from 'lucide-react';
 import type { Priority, Task } from '../types';
 import { todayISO, tomorrowISO } from '../store';
@@ -46,7 +48,7 @@ export default function AddTaskSheet({ open, onClose, onAdd, initialDate }: Prop
   if (!open) return null;
 
   const submit = () => {
-    if (!title.trim()) return;
+    if (!title.trim() || isTitleTooLong(title)) return;
     const cleanSteps = steps.map((s) => s.trim()).filter(Boolean).slice(0, MAX_STEPS);
     onAdd({
       id: uid(),
@@ -75,18 +77,22 @@ export default function AddTaskSheet({ open, onClose, onAdd, initialDate }: Prop
         <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar flex flex-col [&>*]:shrink-0 gap-3.5">
           {/* Main Info Card */}
           <div className="bg-surface border border-subtle rounded-2xl overflow-hidden shadow-sm">
+            <div className="relative">
             <input
               ref={titleRef}
               value={title}
+              maxLength={Math.max(TITLE_MAX, title.length)}
               onChange={(e) => setTitle(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && submit()}
               placeholder="What needs doing?"
-              className="w-full h-12 px-3.5 bg-transparent text-[14px] font-semibold text-content-primary placeholder:text-content-muted outline-none border-b border-subtle"
+              className="w-full h-12 px-3.5 bg-transparent text-[14px] font-semibold text-content-primary placeholder:text-content-muted outline-none border-b border-subtle pr-14"
             />
+            <TitleCounter value={title} className="absolute right-3.5 top-1/2 -translate-y-1/2" />
+            </div>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Optional details…"
+              placeholder="Details (optional). Keep the name short and put the rest here…"
               rows={2}
               className="w-full bg-transparent px-3.5 py-2.5 text-[13px] font-medium text-content-primary placeholder:text-content-muted outline-none resize-none"
             />
@@ -186,7 +192,7 @@ export default function AddTaskSheet({ open, onClose, onAdd, initialDate }: Prop
         <div className="flex flex-col gap-2 mt-2 shrink-0">
           <button
             onClick={submit}
-            disabled={!title.trim()}
+            disabled={!title.trim() || isTitleTooLong(title)}
             className="w-full h-12 rounded-2xl text-[13px] font-bold bg-primary text-on-primary disabled:opacity-40 transition-opacity flex items-center justify-center shadow-sm"
           >
             Add Task

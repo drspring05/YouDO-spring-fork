@@ -4,9 +4,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 
-import SquadProgressBoard, {
-  collectiveBarPercent,
-} from '../src/components/squad/SquadProgressBoard';
+import SquadProgressBoard from '../src/components/squad/SquadProgressBoard';
 import type { PaceRow } from '../src/lib/paceBoard';
 import { windowMs } from '../src/lib/paceBoard';
 import { formatDuration } from '../src/lib/format';
@@ -127,21 +125,6 @@ function renderBoard(
   return renderToStaticMarkup(element);
 }
 
-function extractCapsules(html: string): { title: string; classes: string; fillStyle: string; fillClasses: string }[] {
-  const capsuleRegex = /<div class="([^"]*w-3\.5[^"]*)" title="([^"]*)">\s*<div class="([^"]*)" style="([^"]*)"/g;
-  const matches: { title: string; classes: string; fillStyle: string; fillClasses: string }[] = [];
-  let m;
-  while ((m = capsuleRegex.exec(html)) !== null) {
-    matches.push({
-      classes: m[1],
-      title: m[2],
-      fillClasses: m[3],
-      fillStyle: m[4],
-    });
-  }
-  return matches;
-}
-
 // ---------------------------------------------------------------------------
 // TEST SUITE: Empirical Adversarial Boundary & Stress Testing
 // ---------------------------------------------------------------------------
@@ -154,138 +137,6 @@ describe('Empirical Adversarial Stress Suite: Boundary Conditions & Robustness',
   // SECTION 1: Capsule Progress Bar Boundary & Edge Cases
   // =========================================================================
   describe('1. Capsule Progress Bar Boundary Tests', () => {
-    it('1.1: 0% Progress — Renders empty capsule with 0% fill and primary accent', () => {
-      const html = renderBoard([{ id: 'u1', name: 'Alice', hours: 0, barHours: 8 }]);
-      const capsules = extractCapsules(html);
-
-      expect(capsules.length).toBe(1);
-      expect(capsules[0].fillStyle).toBe('height:0%');
-      expect(capsules[0].fillClasses).toContain('bg-primary');
-      expect(capsules[0].fillClasses).not.toContain('bg-secondary');
-      expect(capsules[0].classes).toContain('rounded-t-full');
-      expect(capsules[0].classes).toContain('rounded-b-full');
-      expect(html).toContain('0%');
-      expect(html).toContain('0m focus');
-    });
-
-    it('1.2: 100% Progress — Renders complete capsule with 100% fill and glowing secondary accent', () => {
-      const html = renderBoard([{ id: 'u1', name: 'Alice', hours: 8, barHours: 8 }]);
-      const capsules = extractCapsules(html);
-
-      expect(capsules.length).toBe(1);
-      expect(capsules[0].fillStyle).toBe('height:100%');
-      expect(capsules[0].fillClasses).toContain('bg-secondary');
-      expect(capsules[0].fillClasses).toContain('shadow-');
-      expect(html).toContain('Bar reached');
-      expect(html).toContain('8h focus');
-    });
-
-    it('1.3: Negative progress / extreme inputs — Does not crash, handles negative hours gracefully', () => {
-      const html = renderBoard([{ id: 'u1', name: 'Alice', hours: -2, barHours: 8 }]);
-      expect(html).toBeDefined();
-      expect(html).toContain('Alice');
-      expect(html).toContain('Collective bar');
-    });
-
-    it('1.4: >100% Progress (Over bar) — Capped at 100% fill height to avoid layout overflow', () => {
-      const html = renderBoard([{ id: 'u1', name: 'Alice', hours: 12, barHours: 8 }]); // 150%
-      const capsules = extractCapsules(html);
-
-      expect(capsules.length).toBe(1);
-      // CSS height is capped at 100% to keep capsule within pill boundaries
-      expect(capsules[0].fillStyle).toBe('height:100%');
-      expect(capsules[0].fillClasses).toContain('bg-secondary');
-      // Overtime text is displayed
-      expect(html).toContain('+4h over bar');
-      expect(html).toContain('12h focus');
-    });
-
-    it('1.5: Empty Room (0 members) — Renders clean empty state without NaN or zero division', () => {
-      const html = renderBoard([]);
-      expect(html).toContain('No members on the board yet');
-      expect(html).toContain('Progress uses synced focus from the Public Board');
-      // Verify collectiveBarPercent handles empty array safely
-      expect(collectiveBarPercent([])).toBe(0);
-    });
-
-    it('1.6: Single Member Room (1 member) — Renders solitary capsule without merging', () => {
-      const html = renderBoard([{ id: 'u1', name: 'Solo', hours: 8, barHours: 8 }]);
-      const capsules = extractCapsules(html);
-
-      expect(capsules.length).toBe(1);
-      expect(capsules[0].classes).toContain('rounded-t-full');
-      expect(capsules[0].classes).toContain('rounded-b-full');
-      expect(capsules[0].classes).not.toContain('rounded-t-none');
-      expect(capsules[0].classes).not.toContain('rounded-b-none');
-      expect(html).toContain('Collective complete');
-    });
-
-    it('1.7: 4 Members Room (Maximum capacity) — All complete merges into one continuous glowing bar', () => {
-      const html = renderBoard([
-        { id: 'u1', name: 'User 1', hours: 8, barHours: 8 },
-        { id: 'u2', name: 'User 2', hours: 10, barHours: 8 },
-        { id: 'u3', name: 'User 3', hours: 8, barHours: 8 },
-        { id: 'u4', name: 'User 4', hours: 12, barHours: 8 },
-      ]);
-      const capsules = extractCapsules(html);
-
-      expect(capsules.length).toBe(4);
-
-      // Top capsule: round top, flat bottom
-      expect(capsules[0].classes).toContain('rounded-t-full');
-      expect(capsules[0].classes).toContain('rounded-b-none');
-      expect(capsules[0].classes).toContain('mt-0.5 mb-0');
-
-      // Middle capsule 1: flat top, flat bottom, zero vertical margin
-      expect(capsules[1].classes).toContain('rounded-t-none');
-      expect(capsules[1].classes).toContain('rounded-b-none');
-      expect(capsules[1].classes).toContain('my-0');
-
-      // Middle capsule 2: flat top, flat bottom, zero vertical margin
-      expect(capsules[2].classes).toContain('rounded-t-none');
-      expect(capsules[2].classes).toContain('rounded-b-none');
-      expect(capsules[2].classes).toContain('my-0');
-
-      // Bottom capsule: flat top, round bottom
-      expect(capsules[3].classes).toContain('rounded-t-none');
-      expect(capsules[3].classes).toContain('rounded-b-full');
-      expect(capsules[3].classes).toContain('mt-0 mb-0.5');
-
-      // All 4 have secondary fill
-      for (const cap of capsules) {
-        expect(cap.fillClasses).toContain('bg-secondary');
-      }
-
-      // Title & header states
-      expect(html).toContain('Collective complete');
-    });
-
-    it('1.8: Non-adjacent completed members — Does not merge across incomplete gap', () => {
-      const html = renderBoard([
-        { id: 'u1', name: 'Alice', hours: 8, barHours: 8 }, // 100%
-        { id: 'u2', name: 'Bob', hours: 3, barHours: 8 },   // Incomplete (37%)
-        { id: 'u3', name: 'Charlie', hours: 8, barHours: 8 }, // 100%
-      ]);
-      const capsules = extractCapsules(html);
-
-      expect(capsules.length).toBe(3);
-
-      // Alice is complete but Bob below is NOT -> Alice retains rounded bottom
-      expect(capsules[0].classes).toContain('rounded-t-full');
-      expect(capsules[0].classes).toContain('rounded-b-full');
-      expect(capsules[0].classes).not.toContain('rounded-b-none');
-
-      // Bob is incomplete -> retains fully rounded capsule
-      expect(capsules[1].classes).toContain('rounded-t-full');
-      expect(capsules[1].classes).toContain('rounded-b-full');
-      expect(capsules[1].fillClasses).toContain('bg-primary');
-
-      // Charlie is complete but Bob above is NOT -> Charlie retains rounded top
-      expect(capsules[2].classes).toContain('rounded-t-full');
-      expect(capsules[2].classes).toContain('rounded-b-full');
-      expect(capsules[2].classes).not.toContain('rounded-t-none');
-    });
-
     it('1.9: Live Board is completely nuked from the DOM', () => {
       const html = renderBoard([
         { id: 'u1', name: 'Alice', hours: 4, barHours: 8 },

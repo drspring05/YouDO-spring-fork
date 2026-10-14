@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import type { GoalNode } from '../../types';
 import type { BlueprintStudioController } from './blueprintStudioState';
+import { deepestOpenNodes, depthWindowShift } from './studioDepthWindow';
 
 export interface StudioTreeProps {
   controller: BlueprintStudioController;
@@ -94,7 +95,7 @@ export function StudioTree({ controller, searchQuery }: StudioTreeProps) {
         <button
           type="button"
           onClick={() => controller.openModal('bulk_add_inside', [])}
-          className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white text-sm font-medium rounded-xl hover:bg-primary-hover transition-colors shadow-sm"
+          className="flex items-center gap-1.5 px-4 py-2 bg-primary text-on-primary text-sm font-medium rounded-xl hover:bg-primary-hover transition-colors shadow-sm"
         >
           <Plus size={16} />
           <span>Add Goal</span>
@@ -126,18 +127,43 @@ export function StudioTree({ controller, searchQuery }: StudioTreeProps) {
     }
   }
 
+  // At most three indent levels on screen; search keeps full paths visible.
+  const shift = query ? 0 : depthWindowShift(displayedGoals, controller.expandedIds);
+  const stepBack = () => {
+    for (const id of deepestOpenNodes(displayedGoals, controller.expandedIds)) controller.toggleExpand(id);
+  };
+
   return (
     <div className="flex flex-col py-2 pb-28 space-y-1 relative">
-      {displayedGoals.map((goal, index) => (
-        <StudioTreeNode
-          key={goal.id}
-          node={goal}
-          depth={0}
-          isLastChild={index === displayedGoals.length - 1}
-          controller={controller}
-          searchQuery={query}
-        />
-      ))}
+      <div className="flex items-stretch gap-2">
+        {shift > 0 && (
+          <div className="studio-depth-rails" data-hidden-levels={shift}>
+            {Array.from({ length: shift }, (_, level) => (
+              <button
+                key={level}
+                type="button"
+                className="studio-depth-rail"
+                aria-label={`${shift} outer ${shift === 1 ? 'level is' : 'levels are'} tucked away. Show one more level`}
+                title="Show the outer level"
+                onClick={stepBack}
+              />
+            ))}
+          </div>
+        )}
+        <div className="flex flex-col min-w-0 flex-1 space-y-1">
+          {displayedGoals.map((goal, index) => (
+            <StudioTreeNode
+              key={goal.id}
+              node={goal}
+              depth={0}
+              shift={shift}
+              isLastChild={index === displayedGoals.length - 1}
+              controller={controller}
+              searchQuery={query}
+            />
+          ))}
+        </div>
+      </div>
       
       {!query && (
         <div className="pt-2 pl-2">
@@ -158,6 +184,8 @@ export function StudioTree({ controller, searchQuery }: StudioTreeProps) {
 interface StudioTreeNodeProps {
   node: GoalNode;
   depth: number;
+  /** Outer levels slid out of view: their rows and indent are not drawn. */
+  shift: number;
   isLastChild: boolean;
   controller: BlueprintStudioController;
   searchQuery?: string;
@@ -166,6 +194,7 @@ interface StudioTreeNodeProps {
 function StudioTreeNode({
   node,
   depth,
+  shift,
   controller,
   searchQuery,
 }: StudioTreeNodeProps) {
@@ -193,6 +222,26 @@ function StudioTreeNode({
   const isTask = !hasChildren && stepCount > 0;
   const isLeaf = !hasChildren && stepCount === 0 && !isGoal;
 
+  // Outside the three-level window: no row and no indent, only the open path.
+  if (depth < shift) {
+    if (!isExpanded || !hasChildren) return null;
+    return (
+      <div className="flex flex-col space-y-0.5">
+        {node.children.map((child, index) => (
+          <StudioTreeNode
+            key={child.id}
+            node={child}
+            depth={depth + 1}
+            shift={shift}
+            isLastChild={index === node.children.length - 1}
+            controller={controller}
+            searchQuery={searchQuery}
+          />
+        ))}
+      </div>
+    );
+  }
+
   const handleRowClick = () => {
     if (isSelectionMode) {
       toggleSelect(node.id);
@@ -204,7 +253,7 @@ function StudioTreeNode({
   return (
     <div className="flex flex-col relative">
       {/* Horizontal Branch Notch for nested children */}
-      {depth > 0 && (
+      {depth > shift && (
         <span
           className="absolute -left-3.5 top-1/2 -translate-y-1/2 w-2.5 h-px bg-border-subtle/70 pointer-events-none"
           aria-hidden="true"
@@ -409,6 +458,7 @@ function StudioTreeNode({
               key={child.id}
               node={child}
               depth={depth + 1}
+              shift={shift}
               isLastChild={index === node.children.length - 1}
               controller={controller}
               searchQuery={searchQuery}

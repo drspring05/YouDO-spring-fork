@@ -1,25 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Expanded focus-session card, like a now-playing card: status, task,
+     a large live timer and a large play/pause button. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:gravity="center_vertical"
     android:orientation="horizontal"
-    android:paddingTop="4dp"
-    android:paddingBottom="6dp">
+    android:paddingTop="6dp"
+    android:paddingBottom="8dp">
 
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
         android:orientation="vertical"
-        android:paddingEnd="14dp">
+        android:paddingEnd="16dp">
 
         <TextView
             android:id="@+id/notif_status"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:ellipsize="end"
-            android:letterSpacing="0.08"
+            android:letterSpacing="0.1"
             android:maxLines="1"
             android:textAllCaps="true"
             android:textColor="@color/notif_brand_gold"
@@ -28,28 +29,26 @@
 
         <TextView
             android:id="@+id/notif_title"
-            style="@style/TextAppearance.Compat.Notification.Title"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:ellipsize="end"
             android:maxLines="2"
-            android:paddingTop="3dp"
+            android:paddingTop="4dp"
             android:textColor="@color/notif_title_color"
-            android:textSize="16sp"
+            android:textSize="18sp"
             android:textStyle="bold" />
 
         <Chronometer
             android:id="@+id/notif_elapsed"
-            style="@style/TextAppearance.Compat.Notification.Line2"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:paddingTop="3dp"
-            android:textColor="@color/notif_secondary_color"
-            android:textSize="13sp" />
+            android:fontFeatureSettings="tnum"
+            android:paddingTop="4dp"
+            android:textColor="@color/notif_title_color"
+            android:textSize="30sp" />
 
         <TextView
             android:id="@+id/notif_hint"
-            style="@style/TextAppearance.Compat.Notification.Info"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:ellipsize="end"
@@ -61,10 +60,10 @@
 
     <ImageView
         android:id="@+id/notif_action"
-        android:layout_width="44dp"
-        android:layout_height="44dp"
+        android:layout_width="64dp"
+        android:layout_height="64dp"
         android:background="@drawable/notif_action_bg"
         android:contentDescription="@string/app_name"
-        android:padding="12dp"
+        android:padding="19dp"
         android:src="@drawable/ic_notify_pause" />
 </LinearLayout>

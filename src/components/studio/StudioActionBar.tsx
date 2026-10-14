@@ -2,17 +2,21 @@ import { Plus, ListChecks, Calendar, Trash2, X, Lock } from 'lucide-react';
 import type { BlueprintStudioController } from './blueprintStudioState';
 import { topStudioSelection } from '../../lib/studioWorkspace';
 import { findBlueprintPath } from '../../lib/blueprintStudio';
+import { depthWindowShift, selectedOutOfView } from './studioDepthWindow';
 
 export interface StudioActionBarProps {
   controller: BlueprintStudioController;
+  /** While searching every level is on screen. */
+  searchActive?: boolean;
 }
 
-export function StudioActionBar({ controller }: StudioActionBarProps) {
-  const { selectedIds, draftGoals, activeGoalNodeId, openModal, clearSelection, removeNodes } = controller;
+export function StudioActionBar({ controller, searchActive = false }: StudioActionBarProps) {
+  const { selectedIds, draftGoals, expandedIds, activeGoalNodeId, openModal, clearSelection, removeNodes } = controller;
 
   if (selectedIds.size === 0) return null;
 
   const selectedCount = selectedIds.size;
+  const offScreen = searchActive ? 0 : selectedOutOfView(draftGoals, selectedIds, depthWindowShift(draftGoals, expandedIds));
   const topIds = topStudioSelection(draftGoals, Array.from(selectedIds));
 
   // Active task protection
@@ -38,6 +42,7 @@ export function StudioActionBar({ controller }: StudioActionBarProps) {
       <div className="flex items-center gap-1 sm:gap-2 px-1 sm:px-2.5 py-0.5 border-r border-border-subtle shrink-0">
         <span className="text-[11px] sm:text-xs font-semibold text-content-primary whitespace-nowrap">
           {selectedCount} selected
+          {offScreen > 0 && <span className="font-medium text-content-muted"> · {offScreen} off-screen</span>}
         </span>
         <button
           type="button"

@@ -109,6 +109,13 @@ Pushes are sent by database triggers through `pg_net`; apps never call the
    PowerShell strips the JSON quotes when the file is passed to `supabase secrets set`.
 4. `supabase functions deploy send-push`.
 
+Then apply `hub_push.sql`: the Private Hub triggers (direct messages, friend
+requests, room invites and join requests, @mentions, and every room message for
+members who choose "All messages"; rooms default to @mentions only).
+
+Projects set up before v8.0.0: run `cleanup_retired_private_hub.sql` once. It
+removes the old Private Hub on/off switch and the waitlist; the app no longer uses them.
+
 Without the Vault secrets, triggers skip the push with a warning and the user's
 action still succeeds. `claim_push_token` moves a device to the account signed in
 on it, so an earlier account's notifications stop arriving after a switch.

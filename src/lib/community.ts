@@ -144,6 +144,8 @@ export function describeCommunityAudit(entry: CommunityAuditEntry, targetName?: 
     'settings.kudos.disabled': { category: 'Settings', title: 'Kudos paused', detail: 'New recognition is temporarily unavailable.' },
     'settings.announcement.published': { category: 'Settings', title: 'Board announcement published', detail: 'The room announcement was added or replaced.' },
     'settings.announcement.cleared': { category: 'Settings', title: 'Board announcement cleared', detail: 'The room announcement was removed.' },
+    'settings.private_hub.enabled': { category: 'Settings', title: 'Private Hub opened', detail: 'Members can open friends, rooms and DMs.' },
+    'settings.private_hub.disabled': { category: 'Settings', title: 'Private Hub closed', detail: 'Members see the under-development page; admins can still preview it.' },
     'settings.updated': { category: 'Settings', title: 'Community settings updated', detail: 'An earlier app version recorded this change without field details.' },
     'member.mute_24h': { category: 'Member', title: `Muted ${subject} for 24 hours`, detail: entry.reason || 'Posting access was temporarily paused.' },
     'member.mute_7d': { category: 'Member', title: `Muted ${subject} for 7 days`, detail: entry.reason || 'Posting access was temporarily paused.' },

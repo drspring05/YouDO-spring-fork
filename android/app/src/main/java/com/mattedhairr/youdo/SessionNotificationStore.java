@@ -8,9 +8,9 @@ import android.content.Intent;
 
 import android.os.Build;
 import android.os.SystemClock;
+import android.widget.RemoteViews;
 
 import androidx.core.app.NotificationCompat;
-import androidx.media.app.NotificationCompat.MediaStyle;
 import androidx.core.app.NotificationManagerCompat;
 import java.text.DateFormat;
 import java.util.Date;
@@ -133,38 +133,52 @@ final class SessionNotificationStore {
         long chronometerBase = System.currentTimeMillis() - elapsedMs;
 
         android.app.PendingIntent toggleIntent = actionIntent(ctx, paused ? ACTION_RESUME : ACTION_PAUSE);
-        NotificationCompat.Action action = new NotificationCompat.Action.Builder(
-            paused ? R.drawable.ic_notify_play : R.drawable.ic_notify_pause,
-            paused ? "Resume" : "Pause",
-            toggleIntent
-        ).build();
+        // A now-playing style card: the task, a live timer and one big
+        // play/pause button. The timer runs on the elapsed-realtime clock so it
+        // keeps counting with the screen off and never drifts with clock changes.
+        long chronoBase = SystemClock.elapsedRealtime() - elapsedMs;
+        RemoteViews compact = sessionViews(ctx, R.layout.notification_session, safeTitle, paused, chronoBase, toggleIntent);
+        RemoteViews expanded = sessionViews(ctx, R.layout.notification_session_expanded, safeTitle, paused, chronoBase, toggleIntent);
+        expanded.setTextViewText(R.id.notif_hint, paused ? "Tap play to continue · open YouDO" : "Tap to open YouDO");
 
         NotificationCompat.Builder builder = new NotificationCompat.Builder(ctx, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_youdo)
-            .setColor(paused ? 0xFF8FA68E : 0xFFC4A574)
+            .setColor(paused ? 0xFF8FB394 : 0xFFC9A46E)
             .setColorized(false)
             .setContentTitle(safeTitle)
-            .setContentText(paused ? "Paused" : "Focus in progress")
+            .setContentText(paused ? "Paused" : "Focusing")
+            .setCustomContentView(compact)
+            .setCustomBigContentView(expanded)
+            .setStyle(new NotificationCompat.DecoratedCustomViewStyle())
             .setOngoing(true)
             .setAutoCancel(false)
             .setOnlyAlertOnce(true)
             .setSilent(true)
-            .setShowWhen(true)
-            .setUsesChronometer(!paused)
-            .setChronometerCountDown(false)
+            .setShowWhen(false)
             .setWhen(chronometerBase)
             .setCategory(NotificationCompat.CATEGORY_PROGRESS)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .setContentIntent(openAppIntent(ctx))
-            .addAction(action)
-            .setStyle(new MediaStyle().setShowActionsInCompactView(0));
+            .setContentIntent(openAppIntent(ctx));
 
         try {
             NotificationManagerCompat.from(ctx).notify(NOTIF_ID, builder.build());
         } catch (SecurityException ignored) {
             /* permission denied */
         }
+    }
+
+    private static RemoteViews sessionViews(Context ctx, int layout, String title, boolean paused, long chronoBase, PendingIntent toggle) {
+        RemoteViews views = new RemoteViews(ctx.getPackageName(), layout);
+        views.setTextViewText(R.id.notif_title, title);
+        views.setTextViewText(R.id.notif_status, paused ? "Paused" : "Focusing");
+        views.setChronometer(R.id.notif_elapsed, chronoBase, null, !paused);
+        views.setImageViewResource(R.id.notif_action, paused ? R.drawable.ic_notify_play : R.drawable.ic_notify_pause);
+        views.setInt(R.id.notif_action, "setBackgroundResource", paused ? R.drawable.notif_action_bg_paused : R.drawable.notif_action_bg);
+        views.setInt(R.id.notif_action, "setColorFilter", 0xFF14120F);
+        views.setContentDescription(R.id.notif_action, paused ? "Resume focus" : "Pause focus");
+        views.setOnClickPendingIntent(R.id.notif_action, toggle);
+        return views;
     }
 
     private static JSONObject sessionObject(Context ctx) {
@@ -230,7 +244,7 @@ final class SessionNotificationStore {
     }
 
     private static PendingIntent openAppIntent(Context ctx) {
-        Intent intent = new Intent(ctx, MainActivity.class);
+        Intent intent = new Intent(ctx, YouDoActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         int flags = PendingIntent.FLAG_UPDATE_CURRENT;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {

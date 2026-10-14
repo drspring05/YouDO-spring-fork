@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Activity, AlertTriangle, ArrowLeft, Check, ChevronDown, Flag, Gauge, Heart, MessageCircle, RefreshCw, Reply, Send, ShieldCheck, UserRoundCheck, UserRoundX, X } from 'lucide-react';
+import { Activity, AlertTriangle, ArrowLeft, Check, ChevronDown, ChevronRight, Flag, Heart, MessageCircle, RefreshCw, Reply, Send, ShieldCheck, UserRoundCheck, UserRoundX, X } from 'lucide-react';
 import type { PaceRow } from '../lib/paceBoard';
 import {
   canSubmitCommunityAppeal,
@@ -39,6 +39,8 @@ import { fetchAdminCommunityHashtags, fetchAdminHashtagRequests, type AdminCommu
 import { fetchAdminAppQuotes, type AdminAppQuote } from '../lib/appQuotes';
 import { dismissAdminNotification } from '../lib/notifications';
 import UserProfileSheet from './UserProfileSheet';
+import AdminBackersReviewModal from './AdminBackersReviewModal';
+import { HubNavBar } from './hub/HubParts';
 
 interface Props {
   open: boolean;
@@ -68,10 +70,9 @@ export default function CommunitySheet({ open, onClose, userId, rows, initialCon
   const [adminTab, setAdminTab] = useState<'review' | 'hashtags' | 'controls' | 'quotes' | 'history'>('review');
   const [savingFeature, setSavingFeature] = useState(false);
   const featureBusy = useRef(false);
-  const [mode, setMode] = useState<'room' | 'admin'>(startInAdmin ? 'admin' : 'room');
-  useEffect(() => {
-    setMode(startInAdmin ? 'admin' : 'room');
-  }, [startInAdmin, open]);
+  // The room and the Admin Hub are separate places: the sheet opens in one of them.
+  const mode: 'room' | 'admin' = startInAdmin ? 'admin' : 'room';
+  const [backersOpen, setBackersOpen] = useState(false);
   const [draft, setDraft] = useState('');
   const [replyToId, setReplyToId] = useState<string | null>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
@@ -254,34 +255,30 @@ export default function CommunitySheet({ open, onClose, userId, rows, initialCon
   };
 
   return <Overlay open={open} onClose={onClose} align="full">
-    <div className="community-shell app-frame mx-auto flex h-full w-full max-w-md flex-col overflow-hidden border-x border-subtle bg-base">
-      <header className={`flex shrink-0 items-center gap-2 bg-elevated px-3 pt-[max(0.75rem,var(--safe-area-top))] ${mode === 'room' && context.chatV2 ? 'pb-1' : 'border-b border-subtle pb-3'}`}>
+    <div className={`community-shell app-frame mx-auto flex h-full w-full max-w-md flex-col overflow-hidden border-x border-subtle bg-base ${mode === 'admin' ? 'hub' : ''}`}>
+      {mode === 'admin' ? (
+        <HubNavBar
+          title="Admin Hub"
+          subtitle={refreshing ? 'Refreshing…' : 'Community, requests and the Private Hub'}
+          onBack={onClose}
+          backLabel="Close Admin Hub"
+          actions={
+            <button type="button" className="hub-icon-button" disabled={refreshing} onClick={() => void refresh()} aria-label="Refresh">
+              <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
+            </button>
+          }
+        />
+      ) : (
+      <header className={`flex shrink-0 items-center gap-2 bg-elevated px-3 pt-[max(0.75rem,var(--safe-area-top))] ${context.chatV2 ? 'pb-1' : 'border-b border-subtle pb-3'}`}>
         <button type="button" onClick={onClose} className="grid size-9 place-items-center rounded-xl text-content-secondary hover:bg-surface" aria-label="Close community"><ArrowLeft size={19} /></button>
-        <span className="grid size-9 place-items-center rounded-xl border border-primary/20 bg-primary-soft text-primary">{mode === 'admin' ? <Gauge size={17} /> : <MessageCircle size={17} />}</span>
+        <span className="grid size-9 place-items-center rounded-xl border border-primary/20 bg-primary-soft text-primary"><MessageCircle size={17} /></span>
         <div className="min-w-0 flex-1">
           <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-primary">Board community</p>
-          <h2 className="text-[16px] font-bold text-content-primary truncate">{mode === 'admin' ? 'Community admin' : 'Community'}</h2>
+          <h2 className="text-[16px] font-bold text-content-primary truncate">Community</h2>
         </div>
-        {context.isAdmin && (
-          <button
-            type="button"
-            onClick={() => setMode(mode === 'admin' ? 'room' : 'admin')}
-            className={`relative flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-xs font-bold transition border ${
-              mode === 'admin'
-                ? 'border-primary/30 bg-primary-soft text-primary'
-                : 'border-subtle bg-surface hover:bg-surface-elevated text-secondary'
-            }`}
-            aria-label={mode === 'admin' ? 'Switch to Community chat room' : 'Switch to Community Admin Hub'}
-          >
-            <Gauge size={13} />
-            <span>{mode === 'admin' ? 'Room' : 'Admin'}</span>
-            {mode === 'room' && (reports.length + appeals.length + hashtagRequests.length > 0) && (
-              <span className="size-2 rounded-full bg-warning ring-2 ring-elevated animate-pulse" />
-            )}
-          </button>
-        )}
         <button type="button" disabled={refreshing} onClick={() => void refresh()} className="grid size-9 place-items-center rounded-xl text-content-muted" aria-label="Refresh"><RefreshCw size={15} /></button>
       </header>
+      )}
 
       {refreshError && <p role="status" className="mx-4 mt-3 text-[12px] text-error">{refreshError}</p>}
 
@@ -381,22 +378,38 @@ export default function CommunitySheet({ open, onClose, userId, rows, initialCon
             </div>
           </> : <p className="p-6 text-center text-[12px] text-content-muted">{refreshing ? 'Loading activity...' : 'Activity is unavailable. Refresh to try again.'}</p>}
         </section>
-        <nav className="flex items-center gap-6 overflow-x-auto border-b border-subtle mb-4 px-2" style={{ scrollbarWidth: 'none' }} aria-label="Admin sections">
+        <nav className="hub-segmented mb-4 !gap-0" role="tablist" aria-label="Admin sections">
           {(['review', 'hashtags', 'controls', 'quotes', 'history'] as const).map((tab) => {
-            const label = tab === 'review' ? 'Review' : tab === 'hashtags' ? 'Hashtags' : tab === 'controls' ? 'Controls' : tab === 'quotes' ? 'Quotes' : 'Safety log';
+            const label = tab === 'review' ? 'Review' : tab === 'hashtags' ? 'Tags' : tab === 'controls' ? 'Controls' : tab === 'quotes' ? 'Quotes' : 'Log';
             const count = tab === 'review' ? reports.length + appeals.length : tab === 'hashtags' ? hashtagRequests.length : 0;
             const active = adminTab === tab;
             return (
-              <button key={tab} type="button" aria-pressed={active} onClick={() => { setAdminTab(tab); setStatus(''); }} className={`relative shrink-0 flex items-center gap-1.5 pb-3.5 pt-1 text-[13px] font-bold transition-colors ${active ? 'text-primary' : 'text-content-muted hover:text-content-primary'}`}>
+              <button
+                key={tab}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                aria-label={count > 0 ? `${label}, ${count} waiting` : label}
+                onClick={() => { setAdminTab(tab); setStatus(''); }}
+                className="!px-1.5 !text-[13px]"
+              >
                 <span>{label}</span>
-                {count > 0 && <span className={`grid place-items-center min-w-[18px] h-[18px] px-1 rounded-full text-[9.5px] font-extrabold ${active ? 'bg-primary text-on-primary' : 'bg-primary-soft text-primary'}`}>{count}</span>}
-                {active && <span className="absolute bottom-0 left-0 right-0 h-1 rounded-t-full bg-primary" />}
+                {count > 0 && <span className="hub-count is-alert !h-[17px] !min-w-[17px] !px-1 !text-[10px]">{count}</span>}
               </button>
             );
           })}
         </nav>
         {!adminLoaded && adminTab !== 'controls' && <p role="status" className="community-empty">{refreshError ? 'Moderation records could not be loaded.' : 'Loading moderation records…'}</p>}
         <div hidden={adminTab !== 'controls'} className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <section className="mb-5 rounded-[24px] border border-subtle bg-surface overflow-hidden shadow-sm" aria-label="Supporters">
+          <button type="button" onClick={() => setBackersOpen(true)} className="flex w-full items-center justify-between gap-3 p-5 text-left">
+            <span className="min-w-0 flex-1">
+              <span className="block text-[13px] font-bold text-content-primary">Backer claims</span>
+              <span className="block text-[11px] text-content-muted mt-1">Verify or reject UPI support claims</span>
+            </span>
+            <ChevronRight size={16} className="shrink-0 text-content-muted" />
+          </button>
+        </section>
         <section className="rounded-[24px] border border-subtle bg-surface overflow-hidden shadow-sm">
           <div className="flex items-center justify-between gap-3 p-5 border-b border-subtle/50">
             <div className="min-w-0 flex-1">
@@ -497,6 +510,9 @@ export default function CommunitySheet({ open, onClose, userId, rows, initialCon
           boardPreview={rows.find((r) => r.userId === selectedProfileUserId) ?? null}
           onClose={() => setSelectedProfileUserId(null)}
         />
+      )}
+      {mode === 'admin' && context.isAdmin && (
+        <AdminBackersReviewModal open={backersOpen} onClose={() => setBackersOpen(false)} />
       )}
     </div>
   </Overlay>;

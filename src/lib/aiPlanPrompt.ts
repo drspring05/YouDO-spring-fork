@@ -4,7 +4,7 @@ export const AI_PLAN_OUTPUT_CONTRACT = `FINAL OUTPUT FOR YOUDO
 Return ONE complete JSON object in ONE fenced code block labelled json, so I can use its Copy button. No other code blocks. Never split a plan across replies or give a continuation. Ask necessary clarification questions BEFORE generating the final plan, never inside its JSON.
 Use exactly two top-level keys: "tasks": [] and "goals": [one root].
 Every node requires "kind", "title", "children". The root kind is "goal"; descendants use "node". Only these optional fields are allowed: "description", "startDate", "endDate", "steps".
-- title and description are strings. Use double quotes; escape quotes, backslashes and newlines correctly. No comments, trailing commas, placeholders or ellipses.
+- title and description are strings. Keep every title under 60 characters; put any detail in description. Use double quotes; escape quotes, backslashes and newlines correctly. No comments, trailing commas, placeholders or ellipses.
 - Dates are real YYYY-MM-DD strings or omitted, never null. End dates cannot precede start dates. Children fit inside their parent's dated range.
 - children is always an array; endpoints have []. Only endpoints may have steps: 1–8 distinct, short action strings. Omit steps on branches. Sibling titles must be distinct.
 - No IDs, completion flags, progress, schedules, settings, account data, Today cards or session history. YouDO supplies these.

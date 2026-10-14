@@ -1,12 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { ChevronLeft, Send, MoreVertical, Reply, X } from 'lucide-react';
+import { Send, Reply, X } from 'lucide-react';
 import Overlay from './Overlay';
 import { useAuth } from '../contexts/AuthContext';
 import { hapticSuccess } from '../lib/haptics';
 import { fetchDirectMessages, sendDirectMessage, deleteDirectMessage, markDirectConversationRead } from '../lib/messages';
 import { dismissDmNotification } from '../lib/notifications';
 import { supabase } from '../lib/supabase';
-import { ProfileAvatarVisual } from '../lib/profileAvatar';
+import { HubAvatar, HubNavBar } from './hub/HubParts';
 import './chat/youDoChat.css';
 import ChatActionSheet from './chat/ChatActionSheet';
 import { useChatMessageGestures } from './chat/useChatMessageGestures';
@@ -121,28 +121,14 @@ export default function DmInboxSheet({ open, onClose, friendId, friendName = 'Fr
 
   return (
     <Overlay open={open} onClose={onClose} align="full">
-      <div className="bg-[var(--bg-surface)] w-full max-w-md mx-auto flex flex-col h-full">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-subtle bg-elevated shrink-0">
-          <div className="flex items-center gap-3">
-            <button onClick={onClose} className="p-1 -ml-1 text-content-secondary hover:text-content-primary rounded-full hover:bg-surface transition-colors">
-              <ChevronLeft size={24} />
-            </button>
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-primary-soft border border-primary/20 text-primary text-sm font-bold flex items-center justify-center overflow-hidden">
-                <ProfileAvatarVisual avatarUrl={friendAvatar} displayName={friendName} className="text-sm" />
-              </div>
-              <div>
-                <h2 className="text-[15px] font-bold text-content-primary leading-none">{friendName}</h2>
-                <span className="text-[11px] text-content-muted font-medium">24-hour chat</span>
-              </div>
-            </div>
-          </div>
-          
-          <button className="p-1.5 text-content-secondary hover:text-content-primary rounded-full hover:bg-surface transition-colors">
-            <MoreVertical size={18} />
-          </button>
-        </div>
+      <div className="hub hub-page">
+        <HubNavBar
+          title={friendName}
+          subtitle="Messages disappear after 24 hours"
+          onBack={onClose}
+          backLabel="Back to chats"
+          actions={<HubAvatar url={friendAvatar} name={friendName} size="sm" />}
+        />
 
         <div className="yd-chat flex-1 min-h-0">
           <div className="yd-chat-scroll">

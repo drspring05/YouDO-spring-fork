@@ -215,7 +215,7 @@ export function BlueprintStudioContent({
         </div>
 
         {/* Floating Action Bar */}
-        <StudioActionBar controller={controller} />
+        <StudioActionBar controller={controller} searchActive={Boolean(searchQuery?.trim())} />
 
         {/* Modals Sheet Layer */}
         <StudioModals controller={controller} />
@@ -235,7 +235,7 @@ export default function BlueprintStudio({
   if (!open) return null;
 
   return (
-    <Overlay open={open} onClose={onClose} align="full" scrim={false}>
+    <Overlay open={open} onClose={onClose} align="full" scrim={false} fullWidth="wide">
       <BlueprintStudioContent
         goals={goals}
         initialPathIds={initialPathIds}

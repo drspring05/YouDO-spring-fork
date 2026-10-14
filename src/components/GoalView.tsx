@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useUiPrefs } from '../hooks/useUiPrefs';
 import {
   CalendarDays,
+  Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -9,7 +11,6 @@ import {
   Copy,
   FileText,
   Layers,
-  Link2,
   ListTree,
   Pencil,
   Pin,
@@ -36,9 +37,21 @@ import {
   useSessionStore,
 } from '../store';
 import Overlay from './Overlay';
-import { goalBranchContainsTask } from '../lib/goalTree';
-import { goalTimingLabel } from '../lib/dates';
+import { goalBranchContainsTask, nextOpenItem } from '../lib/goalTree';
+import { daysBetweenLocalISO, deadlineDaysLabel, goalTimingLabel, todayISO } from '../lib/dates';
+import ActivityRing from './ActivityRing';
+import ClampedTitle from './ClampedTitle';
+import OriginChip from './OriginChip';
 import { hapticTick } from '../lib/haptics';
+import './goalCard.css';
+
+/** Touch screens select with a long press; native drag there lifts rows at the slightest movement. */
+const coarsePointer = typeof window !== 'undefined' && Boolean(window.matchMedia?.('(pointer: coarse)').matches);
+
+function formatShortDate(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+}
 
 function getScheduledDateLabel(targetDate: string | null | undefined): string {
   if (!targetDate) return 'Scheduled';
@@ -116,7 +129,7 @@ interface Props {
   /** Optional direct navigation handler for recording jump origin for 1-step back navigation */
   onNavigateToPath?: (pathIds: string[]) => void;
   onOpenStudio: () => void;
-  onOpenDescription?: (title: string, description: string) => void;
+  onOpenDescription?: (title: string, description: string, steps?: { label: string; done: boolean }[]) => void;
 }
 
 function nodeMeta(node: GoalNode): { icon: typeof Target; tint: string; label: string } {
@@ -128,6 +141,7 @@ function nodeMeta(node: GoalNode): { icon: typeof Target; tint: string; label: s
 
 export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddChild, onEditNode, onPushNode, onUnplan, onCopy, onSelectionChange, clearSelectionRef, onNavigateToPath, onOpenStudio, onOpenDescription }: Props) {
   const { goals, tasks, toggleGoalStep, togglePin, reorderGoalNodes, toggleNodeCompletion } = useStore();
+  const [{ legacyStyle }] = useUiPrefs();
   const { activeSession } = useSessionStore();
   const runningTask = tasks.find((task) => task.id === activeSession?.taskId);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -142,11 +156,30 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
   const longPressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
   const isLongPressTriggeredRef = useRef(false);
+  // A long press selects. Android sends no click after it, so the "skip the
+  // click after a long press" window must expire on its own, or it would eat
+  // the next tap.
+  const suppressClickUntilRef = useRef(0);
+
+  const stepsOf = (node: GoalNode) => node.steps?.map((label, i) => ({ label, done: Boolean(node.stepDone?.[i]) }));
+  /** The "…" on a cut title opens the full name, description and steps. */
+  const showFullText = onOpenDescription
+    ? (node: GoalNode) => () => onOpenDescription(node.title, node.description ?? '', stepsOf(node))
+    : () => undefined;
+  const pressHighlightRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearLongPress = () => {
     if (longPressTimeoutRef.current) {
       clearTimeout(longPressTimeoutRef.current);
       longPressTimeoutRef.current = null;
+    }
+    if (pressHighlightRef.current) {
+      clearTimeout(pressHighlightRef.current);
+      pressHighlightRef.current = null;
+    }
+    if (isLongPressTriggeredRef.current) {
+      isLongPressTriggeredRef.current = false;
+      suppressClickUntilRef.current = performance.now() + 450;
     }
     pointerStartRef.current = null;
     setPressingId(null);
@@ -158,10 +191,11 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
 
     clearLongPress();
     pointerStartRef.current = { x: e.clientX, y: e.clientY };
-    isLongPressTriggeredRef.current = false;
-    setPressingId(nodeId);
+    // Only a finger that stays shows the press, so starting a scroll doesn't flash rows.
+    pressHighlightRef.current = setTimeout(() => setPressingId(nodeId), 110);
 
     longPressTimeoutRef.current = setTimeout(() => {
+      longPressTimeoutRef.current = null;
       isLongPressTriggeredRef.current = true;
       hapticTick();
       toggleSelect(nodeId);
@@ -171,7 +205,7 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
   const handleNodePointerMove = (e: React.PointerEvent) => {
     if (!pointerStartRef.current || !longPressTimeoutRef.current) return;
     const dist = Math.hypot(e.clientX - pointerStartRef.current.x, e.clientY - pointerStartRef.current.y);
-    if (dist > 8) {
+    if (dist > 10) {
       clearLongPress();
     }
   };
@@ -526,15 +560,12 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                     <Icon size={15} style={{ color: meta.tint }} className="mt-1 shrink-0" />
                     <div className="flex-1 min-w-0">
                       {badgeNodes.length > 0 && (
-                        <div className="mb-1.5 inline-flex max-w-full items-center gap-1.5 rounded-lg border border-subtle bg-base px-2 py-0.5 text-[10px] font-semibold text-primary">
-                          <Link2 size={10} className="shrink-0" />
-                          <span className="min-w-0 whitespace-normal break-words">
-                            {badgeNodes.map((node) => node.title).join(' · ')}
-                          </span>
+                        <div className="mb-1.5">
+                          <OriginChip names={badgeNodes.map((node) => node.title)} />
                         </div>
                       )}
                       <div className="text-[13.5px] font-semibold leading-snug text-content-primary break-words">{p.node.title}</div>
-                      <div className="mt-0.5 text-[11px] leading-relaxed text-content-muted whitespace-normal break-words">
+                      <div className="mt-0.5 truncate text-[11px] leading-relaxed text-content-muted">
                         {contextNodes.length > 0 ? contextNodes.map((node) => node.title).join(' / ') : badgeNodes.length === 0 ? pathLabel : meta.label}
                       </div>
                     </div>
@@ -578,7 +609,7 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                   </div>
                 );
               })()}
-              <h2 className="mt-1 text-[19px] font-bold tracking-[-0.02em] text-content-primary truncate leading-tight">{current.title}</h2>
+              <ClampedTitle as="h2" className="goal-head-title mt-1 text-[19px] font-bold tracking-[-0.02em] text-content-primary" text={current.title} onMore={showFullText(current)} />
             </div>
             <div className="flex items-center gap-0.5 shrink-0 -mt-1">
               {(() => {
@@ -693,8 +724,6 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
       {/* Children list */}
       {children.length > 0 && <div className="bg-surface rounded-[12px] border border-subtle overflow-hidden">
         {children.map((child, index) => {
-          const meta = nodeMeta(child);
-          const Icon = meta.icon;
           // Empty untouched items can still be opened and expanded. Once work exists,
           // the endpoint stays an executable item so scheduling/history remain clear.
           const canDrill = child.kind === 'goal' || child.children.length > 0 || !hasGoalExecutionState(child);
@@ -710,6 +739,11 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
           // Completed today-slices stay on the calendar, but Goals should offer Schedule
           // for remaining micro-steps — not look like open work for today.
           const isActivelyScheduled = !!linkedTask && !isBacklogged && !isTaskComplete(linkedTask);
+          const nextItem = isEndpoint ? null : nextOpenItem(child);
+          const showActions = isWorkItem && !isDone && selected.size === 0;
+          const locked = !!runningTask && goalBranchContainsTask(child, runningTask);
+          const daysLeft = child.endDate ? daysBetweenLocalISO(todayISO(), child.endDate) : null;
+          const dueTone = daysLeft === null ? 'none' : daysLeft < 0 ? 'overdue' : daysLeft <= 7 ? 'soon' : 'ok';
 
           const isHighlighted = child.id === highlightNodeId;
           const isLast = index === children.length - 1;
@@ -720,7 +754,8 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
               id={`goal-node-${child.id}`}
               role={canDrill || selected.size > 0 ? 'button' : undefined}
               tabIndex={canDrill || selected.size > 0 ? 0 : undefined}
-              draggable
+              draggable={!coarsePointer}
+              onContextMenu={coarsePointer ? (e) => e.preventDefault() : undefined}
               onPointerDown={(e) => handleNodePointerDown(child.id, e)}
               onPointerMove={handleNodePointerMove}
               onPointerUp={handleNodePointerUpOrCancel}
@@ -741,8 +776,9 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                 setOverId(null);
               }}
               onClick={() => {
-                if (isLongPressTriggeredRef.current) {
+                if (isLongPressTriggeredRef.current || performance.now() < suppressClickUntilRef.current) {
                   isLongPressTriggeredRef.current = false;
+                  suppressClickUntilRef.current = 0;
                   return;
                 }
                 if (selected.size > 0) {
@@ -761,12 +797,12 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                   }
                 }
               }}
-              className={`px-3.5 py-3.5 flex flex-col gap-3 bg-surface select-none transition-transform duration-200 ease-out ${
+              className={`goal-row bg-surface select-none transition-transform duration-200 ease-out ${
                 canDrill || selected.size > 0 ? 'cursor-pointer' : ''
               } ${
                 pressingId === child.id ? 'transform scale-[0.97] bg-elevated' : ''
               } ${
-                !isLast ? 'border-b border-subtle' : ''
+                !isLast ? 'border-b border-[color:var(--separator)]' : ''
               } ${
                 isHighlighted
                   ? 'bg-primary-soft'
@@ -775,193 +811,236 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                     : 'hover:bg-elevated'
               } ${overId === child.id && !dragIds.includes(child.id) ? 'ring-2 ring-primary z-10' : ''}`}
             >
-              <div className="flex items-center gap-2.5">
-                {selected.size > 0 && (
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    onClick={(e) => e.stopPropagation()}
-                    onChange={() => toggleSelect(child.id)}
-                    className="w-4 h-4 rounded accent-primary cursor-pointer shrink-0"
-                    title="Select for batch operations"
-                  />
-                )}
-                <div className="flex-1 min-w-0 flex items-center gap-2">
-                  <Icon size={15} style={{ color: meta.tint }} className="shrink-0" />
-                  <h3 className={`text-[14.5px] font-semibold leading-snug truncate ${isDone ? 'line-through text-content-muted' : 'text-content-primary'}`}>
-                    {child.title}
-                  </h3>
+              {selected.size > 0 && (
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={() => toggleSelect(child.id)}
+                  className="mt-[9px] w-4 h-4 rounded accent-primary cursor-pointer shrink-0"
+                  title="Select for batch operations"
+                />
+              )}
+
+              {/* The leading mark says what the card is. A branch shows its
+                  progress once, as the number in its ring. A task's circle is
+                  its done button (like Reminders); the arc fills as steps
+                  get done. */}
+              {isWorkItem ? (
+                <button
+                  type="button"
+                  className="goal-mark is-task"
+                  data-state={isDone ? 'done' : pct > 0 ? 'active' : 'idle'}
+                  disabled={locked || selected.size > 0}
+                  aria-pressed={isDone}
+                  aria-label={isDone ? `Mark ${child.title} as not done` : `Mark ${child.title} as done`}
+                  title={locked ? 'Save progress from the running sitting first' : isDone ? 'Mark as not done' : 'Mark as done'}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleNodeCompletion(child.id);
+                  }}
+                >
+                  {isDone ? <Check size={17} strokeWidth={3} /> : <ActivityRing progress={pct} size={34} stroke={2.5} />}
+                </button>
+              ) : (
+                <span className="goal-mark-col" role="img" aria-label={isDone ? 'Complete' : `${pct}% complete`}>
+                  <span className="goal-mark is-branch" data-state={isDone ? 'done' : pct > 0 ? 'active' : 'idle'}>
+                    {isDone ? (
+                      <Check size={17} strokeWidth={3} />
+                    ) : (
+                      <>
+                        <ActivityRing progress={pct} size={34} stroke={3} />
+                        <Layers size={14} className="goal-mark-icon" />
+                      </>
+                    )}
+                  </span>
+                  {!isDone && <span className="goal-mark-pct">{pct}%</span>}
+                </span>
+              )}
+
+              <div className="goal-row-body">
+                <div className="goal-row-head">
+                  <ClampedTitle className={`goal-row-title ${isDone ? 'is-done' : ''}`} text={child.title} onMore={showFullText(child)} />
                   {child.description && onOpenDescription && (
                     <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onOpenDescription(child.title, child.description ?? '');
+                        onOpenDescription(child.title, child.description ?? '', stepsOf(child));
                       }}
-                      className="inline-flex items-center shrink-0 text-[10px] font-semibold text-content-muted hover:text-primary"
+                      className="goal-row-inline-icon hover:text-primary"
                       title="View description"
                       aria-label={`View description for ${child.title}`}
                     >
-                      <FileText size={12} />
+                      <FileText size={13} />
                     </button>
                   )}
-                  {child.pinned && <Star size={12} className="fill-primary text-primary shrink-0" />}
-                </div>
-                <span className={`text-[13px] font-semibold tabular-nums shrink-0 ${isDone ? 'text-secondary' : pct > 0 ? 'text-primary' : 'text-content-muted'}`}>
-                  {pct}%
-                </span>
-                {canDrill && (
-                  <span className="p-1 -mr-1 rounded-lg text-content-muted" aria-hidden>
-                    <ChevronRight size={16} />
-                  </span>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2 min-w-0">
-                <p className="flex-1 min-w-0 text-[11px] text-content-muted truncate">
-                  {meta.label}
-                  {!isEndpoint && ` · ${countCompletedDirectChildren(child)}/${countDirectChildren(child)} done`}
-                  {isEndpoint && hasSteps && ` · ${stepDone.filter(Boolean).length}/${child.steps!.length} steps`}
-                </p>
-                {isActivelyScheduled && (
-                  <span
-                    className="shrink-0 text-[10px] font-semibold text-secondary bg-secondary-soft px-2 py-0.5 rounded-md"
-                    title={`Scheduled for ${linkedTask?.targetDate ? formatDDMMYYYY(linkedTask.targetDate) : ''}`}
-                  >
-                    {getScheduledDateLabel(linkedTask?.targetDate)}
-                  </span>
-                )}
-                {isBacklogged && (
-                  <span className="shrink-0 text-[10px] font-semibold text-error bg-error-soft px-2 py-0.5 rounded-md">
-                    Backlog
-                  </span>
-                )}
-              </div>
-
-              <div className="h-1 rounded-full bg-border-subtle overflow-hidden">
-                <div className="h-full rounded-full" style={{ width: `${pct}%`, background: isDone ? 'var(--secondary)' : 'var(--primary)' }} />
-              </div>
-
-                {isWorkItem && hasSteps && (
-                <div className="flex flex-wrap gap-1">
-                  {child.steps!.map((s, i) => (
-                    <button
-                      key={i}
-                      disabled={selected.size > 0 || (!!runningTask && goalBranchContainsTask(child, runningTask))}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleGoalStep(child.id, i);
-                      }}
-                      className={`max-w-full text-[10px] font-medium leading-none px-1.5 py-1 rounded-md border truncate ${
-                        stepDone[i]
-                          ? 'bg-elevated border-subtle text-content-muted line-through'
-                          : 'border-subtle text-content-secondary'
-                      }`}
-                      title={runningTask && goalBranchContainsTask(child, runningTask) ? 'Save progress from the running sitting first' : s}
-                    >
-                      {i + 1}. {s}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {selected.size === 0 ? (
-                <div className="flex items-center gap-1 pt-1">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      togglePin(child.id);
-                    }}
-                    className={`p-2 rounded-[10px] ${child.pinned ? 'text-primary bg-primary-soft' : 'text-content-muted hover:text-content-primary hover:bg-elevated'}`}
-                    title={child.pinned ? 'Unpin' : 'Pin'}
-                  >
-                    {child.pinned ? <Star size={14} className="fill-primary" /> : <Pin size={14} />}
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onEditNode(child);
-                    }}
-                    className="p-2 rounded-[10px] text-content-muted hover:text-content-primary hover:bg-elevated"
-                    title="Edit"
-                  >
-                    <Pencil size={14} />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onCopy(child.id);
-                    }}
-                    className="p-2 rounded-[10px] text-content-muted hover:text-content-primary hover:bg-elevated"
-                    title="Copy"
-                  >
-                    <Copy size={14} />
-                  </button>
-                  <div className="flex-1" />
-
-                  {isWorkItem && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleNodeCompletion(child.id);
-                      }}
-                      disabled={!!runningTask && goalBranchContainsTask(child, runningTask)}
-                      className={`h-8 px-2.5 rounded-[10px] text-[11px] font-medium border ${
-                        isDone
-                          ? 'bg-secondary-soft text-secondary border-subtle'
-                          : 'text-content-secondary border-subtle hover:text-content-primary'
-                      }`}
-                      title={runningTask && goalBranchContainsTask(child, runningTask) ? 'Save progress from the running sitting first' : isDone ? 'Mark as incomplete' : 'Mark as done'}
-                    >
-                      Done
-                    </button>
-                  )}
-
-                  {isWorkItem && !child.completed && (
-                    isActivelyScheduled ? (
-                      <>
+                  {child.pinned && <Star size={13} className="goal-row-inline-icon fill-primary text-primary" aria-label="Pinned" />}
+                  {showActions && (
+                    <div className="goal-row-actions">
+                      {isActivelyScheduled ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onPushNode(child);
+                            }}
+                            className="goal-row-btn"
+                            title="Replan"
+                          >
+                            Replan
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (child.todayTaskId) onUnplan(child.todayTaskId);
+                            }}
+                            className="goal-row-btn is-danger"
+                            title="Unschedule"
+                          >
+                            Unplan
+                          </button>
+                        </>
+                      ) : (
                         <button
+                          type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             onPushNode(child);
                           }}
-                          className="h-8 px-2.5 rounded-[10px] text-[11px] font-medium border border-subtle text-primary"
-                          title="Replan"
+                          className="goal-row-btn is-primary"
+                          title={isBacklogged ? 'Plan this backlogged task' : 'Plan this task'}
                         >
-                          Replan
+                          Plan
                         </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (child.todayTaskId) onUnplan(child.todayTaskId);
-                          }}
-                          className="h-8 px-2.5 rounded-[10px] text-[11px] font-medium bg-error-soft text-error border border-subtle"
-                          title="Unschedule"
-                        >
-                          Unplan
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onPushNode(child);
-                        }}
-                        className="h-8 px-2.5 rounded-[10px] text-[11px] font-medium btn-primary"
-                        title={isBacklogged ? 'Schedule backlogged task' : 'Schedule'}
-                      >
-                        Schedule
-                      </button>
-                    )
+                      )}
+                    </div>
+                  )}
+                  {!isWorkItem && child.endDate && !isDone ? (
+                    <span className="goal-row-status" data-tone={dueTone} title={`Due ${formatShortDate(child.endDate)}`}>
+                      {deadlineDaysLabel(child.endDate)}
+                    </span>
+                  ) : null}
+                  {canDrill && !showActions && (
+                    <ChevronRight size={18} className="goal-row-chevron" aria-hidden />
                   )}
                 </div>
-              ) : (
-                <div className="flex items-center justify-between pt-0.5 text-[11px]">
-                  <span className={isSelected ? 'text-primary font-semibold' : 'text-content-muted'}>
-                    {isSelected ? '✓ Selected' : 'Tap to select'}
-                  </span>
-                </div>
-              )}
+
+                {!isWorkItem && (
+                  <p className="goal-row-detail">
+                    {isDone ? (
+                      'All done'
+                    ) : nextItem ? (
+                      <>
+                        <span className="text-content-muted">Next </span>
+                        {nextItem.title}
+                      </>
+                    ) : isEndpoint ? (
+                      'Empty · tap to add the first item'
+                    ) : null}
+                  </p>
+                )}
+                {isWorkItem && child.endDate && !isDone && (
+                  <p className="goal-row-detail" data-tone={dueTone}>
+                    Due {formatShortDate(child.endDate)} · {deadlineDaysLabel(child.endDate)}
+                  </p>
+                )}
+
+                {isWorkItem && hasSteps && (
+                  <div className="goal-row-line">
+                    <div className="goal-row-steps">
+                      {child.steps!.map((s, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          disabled={selected.size > 0 || locked}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleGoalStep(child.id, i);
+                          }}
+                          className="goal-row-step"
+                          data-done={Boolean(stepDone[i])}
+                          title={locked ? 'Save progress from the running sitting first' : s}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {selected.size === 0 ? (
+                  <div className="goal-row-footer">
+                    <div className="goal-row-footer-main">
+                      {!isWorkItem ? (
+                        <span className="goal-row-meta">
+                          {countCompletedDirectChildren(child)} of {countDirectChildren(child)} done
+                        </span>
+                      ) : isDone ? (
+                        <span className="goal-row-meta" data-tone="done">Completed</span>
+                      ) : (
+                        <span className="goal-row-meta">
+                          {isActivelyScheduled ? (
+                            <span
+                              data-tone="plan"
+                              title={`Planned for ${linkedTask?.targetDate ? formatDDMMYYYY(linkedTask.targetDate) : ''}`}
+                            >
+                              {getScheduledDateLabel(linkedTask?.targetDate)} ·{' '}
+                            </span>
+                          ) : isBacklogged ? (
+                            <span data-tone="backlog">Backlog · </span>
+                          ) : null}
+                          {hasSteps ? `${stepDone.filter(Boolean).length} of ${child.steps!.length} steps` : 'No steps'}
+                        </span>
+                      )}
+                    </div>
+                    <div className="goal-row-tools">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          togglePin(child.id);
+                        }}
+                        className={child.pinned ? 'is-on' : ''}
+                        title={child.pinned ? 'Unpin' : 'Pin'}
+                        aria-label={child.pinned ? 'Unpin' : 'Pin'}
+                      >
+                        <Pin size={15} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEditNode(child);
+                        }}
+                        title="Edit"
+                        aria-label="Edit"
+                      >
+                        <Pencil size={15} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onCopy(child.id);
+                        }}
+                        title="Copy"
+                        aria-label="Copy"
+                      >
+                        <Copy size={15} />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="goal-row-footer">
+                    <span className={isSelected ? 'goal-row-meta text-primary font-semibold' : 'goal-row-meta'}>
+                      {isSelected ? '✓ Selected' : 'Tap to select'}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
           );
         })}
@@ -969,10 +1048,12 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
 
       <button
         onClick={() => onAddChild(current?.id ?? null)}
-        className="mt-4 w-full py-3 rounded-2xl text-sm font-medium text-content-secondary bg-surface border border-dashed border-subtle hover:border-content-muted hover:text-content-primary transition-colors flex items-center justify-center gap-1.5"
+        className={legacyStyle
+          ? 'mt-4 w-full px-4 py-3 rounded-2xl text-sm font-medium text-content-secondary bg-surface border border-dashed border-subtle hover:border-content-muted hover:text-content-primary transition-colors flex items-center justify-center gap-1.5'
+          : 'mt-4 w-full h-[50px] px-4 rounded-2xl text-[17px] font-semibold text-primary bg-surface shadow-card active:opacity-70 transition-opacity flex items-center justify-center gap-1.5'}
       >
-        <Plus size={15} />
-        {current ? `Add to ${current.title}` : 'Create Goal'}
+        {legacyStyle ? <Plus size={15} className="shrink-0" /> : <Plus size={20} strokeWidth={2.4} className="shrink-0" />}
+        <span className="min-w-0 truncate">{current ? `Add to ${current.title}` : 'Create Goal'}</span>
       </button>
 
     </div>

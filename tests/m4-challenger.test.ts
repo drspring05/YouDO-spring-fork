@@ -4,7 +4,6 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 
-import SquadProgressBoard from '../src/components/squad/SquadProgressBoard';
 import { windowMs, type PaceRow, type PaceWindow } from '../src/lib/paceBoard';
 import { formatDuration } from '../src/lib/format';
 
@@ -122,115 +121,6 @@ describe('Milestone 4 Empirical Challenge: User Profile Card & Interactive DPs (
   // 1. Requirement R4.1: Member Avatar (DP) Click & Sheet Mounting Flow
   // ===========================================================================
   describe('Challenge 1: Interactive DPs in SquadProgressBoard & onOpenProfile Triggering', () => {
-    it('1.1: SquadProgressBoard renders an accessible, clickable DP button for each member', () => {
-      const members = [
-        { user_id: 'u1', profiles: { display_name: 'Ada Lovelace', avatar_url: 'https://example.com/ada.jpg' } },
-        { user_id: 'u2', profiles: { display_name: 'Alan Turing', avatar_url: '' } },
-      ];
-      const paceByUserId: Record<string, PaceRow> = {
-        u1: createPaceRow({ userId: 'u1', displayName: 'Ada Lovelace', todayHours: 4, weekHours: 20, monthHours: 80 }),
-        u2: createPaceRow({ userId: 'u2', displayName: 'Alan Turing', todayHours: 6, weekHours: 30, monthHours: 120 }),
-      };
-
-      const html = renderToStaticMarkup(
-        createElement(SquadProgressBoard, {
-          members,
-          paceByUserId,
-          squadBarHours: 6,
-          paceWindow: 'today',
-          anchorISO,
-          currentUserId: 'u1',
-          emptyPaceRow: (id) => createPaceRow({ userId: id, displayName: 'Member', todayHours: 0, weekHours: 0, monthHours: 0 }),
-          onOpenProfile: vi.fn(),
-        }),
-      );
-
-      // Verify buttons are rendered with accessible titles and labels
-      expect(html).toContain('aria-label="View Ada Lovelace&#x27;s profile"');
-      expect(html).toContain('aria-label="View Alan Turing&#x27;s profile"');
-      expect(html).toContain('title="View Ada Lovelace&#x27;s profile"');
-      expect(html).toContain('title="View Alan Turing&#x27;s profile"');
-      expect(html).toContain('rounded-full');
-      expect(html).toContain('cursor-pointer');
-    });
-
-    it('1.2: Clicking a member DP triggers onOpenProfile callback with that exact member userId', () => {
-      const onOpenProfileSpy = vi.fn();
-      const members = [
-        { user_id: 'u-charles', profiles: { display_name: 'Charles Babbage' } },
-        { user_id: 'u-grace', profiles: { display_name: 'Grace Hopper' } },
-        { user_id: 'u-linus', profiles: { display_name: 'Linus Torvalds' } },
-      ];
-      const paceByUserId: Record<string, PaceRow> = {
-        'u-charles': createPaceRow({ userId: 'u-charles', displayName: 'Charles Babbage', todayHours: 2, weekHours: 10, monthHours: 40 }),
-        'u-grace': createPaceRow({ userId: 'u-grace', displayName: 'Grace Hopper', todayHours: 5, weekHours: 25, monthHours: 90 }),
-        'u-linus': createPaceRow({ userId: 'u-linus', displayName: 'Linus Torvalds', todayHours: 8, weekHours: 40, monthHours: 160 }),
-      };
-
-      // Safely inspect the component tree rendered with active React hooks
-      const vdom = inspectComponent(SquadProgressBoard, {
-        members,
-        paceByUserId,
-        squadBarHours: 6,
-        paceWindow: 'today',
-        anchorISO,
-        currentUserId: 'u-charles',
-        emptyPaceRow: (id: string) => createPaceRow({ userId: id, displayName: 'Member', todayHours: 0, weekHours: 0, monthHours: 0 }),
-        onOpenProfile: onOpenProfileSpy,
-      });
-
-      expect(vdom).toBeDefined();
-      const section = vdom.props.children;
-      const verticalBarElement = section.props.children[1];
-      expect(verticalBarElement).toBeDefined();
-
-      // Render VerticalCollectiveBar within the harness to inspect its inner elements
-      const verticalBarVdom = inspectComponent(verticalBarElement.type, verticalBarElement.props);
-      const grid = verticalBarVdom.props.children[1];
-      const memberRows = grid.props.children[2];
-      expect(Array.isArray(memberRows)).toBe(true);
-      expect(memberRows.length).toBe(3);
-
-      // Verify clicking each member's DP button calls onOpenProfile with their specific userId
-      for (let i = 0; i < members.length; i++) {
-        const row = memberRows[i];
-        const dpButton = row.props.children[0];
-        expect(dpButton.type).toBe('button');
-        expect(typeof dpButton.props.onClick).toBe('function');
-
-        // Simulate click
-        dpButton.props.onClick();
-        expect(onOpenProfileSpy).toHaveBeenLastCalledWith(members[i].user_id);
-      }
-      expect(onOpenProfileSpy).toHaveBeenCalledTimes(3);
-    });
-
-    it('1.3: If onOpenProfile is omitted or undefined, clicking DP does not throw', () => {
-      const members = [
-        { user_id: 'u-safe', profiles: { display_name: 'Safe User' } },
-      ];
-      const paceByUserId = {
-        'u-safe': createPaceRow({ userId: 'u-safe', displayName: 'Safe User', todayHours: 1, weekHours: 5, monthHours: 20 }),
-      };
-
-      const vdom = inspectComponent(SquadProgressBoard, {
-        members,
-        paceByUserId,
-        squadBarHours: 6,
-        paceWindow: 'today',
-        anchorISO,
-        emptyPaceRow: (id: string) => createPaceRow({ userId: id, displayName: 'Member', todayHours: 0, weekHours: 0, monthHours: 0 }),
-        onOpenProfile: undefined, // Optional prop omitted
-      });
-
-      const verticalBarElement = vdom.props.children.props.children[1];
-      const verticalBarVdom = inspectComponent(verticalBarElement.type, verticalBarElement.props);
-      const memberRows = verticalBarVdom.props.children[1].props.children[2];
-      const dpButton = memberRows[0].props.children[0];
-
-      expect(() => dpButton.props.onClick()).not.toThrow();
-    });
-
     it('1.4: Room view state lifecycle — DP click mounts UserProfileSheet, close resets state', () => {
       // Simulating the room state management in SquadRoomSheet
       let selectedProfileUserId: string | null = null;

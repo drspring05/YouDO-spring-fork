@@ -20,6 +20,18 @@ UPSC, JEE, NEET, GATE, CAT, government exams, university entrances, and every se
 [![License](https://img.shields.io/badge/license-MIT-C4A574?style=flat-square)](LICENSE)
 [![Telegram](https://img.shields.io/badge/Telegram-community-26A5E4?style=flat-square&logo=telegram&logoColor=white)](https://t.me/+-manVNAPhThkMzRl)
 
+<br />
+
+<img src="docs/screenshots/01-today.png" width="180" alt="Today with goal-linked tasks" />
+<img src="docs/screenshots/02-today-at-a-glance.png" width="180" alt="Today at a glance" />
+<img src="docs/screenshots/03-goals.png" width="180" alt="A goal broken into papers and chapters" />
+<img src="docs/screenshots/04-focus-session.png" width="180" alt="A running focus session" />
+<img src="docs/screenshots/05-calendar.png" width="180" alt="Calendar with the day summary" />
+<img src="docs/screenshots/06-daily-focus-stats.png" width="180" alt="Daily focus stats" />
+<img src="docs/screenshots/07-private-hub-chats.png" width="180" alt="Private Hub chats" />
+<img src="docs/screenshots/08-study-room.png" width="180" alt="A study room with live focus" />
+<img src="docs/screenshots/09-appearance.png" width="180" alt="Accent colours and app icons" />
+
 </div>
 
 ---
@@ -105,6 +117,8 @@ YouDO records both total session duration and net focus.
 
 ### A daily briefing that changes with the day
 
+Each morning a **briefing notification** leads with your goal countdown and names your first task, your pace, your backlog and your streak. Choose its time in **Settings → Notifications**.
+
 **Today at a Glance** starts as a morning briefing and becomes a progress view once work begins. Its cards avoid repeating the same statistic and can show planning load, backlog pressure, focus, streak context, and time left before midnight.
 
 **Daily Focus Stats** separates task execution from focus quality, so completed work, failed work, net focus, elapsed duration, efficiency, momentum, and individual sessions remain understandable.
@@ -136,6 +150,27 @@ Admin opens with a compact **Community pulse**: **Active recently** (a foregroun
 Each room message remains visible for exactly 24 hours from its send time, regardless of when it is opened or whether midnight passes. Removed content never resurfaces. Expired messages may remain briefly as protected moderation records, while reports, appeals, restrictions, and the safety log persist. See [community setup and verification](docs/community-setup.md) before deploying the new build.
 
 Session completion now waits for a successful local history write; storage failures leave the sitting open with an error. Manual completion controls cannot bypass a running sitting. These safeguards do not establish the cause of the reported v6.3.0 lost-session/frozen-phone incident; see [investigation status](docs/focus-session-investigation.md).
+
+### Study with friends: the Private Hub
+
+Signed-in users get a private space next to the public Board:
+
+- **Friends and direct messages**: add people by @username and chat one to one.
+- **Study rooms** of up to four: see who is focusing right now and move a shared progress bar together.
+- **Room chat with @mentions**: type @ to pick a member, or @all for the whole room.
+- **Notifications that respect your attention**: messages, requests, invites and @mentions arrive even when the app is closed; ordinary room chat stays quiet unless you choose **All messages**. Each kind can be switched off in **Settings → Notifications**.
+
+### Make it yours
+
+<p>
+<img src="public/app-icons/signature/icon-192.png" width="56" alt="Signature icon" />
+<img src="public/app-icons/ivory/icon-192.png" width="56" alt="Ivory icon" />
+<img src="public/app-icons/sand/icon-192.png" width="56" alt="Sand icon" />
+<img src="public/app-icons/onyx/icon-192.png" width="56" alt="Onyx icon" />
+<img src="public/app-icons/linen/icon-192.png" width="56" alt="Linen icon" />
+</p>
+
+v8 brings a new look: large titles, borderless cards and a floating **Liquid Glass** tab bar. In **Settings → Preferences** pick Dark or Light, one of six accent colours (the start screen, header and notifications follow it) and one of five app icons. **Classic Look** brings back the v7 design ([v7 screenshots](docs/screenshots/v7-classic)).
 
 ## Your data remains yours
 
@@ -180,7 +215,8 @@ Thoughtful feedback from real preparation routines is especially valuable. Expla
 - React 18 and TypeScript
 - Vite and Tailwind CSS
 - Capacitor 8 for Android
-- Supabase for authentication, sync, account deletion, and Board data
+- Supabase for authentication, sync, account deletion, Board and Private Hub data
+- Firebase Cloud Messaging for notifications while the app is closed
 - Vitest and ESLint
 - GitHub Actions for Android APK builds
 
@@ -245,13 +281,15 @@ Open the `android` directory in Android Studio or use the repository's GitHub Ac
 
 </details>
 
+## Thanks
+
+- **[@maciasdav](https://github.com/maciasdav)**, for helping rebuild the v8 interface and for sponsoring the AI tools used to build YouDO.
+
 ## Maintainer
 
 The `docs` directory contains public maintainer runbooks and integrity notes,
 not end-user instructions. Private working plans, release drafts, and temporary
 artifacts belong only in the Git-ignored `.cache` directory.
-
-Current release artwork: [universal goal-tree poster](docs/media/youdo-promo-poster-v7.png).
 
 Built and maintained by **Jatin Parmar** ([@mattedhairr](https://github.com/mattedhairr)).
 

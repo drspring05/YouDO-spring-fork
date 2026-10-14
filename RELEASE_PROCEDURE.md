@@ -35,8 +35,8 @@ Report status after each phase.
 
 ---
 
-### Phase 2: Version Synchronization (The "Rule of 4")
-All four locations must be identical before tagging:
+### Phase 2: Version Synchronization (The "Rule of 5")
+All five locations must be identical before tagging:
 1. `package.json` ➔ `"version": "X.Y.Z"`
 2. `src/lib/version.ts` ➔ `export const APP_VERSION = 'X.Y.Z';`
 3. `android/app/build.gradle`:
@@ -46,6 +46,7 @@ All four locations must be identical before tagging:
    - Add new top entry under `## [vX.Y.Z] - YYYY-MM-DD - Short Title`
    - Include 3–6 user-facing bullets
    - End with: `- **Android APK** - versionName **X.Y.Z**, versionCode **N**. Installs safely over v...`
+5. `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt` ➔ a plain-text summary under 500 characters for app stores (F-Droid, IzzyOnDroid, Orion Store). When the look changes, refresh the framed screenshots in `docs/screenshots/` (used by the README and every store listing): capture each screen, then run `node scripts/frame-screenshots.mjs docs/screenshots <name>=<capture> ...`.
 
 ---
 

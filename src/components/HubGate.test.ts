@@ -3,7 +3,6 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import HubAuthGate from './HubAuthGate';
 import PrivateHubUsernameGate from './PrivateHubUsernameGate';
-import PrivateHubUnderDevelopment from './PrivateHubUnderDevelopment';
 import type { User } from '@supabase/supabase-js';
 
 describe('HubAuthGate', () => {
@@ -166,7 +165,7 @@ describe('HubView unauthenticated scrolling layout', () => {
     expect(html).not.toContain('h-full');
   }, 15000);
 
-  it('renders PrivateHubUnderDevelopment gate when activeTab is private', async () => {
+  it('asks a signed-out visitor to sign in on the Private tab', async () => {
     const HubView = (await import('./HubView')).default;
     const html = renderToStaticMarkup(
       createElement(HubView, {
@@ -176,31 +175,8 @@ describe('HubView unauthenticated scrolling layout', () => {
       }),
     );
 
-    expect(html).toContain('Private Hub is Cooking');
-    expect(html).toContain('In The Kitchen · Under Development');
-    expect(html).toContain('Back to Public Board');
+    expect(html).toContain('Unlock Private Study Rooms');
+    expect(html).not.toContain('Under Development');
   }, 15000);
-});
-
-describe('PrivateHubUnderDevelopment', () => {
-  it('renders cooking notice, roadmap highlights, priority waitlist, and solo dev UPI section', () => {
-    const html = renderToStaticMarkup(
-      createElement(PrivateHubUnderDevelopment, {
-        onSwitchToPublic: vi.fn(),
-      }),
-    );
-
-    expect(html).toContain('Private Hub is Cooking');
-    expect(html).toContain('In The Kitchen · Under Development');
-    expect(html).toContain('Priority Waitlist');
-    expect(html).toContain('Notify Me When Ready');
-    expect(html).toContain('4-Member Focus Squads');
-    expect(html).toContain('Companion DMs &amp; Streaks');
-    expect(html).toContain('Real-Time Study Sync');
-    expect(html).toContain('Fuel Solo Dev ☕');
-    expect(html).toContain('mattedhairr@axl');
-    expect(html).toContain('Claim Backer Badge');
-    expect(html).toContain('Back to Public Board');
-  });
 });
 
