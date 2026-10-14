@@ -63,17 +63,26 @@ revoke all on function private.push_wanted(uuid, text) from public, anon, authen
 revoke all on function private.push_handle(uuid) from public, anon, authenticated;
 
 -- 1. Direct messages: one notification per chat (tag), text only if previews are on.
+--    With more than one unread, the title counts them: "Asha (3 messages)".
 create or replace function private.push_direct_message()
 returns trigger language plpgsql security definer set search_path = '' as $$
 declare show_text boolean;
+declare unread integer;
 begin
   if new.sender_id = new.receiver_id or not private.push_wanted(new.receiver_id, 'dm') then return null; end if;
   select coalesce((select p.message_previews from public.push_preferences p where p.user_id = new.receiver_id), true)
     into show_text;
+  select pg_catalog.count(*) into unread from public.direct_messages m
+    where m.receiver_id = new.receiver_id and m.sender_id = new.sender_id
+      and m.read_at is null and m.created_at > pg_catalog.now() - interval '24 hours';
   perform private.dispatch_push(
     array[new.receiver_id],
-    private.push_handle(new.sender_id),
-    case when show_text then pg_catalog.left(new.content, 140) else 'New message' end,
+    private.push_handle(new.sender_id) || case when unread > 1 then ' (' || unread || ' messages)' else '' end,
+    case
+      when show_text then pg_catalog.left(new.content, 140)
+      when unread > 1 then unread || ' new messages'
+      else 'New message'
+    end,
     pg_catalog.jsonb_build_object('type', 'dm', 'sender', new.sender_id, 'tag', 'dm-' || new.sender_id, 'channel', 'private-hub')
   );
   return null;

@@ -43,13 +43,15 @@ try {
   check(calls[0].body.userIds[0] === id(2), 'it goes to the receiver only');
   check(calls[0].body.title === 'Asha' && calls[0].body.body === 'Revision at 7?', 'it shows who wrote and the message');
   check(calls[0].body.data.tag === `dm-${id(1)}` && calls[0].body.data.type === 'dm', 'it is tagged per chat so it updates in place');
+  check(calls[0].body.data.sender === id(1) && !('from' in calls[0].body.data), 'it names the sender without FCM-reserved keys');
 
   // Previews off: the text is hidden. Messages off: nothing is sent.
   await clear();
   await db.query('insert into public.push_preferences(user_id,message_previews) values($1,false)', [id(2)]);
   await db.query('insert into public.direct_messages(sender_id,receiver_id,content) values($1,$2,$3)', [id(1), id(2), 'Secret plan']);
   calls = await sent();
-  check(calls[0].body.body === 'New message', 'with previews off the message text is hidden');
+  check(calls[0].body.body === '2 new messages', 'with previews off the message text is hidden');
+  check(calls[0].body.title === 'Asha (2 messages)', 'a second unread message is counted in the title');
   await clear();
   await db.query('update public.push_preferences set direct_messages=false where user_id=$1', [id(2)]);
   await db.query('insert into public.direct_messages(sender_id,receiver_id,content) values($1,$2,$3)', [id(1), id(2), 'Hello?']);
