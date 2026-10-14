@@ -19,12 +19,14 @@ Guidance: keep 3–6 short, user-facing bullets. Group related small fixes under
 
 ## [v8.0.0] - 2026-10-14 - A New Look and the Private Hub
 
-- **A new look, end to end** — YouDO is redesigned around Apple's design language: large titles, borderless cards, a floating Liquid Glass tab bar with springy buttons, and native-style switches and sheets. Six calm accent colours and five app icons to choose from; the start screen, header and notifications follow your accent. Classic Look in Settings brings back the v7 design. The redesign was started by @maciasdav in PR #50. Thank you!
+- **A new look, end to end** — YouDO is redesigned around Apple's design language: large titles, borderless cards, a floating Liquid Glass tab bar with springy buttons, and native-style switches and sheets. Six calm accent colours and five app icons to choose from; the start screen, header and notifications follow your accent. Classic Look in Settings brings back the v7 design.
 - **Private Hub for everyone** — The Private Hub that v7.8.0 previewed while it was still in development is now complete and open to every signed-in user, so the waitlist is gone. Friends, direct messages and study rooms with live focus and a shared progress bar. Messages, requests, invites and @mentions now arrive even when the app is closed, while ordinary room chat stays quiet.
 - **Clearer goals** — Goal cards show progress, what's next and deadlines at a glance. Names stay short and tidy (up to 60 characters, with "…" to read the rest), and where a task lives looks the same on Today, Goals and Calendar.
 - **A morning briefing worth reading** — It leads with your goal countdown and names your first task, your pace, your backlog and your streak. The focus notification now has pause and resume, like a music player.
 - **Safer notifications** — Only YouDO's own server can send a notification, and switching accounts on a phone stops the previous account's notifications.
 - **Android APK** — versionName **8.0.0**, versionCode **79**. Installs over v7.8.0 (78).
+
+**Thank you, [@maciasdav](https://github.com/maciasdav)**, for helping rebuild the interface (PR #50) and for sponsoring the AI tools this release was built with.
 
 ---
 
