@@ -868,6 +868,16 @@ function AppInner() {
     void scheduleMorningBriefing(tasks, goals, streakStatus.current, streakStatus.best);
   }, [tasks, goals, streakStatus]);
 
+  /** A tapped Hub notification goes straight to its place: no glance card on
+   *  top, and the Hub's start-up default must not switch the tab back. */
+  const openHubFromNotification = useCallback((tab: 'social' | 'private') => {
+    briefingPromptedRef.current = true;
+    setBriefingOpen(false);
+    initialHubSubTabSetRef.current = true;
+    handleNavigateTab('board');
+    setHubSubTab(tab);
+  }, [handleNavigateTab]);
+
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
 
@@ -899,14 +909,9 @@ function AppInner() {
         extra.type === 'friend_request' ||
         extra.type === 'room_invite'
       ) {
-        handleNavigateTab('board');
-        setHubSubTab('private');
-      } else if (extra.type === 'community') {
-        handleNavigateTab('board');
-        setHubSubTab('social');
-      } else if (extra.type === 'admin_hub') {
-        handleNavigateTab('board');
-        setHubSubTab('social');
+        openHubFromNotification('private');
+      } else if (extra.type === 'community' || extra.type === 'admin_hub') {
+        openHubFromNotification('social');
       }
     }).then((handle) => {
       tapSub = handle;
@@ -916,7 +921,7 @@ function AppInner() {
       tapSub?.remove();
       receiveSub?.remove();
     };
-  }, [handleNavigateTab, tasks, goals, streakStatus]);
+  }, [handleNavigateTab, openHubFromNotification, tasks, goals, streakStatus]);
 
   // The server decides what to push while the app is closed; keep it in step with Settings.
   useEffect(() => {
@@ -931,16 +936,14 @@ function AppInner() {
           handleNavigateTab('tasks');
           setTodaySubTab('today');
         } else if (route === 'social' || route === 'board') {
-          handleNavigateTab('board');
-          setHubSubTab('social');
+          openHubFromNotification('social');
         } else if (route === 'private') {
-          handleNavigateTab('board');
-          setHubSubTab('private');
+          openHubFromNotification('private');
         }
       },
     });
     return cleanup;
-  }, [activityUser?.id, handleNavigateTab]);
+  }, [activityUser?.id, handleNavigateTab, openHubFromNotification]);
 
   const backlogByDate = useMemo(() => {
     const groups: Record<string, Task[]> = {};
