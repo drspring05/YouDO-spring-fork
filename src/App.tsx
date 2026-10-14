@@ -1025,12 +1025,12 @@ function AppInner() {
     setOverId(null);
   };
 
+  // Filters for Scheduled only: the backlog has to be cleared either way.
   const categoryChips = useMemo(() => {
-    const activeTasksList = todaySubTab === 'today' ? todayTasks : backlogTasks;
     const map = new Map<string, { id: string; label: string; count: number }>();
 
     let quickCount = 0;
-    for (const t of activeTasksList) {
+    for (const t of todayTasks) {
       if (isTaskComplete(t)) continue;
       if (!t.goalNodeId) {
         quickCount++;
@@ -1057,7 +1057,7 @@ function AppInner() {
       list.push({ id: 'quick', label: '⚡ Quick Tasks', count: quickCount });
     }
     return list;
-  }, [todaySubTab, todayTasks, backlogTasks, goals]);
+  }, [todayTasks, goals]);
 
   const filteredTodayTasks = useMemo(() => {
     if (activeCategoryFilter === 'all') return todayTasks;
@@ -1458,7 +1458,7 @@ function AppInner() {
                 )}
 
                 {/* Smart Goal & Category Filter Chips */}
-                {categoryChips.length > 1 && (
+                {todaySubTab === 'today' && categoryChips.length > 1 && (
                   <div className={`flex items-center overflow-x-auto no-scrollbar py-1 fade-in ${legacyStyle ? 'gap-1.5 text-[11px]' : 'gap-2 text-[13px]'}`}>
                     <button
                       onClick={() => setActiveCategoryFilter('all')}
@@ -1474,7 +1474,7 @@ function AppInner() {
                               : 'bg-fill text-content-primary'
                           }`}
                     >
-                      All ({todaySubTab === 'today' ? openTodayCount : openBacklogCount})
+                      All ({openTodayCount})
                     </button>
                     {categoryChips.map((chip) => (
                       <button

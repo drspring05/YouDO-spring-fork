@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState, useEffect, useRef } from 'react';
-import { Calendar, Clock, FileText, Link2, Play, Pause, Square, StickyNote, Trash2, CheckCircle2, Check } from 'lucide-react';
+import { Calendar, Clock, FileText, Play, Pause, Square, StickyNote, Trash2, CheckCircle2, Check } from 'lucide-react';
 import { useUiPrefs } from '../hooks/useUiPrefs';
 import type { Priority, Task, ActiveSession, TaskSession } from '../types';
 import { isBacklogTask, isTaskComplete } from '../store';
@@ -8,6 +8,7 @@ import Overlay from './Overlay';
 import { computeNetFocusMs } from '../lib/sessionStats';
 import { sessionClockLabel, sessionClockRange } from '../lib/sessionClock';
 import ActivityRing from './ActivityRing';
+import OriginChip from './OriginChip';
 
 // The v7 TaskCard is only fetched when Classic Look is on, to keep it out of the initial bundle.
 const LegacyTaskCard = lazy(() => import('../legacy/LegacyTaskCard'));
@@ -201,41 +202,12 @@ function ModernTaskCard({
 
           {/* Content Column */}
           <div className="flex-1 min-w-0">
-            {/* EYEBROW: first two path items, followed by any remaining context.
-                Both stay on one line; a name that does not fit ends in "…". */}
-            {originNodes && originNodes.length > 0 ? (
-              (() => {
-                const badgeNodes = originBadgeNodes;
-                if (badgeNodes.length === 0) return null;
-                return (
-                  <div className="mb-1.5">
-                    <div
-                      onClick={(e) => {
-                        if (onJumpToGoal) {
-                          e.stopPropagation();
-                          onJumpToGoal();
-                        }
-                      }}
-                      className={`inline-flex max-w-full items-center gap-1.5 text-[12px] font-semibold ${
-                        onJumpToGoal ? 'cursor-pointer' : ''
-                      }`}
-                      title={onJumpToGoal ? 'Jump to this task in Goal Blueprint' : undefined}
-                    >
-                      <Link2 size={12} className="shrink-0 text-primary" />
-                      {badgeNodes.map((n, i) => (
-                        <span key={i} className="inline-flex min-w-0 items-center gap-1.5">
-                          <span className="truncate text-primary group-hover/path:text-primary-glow transition-colors">
-                            {n.title}
-                          </span>
-                          {i < badgeNodes.length - 1 && (
-                            <span className="shrink-0 text-content-muted">•</span>
-                          )}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })()
+            {/* EYEBROW: where the task lives (first two path items); the rest of
+                the path follows under the title. */}
+            {originBadgeNodes.length > 0 ? (
+              <div className="mb-1.5">
+                <OriginChip names={originBadgeNodes.map((n) => n.title)} onClick={onJumpToGoal} />
+              </div>
             ) : !task.goalNodeId ? (
               <div className="mb-0.5 text-[12px] font-semibold text-content-secondary">
                 Quick task

@@ -4,7 +4,8 @@ import { useLocalDay } from '../hooks/useLocalDay';
 import CalendarDateDial from './CalendarDateDial';
 import { calendarFocusSummary } from '../lib/calendarSummary';
 import { hapticTick } from '../lib/haptics';
-import { ChevronLeft, ChevronRight, Link2, Plus, BarChart2, X, Info, ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, BarChart2, X, Info, ChevronDown, ChevronUp } from 'lucide-react';
+import OriginChip from './OriginChip';
 import type { Task } from '../types';
 import { localISODate, pathTitles, useStore, isOpenBacklogTask } from '../store';
 import { formatDuration } from '../lib/format';
@@ -299,24 +300,10 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
                   <div className="flex flex-col gap-1.5 mb-2">
                     {/* Eyebrow: Path */}
                     {originPath && (
-                      <div
+                      <OriginChip
+                        names={originPath.split('/').slice(0, 2).map((part) => part.trim())}
                         onClick={() => onJumpToGoal(t.goalNodeId)}
-                        className="flex items-center gap-1.5 text-[10px] font-extrabold bg-elevated border border-subtle rounded-lg px-2 py-0.5 leading-normal shadow-xs hover:bg-surface hover:border-primary/20 transition-all cursor-pointer w-fit group/path max-w-full"
-                      >
-                        <Link2 size={10} className="shrink-0 text-primary mr-0.5 group-hover/path:text-primary transition-colors" />
-                        <div className="flex items-center gap-1.5 truncate">
-                          {originPath.split('/').slice(0, 2).map((part, i, arr) => (
-                            <span key={i} className="flex items-center gap-1.5 shrink-0">
-                              <span className="text-primary-glow group-hover/path:text-primary-glow transition-colors truncate">
-                                {part.trim()}
-                              </span>
-                              {i < arr.length - 1 && (
-                                <span className="text-content-muted shrink-0">•</span>
-                              )}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
+                      />
                     )}
 
                     {/* Title Row */}
