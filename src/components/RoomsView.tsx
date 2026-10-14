@@ -139,10 +139,7 @@ export default function RoomsView({ onOpenRoom, onCreateRoom, onNotificationsCha
               const newMessages = unread[squad.id] ?? 0;
               return (
                 <button key={squad.id} type="button" className="hub-row" onClick={() => onOpenRoom(squad.id)}>
-                  <span className="hub-room-tile relative" aria-hidden>
-                    {squad.description || '🔥'}
-                    {newMessages > 0 && <span className="hub-avatar-dot" />}
-                  </span>
+                  <span className="hub-room-tile" aria-hidden>{squad.description || '🔥'}</span>
                   <span className="hub-row-main">
                     <span className="hub-row-title">
                       <span className="hub-truncate">{squad.name}</span>

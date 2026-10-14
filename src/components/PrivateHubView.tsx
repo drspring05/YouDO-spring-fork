@@ -303,7 +303,7 @@ export default function PrivateHubView({
                               onClick={() => setShowDmInbox({ id: friend.id, name: title, avatar: friend.avatar_url ?? '' })}
                               aria-label={unread > 0 ? `${title}, ${unread} unread` : title}
                             >
-                              <HubAvatar url={friend.avatar_url} name={title} dot={unread > 0 ? 'unread' : undefined} />
+                              <HubAvatar url={friend.avatar_url} name={title} />
                               <span className="hub-row-main">
                                 <span className="hub-row-title">
                                   <span className="hub-truncate flex-1">{title}</span>
