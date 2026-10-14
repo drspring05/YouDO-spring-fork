@@ -119,6 +119,9 @@ create table if not exists public.direct_messages (
   created_at timestamptz not null default now()
 );
 
+-- Older projects made this table before unread counts existed.
+alter table public.direct_messages add column if not exists read_at timestamptz;
+
 grant select, insert, update, delete on table public.direct_messages to authenticated;
 
 -- ============================================================================

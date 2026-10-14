@@ -17,7 +17,10 @@ export function HubAvatar({
 }) {
   return (
     <span className={`hub-avatar ${size === 'md' ? '' : `is-${size}`}`}>
-      <ProfileAvatarVisual avatarUrl={url} displayName={name} />
+      {/* Only the picture is clipped round, so the dot sits whole on the edge. */}
+      <span className="hub-avatar-clip">
+        <ProfileAvatarVisual avatarUrl={url} displayName={name} />
+      </span>
       {dot && <span className={`hub-avatar-dot ${dot === 'live' ? 'is-live' : ''}`} aria-hidden />}
     </span>
   );

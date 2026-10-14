@@ -201,7 +201,6 @@ button.hub-row:active, .hub-row.is-pressable:active { background: var(--hub-fill
   height: 44px;
   display: grid;
   place-items: center;
-  overflow: hidden;
   border-radius: 999px;
   background: var(--hub-tint-soft);
   color: var(--primary);
@@ -211,6 +210,14 @@ button.hub-row:active, .hub-row.is-pressable:active { background: var(--hub-fill
 .hub-avatar.is-lg { width: 80px; height: 80px; font-size: 30px; }
 .hub-avatar.is-sm { width: 30px; height: 30px; font-size: 12px; }
 .hub-avatar.is-xs { width: 22px; height: 22px; font-size: 10px; }
+.hub-avatar-clip {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: inherit;
+}
 .hub-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .hub-avatar-dot {
   position: absolute;
