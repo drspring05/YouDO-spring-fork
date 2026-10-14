@@ -2397,7 +2397,7 @@ export default function SettingsSheet({
                           role="radio"
                           aria-checked={active}
                           onClick={() =>
-                            updateNotifPrefs((p) => ({ ...p, privateHub: { ...p.privateHub, roomMessages: mode } }))
+                            updateNotifPrefs((p) => ({ ...p, privateHub: { ...p.privateHub, roomMessages: mode, roomMessagesChosen: true } }))
                           }
                           className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold transition ${
                             active ? 'bg-primary text-on-primary' : 'text-content-secondary hover:text-content-primary'

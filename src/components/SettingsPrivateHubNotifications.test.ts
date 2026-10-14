@@ -13,6 +13,6 @@ describe('Settings → Notifications → Private Hub', () => {
     expect(source).toContain('privateHub: { ...p.privateHub, enabled: !p.privateHub.enabled }');
     expect(source).toContain('privateHub: { ...p.privateHub, directMessages: !p.privateHub.directMessages }');
     expect(source).toContain('friendRequests: next, roomInvites: next');
-    expect(source).toContain('privateHub: { ...p.privateHub, roomMessages: mode }');
+    expect(source).toContain('privateHub: { ...p.privateHub, roomMessages: mode, roomMessagesChosen: true }');
   });
 });

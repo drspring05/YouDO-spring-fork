@@ -90,7 +90,7 @@ try {
   await db.query("update public.squad_members set status='accepted' where squad_id=$1 and user_id=$2", [id(90), id(2)]);
   check((await sent()).length === 0, 'accepting an invite does not push');
 
-  // Room chat: only @mentions of members push; ordinary messages stay in-app.
+  // Room chat: @mentions push; ordinary messages only to those who chose "All messages".
   await clear();
   await db.query('insert into public.squad_messages(squad_id,sender_id,content) values($1,$2,$3)', [id(90), id(1), 'Good session everyone']);
   check((await sent()).length === 0, 'an ordinary room message does not push');
@@ -101,9 +101,21 @@ try {
   await clear();
   await db.query('insert into public.squad_messages(squad_id,sender_id,content) values($1,$2,$3)', [id(90), id(1), 'email me at x@benny.com']);
   check((await sent()).length === 0, 'a username inside a longer word is not a mention');
-  await db.query("insert into public.push_preferences(user_id,room_messages) values($1,'off')", [id(2)]);
+  await db.query("insert into public.push_preferences(user_id,room_messages) values($1,'all') on conflict (user_id) do update set room_messages='all'", [id(3)]);
+  await db.query('insert into public.squad_messages(squad_id,sender_id,content) values($1,$2,$3)', [id(90), id(1), 'Break till 6']);
+  calls = await sent();
+  check(calls.length === 1 && calls[0].body.userIds.length === 1 && calls[0].body.userIds[0] === id(3), '"All messages" members get every room message');
+  check(calls[0].body.title === 'Night Owls' && calls[0].body.body === 'Asha: Break till 6' && calls[0].body.data.tag === `room-${id(90)}`, 'it names the room and the sender, one notification per room');
+  await clear();
+  await db.query('insert into public.squad_messages(squad_id,sender_id,content) values($1,$2,$3)', [id(90), id(1), '@chen your turn']);
+  calls = await sent();
+  check(calls.length === 1 && calls[0].body.userIds[0] === id(3) && /in Night Owls/.test(calls[0].body.title), 'a mentioned "All messages" member gets the mention, once');
+  await clear();
+  await db.query("insert into public.push_preferences(user_id,room_messages) values($1,'off') on conflict (user_id) do update set room_messages='off'", [id(2)]);
   await db.query('insert into public.squad_messages(squad_id,sender_id,content) values($1,$2,$3)', [id(90), id(1), '@ben ping']);
-  check((await sent()).length === 0, 'room notifications off silences mentions');
+  check(!(await sent()).some((call) => call.body.userIds.includes(id(2))), 'room notifications off silences mentions');
+  const roomDefault = await db.query("select column_default from information_schema.columns where table_name='push_preferences' and column_name='room_messages'");
+  check(String(roomDefault.rows[0].column_default).includes('mentions'), 'rooms default to mentions only');
 
   console.log(`PASS: ${checks} isolated PostgreSQL checks for Private Hub pushes (who, when, switches, previews, mentions).`);
 } finally {

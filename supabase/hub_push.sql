@@ -7,7 +7,8 @@
 --             friend request received, room invite received, join request
 --             (to the room's admins), your join request approved, @mention
 --             in a room chat.
---   in-app:   everything else (accepted requests, ordinary room messages, ...).
+--   in-app:   everything else (accepted requests, ...). Ordinary room messages
+--             push only to members who chose "All messages" (default: mentions).
 -- Data keys avoid FCM's reserved names ("from", "notification", "message_type",
 -- anything starting with "google" or "gcm"): one would make Google reject the push.
 -- Each person's switches live in push_preferences (mirrored from Settings ->
@@ -18,10 +19,13 @@ create table if not exists public.push_preferences (
   private_hub boolean not null default true,
   direct_messages boolean not null default true,
   requests boolean not null default true,
-  room_messages text not null default 'all' check (room_messages in ('all', 'mentions', 'off')),
+  room_messages text not null default 'mentions' check (room_messages in ('all', 'mentions', 'off')),
   message_previews boolean not null default true,
   updated_at timestamptz not null default now()
 );
+
+-- Calm by default: every room message only for those who choose it.
+alter table public.push_preferences alter column room_messages set default 'mentions';
 
 alter table public.push_preferences enable row level security;
 grant select, insert, update on table public.push_preferences to authenticated;
@@ -138,29 +142,52 @@ begin
   return null;
 end; $$;
 
--- 4. Room chat: only people @mentioned by username (ordinary messages stay in-app).
+-- 4. Room chat: people @mentioned by username hear about it unless they muted
+--    rooms; every other message reaches only members who chose "All messages".
+--    One notification per room (tag), updated in place.
 create or replace function private.push_room_mention()
 returns trigger language plpgsql security definer set search_path = '' as $$
 declare room_name text;
+declare sender text;
 declare mentioned uuid[];
+declare everyone uuid[];
 begin
-  if pg_catalog.strpos(new.content, '@') = 0 then return null; end if;
-  select pg_catalog.array_agg(m.user_id) into mentioned
+  if pg_catalog.strpos(new.content, '@') > 0 then
+    select pg_catalog.array_agg(m.user_id) into mentioned
+    from public.squad_members m
+    join public.profiles p on p.id = m.user_id
+    where m.squad_id = new.squad_id and m.status = 'accepted' and m.user_id <> new.sender_id
+      and new.content ~* ('(^|[^a-z0-9_])@'
+        || pg_catalog.regexp_replace(p.username, '([^a-zA-Z0-9_])', '\\\1', 'g')
+        || '([^a-z0-9_]|$)')
+      and private.push_wanted(m.user_id, 'mention');
+  end if;
+  -- Everyone else who chose "All messages" (no saved choice means mentions only).
+  select pg_catalog.array_agg(m.user_id) into everyone
   from public.squad_members m
-  join public.profiles p on p.id = m.user_id
+  join public.push_preferences pp on pp.user_id = m.user_id
   where m.squad_id = new.squad_id and m.status = 'accepted' and m.user_id <> new.sender_id
-    and new.content ~* ('(^|[^a-z0-9_])@'
-      || pg_catalog.regexp_replace(p.username, '([^a-zA-Z0-9_])', '\\\1', 'g')
-      || '([^a-z0-9_]|$)')
-    and private.push_wanted(m.user_id, 'mention');
-  if mentioned is null then return null; end if;
+    and pp.private_hub and pp.room_messages = 'all'
+    and not (m.user_id = any (coalesce(mentioned, '{}'::uuid[])));
+  if mentioned is null and everyone is null then return null; end if;
   select s.name into room_name from public.squads s where s.id = new.squad_id;
-  perform private.dispatch_push(
-    mentioned,
-    private.push_handle(new.sender_id) || ' in ' || coalesce(room_name, 'your room'),
-    pg_catalog.left(new.content, 140),
-    pg_catalog.jsonb_build_object('type', 'room', 'squad', new.squad_id, 'tag', 'room-' || new.squad_id, 'channel', 'private-hub')
-  );
+  sender := private.push_handle(new.sender_id);
+  if mentioned is not null then
+    perform private.dispatch_push(
+      mentioned,
+      sender || ' in ' || coalesce(room_name, 'your room'),
+      pg_catalog.left(new.content, 140),
+      pg_catalog.jsonb_build_object('type', 'room', 'squad', new.squad_id, 'tag', 'room-' || new.squad_id, 'channel', 'private-hub')
+    );
+  end if;
+  if everyone is not null then
+    perform private.dispatch_push(
+      everyone,
+      coalesce(room_name, 'Your room'),
+      sender || ': ' || pg_catalog.left(new.content, 120),
+      pg_catalog.jsonb_build_object('type', 'room', 'squad', new.squad_id, 'tag', 'room-' || new.squad_id, 'channel', 'private-hub')
+    );
+  end if;
   return null;
 end; $$;
 

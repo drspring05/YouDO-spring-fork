@@ -81,6 +81,16 @@ describe('notifications library', () => {
       expect(retrieved.enabled).toBe(true);
     });
 
+    it('rooms default to mentions; only a chosen "All messages" is kept', () => {
+      expect(DEFAULT_NOTIFICATION_PREFERENCES.privateHub.roomMessages).toBe('mentions');
+      const withRooms = (extra: Partial<NotificationPreferences['privateHub']>) =>
+        saveNotificationPreferences({ ...DEFAULT_NOTIFICATION_PREFERENCES, privateHub: { ...DEFAULT_NOTIFICATION_PREFERENCES.privateHub, ...extra } });
+      withRooms({ roomMessages: 'all' }); // the old default, never picked
+      expect(getNotificationPreferences().privateHub.roomMessages).toBe('mentions');
+      withRooms({ roomMessages: 'all', roomMessagesChosen: true });
+      expect(getNotificationPreferences().privateHub.roomMessages).toBe('all');
+    });
+
     it('gracefully fills missing fields when stored JSON is partial', () => {
       localStorage.setItem(
         STORAGE_KEYS.notificationPrefs,

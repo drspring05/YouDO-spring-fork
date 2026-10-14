@@ -33,6 +33,8 @@ export interface NotificationPreferences {
     friendRequests: boolean;
     roomInvites: boolean;
     roomMessages: RoomNotificationMode;
+    /** True once the person picked a room setting; older saves hold only the old default. */
+    roomMessagesChosen?: boolean;
     /** Show the message text in direct message notifications. */
     messagePreviews?: boolean;
   };
@@ -62,7 +64,7 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
     directMessages: true,
     friendRequests: true,
     roomInvites: true,
-    roomMessages: 'all',
+    roomMessages: 'mentions',
     messagePreviews: true,
   },
   publicHub: {
@@ -131,10 +133,12 @@ export function getNotificationPreferences(): NotificationPreferences {
             ? parsed.morningBriefing.selectedGoalId
             : DEFAULT_NOTIFICATION_PREFERENCES.morningBriefing.selectedGoalId,
       },
-      privateHub: {
-        ...DEFAULT_NOTIFICATION_PREFERENCES.privateHub,
-        ...(parsed.privateHub ?? {}),
-      },
+      privateHub: (() => {
+        const hub = { ...DEFAULT_NOTIFICATION_PREFERENCES.privateHub, ...(parsed.privateHub ?? {}) };
+        // "All messages" used to be the default; only a real choice keeps it.
+        if (hub.roomMessages === 'all' && !hub.roomMessagesChosen) hub.roomMessages = 'mentions';
+        return hub;
+      })(),
       publicHub: {
         ...DEFAULT_NOTIFICATION_PREFERENCES.publicHub,
         ...(parsed.publicHub ?? {}),

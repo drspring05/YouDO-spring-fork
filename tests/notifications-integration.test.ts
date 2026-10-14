@@ -188,6 +188,7 @@ describe('Notification Integration & Read-State Synchronization', () => {
         privateHub: {
           ...getNotificationPreferences().privateHub,
           roomMessages: 'all',
+          roomMessagesChosen: true,
         },
       };
       saveNotificationPreferences(prefs);
