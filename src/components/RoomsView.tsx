@@ -13,6 +13,7 @@ import {
   type Squad,
 } from '../lib/squads';
 import { PRIVATE_HUB_SYNC_EVENT } from '../lib/privateHubSync';
+import { fetchSquadUnreadCounts } from '../lib/messages';
 import { HubAvatarStack, HubEmpty, HubSection } from './hub/HubParts';
 
 interface Props {
@@ -34,6 +35,7 @@ export default function RoomsView({ onOpenRoom, onCreateRoom, onNotificationsCha
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ id: string; text: string; error?: boolean } | null>(null);
+  const [unread, setUnread] = useState<Record<string, number>>({});
 
   const reload = useCallback(async () => {
     if (!user) {
@@ -52,6 +54,7 @@ export default function RoomsView({ onOpenRoom, onCreateRoom, onNotificationsCha
     setDiscoverRooms(discover);
     setRequested(pending);
     setLoading(false);
+    setUnread(await fetchSquadUnreadCounts(user.id, mine.map((room) => room.squad.id)));
   }, [user]);
 
   useEffect(() => {
@@ -133,23 +136,31 @@ export default function RoomsView({ onOpenRoom, onCreateRoom, onNotificationsCha
             {rooms.map(({ squad, role, members, pendingRequests }) => {
               const bar = barLabel(squad.bar_hours);
               const isPrivate = normalizeSquadPrivacy(squad.privacy) === 'invite_only';
+              const newMessages = unread[squad.id] ?? 0;
               return (
                 <button key={squad.id} type="button" className="hub-row" onClick={() => onOpenRoom(squad.id)}>
-                  <span className="hub-room-tile" aria-hidden>{squad.description || '🔥'}</span>
+                  <span className="hub-room-tile relative" aria-hidden>
+                    {squad.description || '🔥'}
+                    {newMessages > 0 && <span className="hub-avatar-dot" />}
+                  </span>
                   <span className="hub-row-main">
                     <span className="hub-row-title">
                       <span className="hub-truncate">{squad.name}</span>
                       {isPrivate && <Lock size={12} className="shrink-0 text-content-muted" aria-label="Invite only" />}
                     </span>
-                    <span className={`hub-row-subtitle hub-truncate block ${pendingRequests > 0 ? 'text-primary' : ''}`}>
+                    <span className={`hub-row-subtitle hub-truncate block ${pendingRequests > 0 ? 'text-primary' : newMessages > 0 ? 'is-strong' : ''}`}>
                       {pendingRequests > 0
                         ? `${pendingRequests} ${pendingRequests === 1 ? 'request' : 'requests'} to join`
-                        : [role === 'admin' ? 'Admin' : 'Member', `${members.length} of ${ROOM_MEMBER_LIMIT}`, bar].filter(Boolean).join(' · ')}
+                        : newMessages > 0
+                          ? `${newMessages} new ${newMessages === 1 ? 'message' : 'messages'}`
+                          : [role === 'admin' ? 'Admin' : 'Member', `${members.length} of ${ROOM_MEMBER_LIMIT}`, bar].filter(Boolean).join(' · ')}
                     </span>
                   </span>
                   <span className="hub-row-trailing">
                     {pendingRequests > 0 ? (
                       <span className="hub-count is-alert" aria-hidden>{pendingRequests}</span>
+                    ) : newMessages > 0 ? (
+                      <span className="hub-count" aria-hidden>{newMessages > 99 ? '99+' : newMessages}</span>
                     ) : (
                       <HubAvatarStack people={members} />
                     )}

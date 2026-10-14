@@ -312,11 +312,11 @@ export async function updateSquadPrivacy(
 }
 
 export async function getSquadDetails(squadId: string): Promise<{ squad: Squad; members: SquadMember[] } | null> {
-  const { data: squad, error: squadErr } = await supabase
-    .from('squads')
-    .select('*')
-    .eq('id', squadId)
-    .single();
+  // The room and its members load together, not one after the other.
+  const [{ data: squad, error: squadErr }, { data: members, error: memErr }] = await Promise.all([
+    supabase.from('squads').select('*').eq('id', squadId).single(),
+    supabase.from('squad_members').select('*').eq('squad_id', squadId),
+  ]);
 
   if (squadErr || !squad) {
     if (squadErr) console.error('getSquadDetails squad:', squadErr);
@@ -324,11 +324,6 @@ export async function getSquadDetails(squadId: string): Promise<{ squad: Squad; 
   }
 
   normalizeSquadPrivacyInPlace(squad);
-
-  const { data: members, error: memErr } = await supabase
-    .from('squad_members')
-    .select('*')
-    .eq('squad_id', squadId);
 
   if (memErr || !members) {
     if (memErr) console.error('getSquadDetails members:', memErr);

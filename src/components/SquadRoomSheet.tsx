@@ -69,6 +69,9 @@ const WELCOME: Message = {
   system: true,
 };
 
+/** Rooms opened in this session, so reopening one shows it at once while it refreshes. */
+const roomCache = new Map<string, { squad: Squad; members: SquadMember[]; pace: Record<string, PaceRow>; statuses: Record<string, FocusStatus> }>();
+
 export default function SquadRoomSheet({ open, onClose, squadId, personalPace }: Props) {
   const { user } = useAuth();
   const [paceWindow, setPaceWindow] = useState<PaceWindow>('today');
@@ -95,6 +98,8 @@ export default function SquadRoomSheet({ open, onClose, squadId, personalPace }:
     if (res) {
       setSquad(res.squad);
       setMembers(res.members);
+      // Show the room now; focus totals fill in when they arrive.
+      setLoading(false);
       const accepted = res.members.filter((m) => m.status === 'accepted');
       const ids = accepted.map((m) => m.user_id);
       const names = Object.fromEntries(accepted.map((m) => [m.user_id, m.profiles?.display_name ?? '']));
@@ -107,6 +112,7 @@ export default function SquadRoomSheet({ open, onClose, squadId, personalPace }:
       }
       setPaceByUserId(map);
       setStatuses(focus);
+      roomCache.set(squadId, { squad: res.squad, members: res.members, pace: map, statuses: focus });
     } else {
       setSquad(null);
     }
@@ -115,7 +121,14 @@ export default function SquadRoomSheet({ open, onClose, squadId, personalPace }:
 
   useEffect(() => {
     if (!open || !squadId) return;
-    setLoading(true);
+    const cached = roomCache.get(squadId);
+    if (cached) {
+      setSquad(cached.squad);
+      setMembers(cached.members);
+      setPaceByUserId(cached.pace);
+      setStatuses(cached.statuses);
+    }
+    setLoading(!cached);
     setActiveTab('board');
     void fetchSquad();
     // Bring your own room copy up to date with your latest synced backup.
