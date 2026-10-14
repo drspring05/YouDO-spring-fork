@@ -69,6 +69,15 @@ html.light-dusky {
   --radius: 12px;
   --font-sans: 'Figtree', 'SF Pro Display', system-ui, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  /* Tokens the v8 parts shared by both looks (goal cards, Private Hub sheets)
+     expect, mapped onto this palette. */
+  --bg-fill: var(--bg-elevated);
+  --bg-fill-strong: var(--border-subtle);
+  --bg-sheet: var(--bg-elevated);
+  --separator: var(--border-subtle);
+  --font-display: var(--font-sans);
+  --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --safe-area-top: env(safe-area-inset-top, 0px);
 }
 
@@ -718,7 +727,8 @@ button {
 
 .card-session-active {
   border-color: var(--primary);
-  box-shadow: 0 0 0 1px var(--ring);
+  /* Inside the edge, so a clipping list can't crop it at the sides. */
+  box-shadow: inset 0 0 0 1px var(--ring);
 }
 
 .field {
@@ -1590,10 +1600,13 @@ html[data-native-shell='true'] .auth-scroll-page { height: 100%; }
   transition: background 180ms ease;
 }
 
-.settings-data-row > div {
+/* Only the leading label block flexes; trailing controls (segmented
+   pickers, switches) keep their natural size. */
+.settings-data-row > div:first-child {
   min-width: 0;
   flex: 1 1 auto;
 }
+.settings-data-row > div:not(:first-child) { flex: 0 0 auto; }
 
 .settings-data-row > svg:last-child,
 .settings-data-row > button:last-child {

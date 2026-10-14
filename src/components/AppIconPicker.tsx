@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Check } from 'lucide-react';
 import { APP_ICONS, APP_ICON_MARK, DEFAULT_APP_ICON, getAppIcon, setAppIcon, supportsNativeAppIcon, type AppIconVariant } from '../lib/appIcon';
 import { hapticTick } from '../lib/haptics';
+import './appIconPicker.css';
 
 export function AppIconTile({ icon, size = 52 }: { icon: AppIconVariant; size?: number }) {
   const scale = (size * 0.5) / 16;

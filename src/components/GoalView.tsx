@@ -42,6 +42,7 @@ import { goalBranchContainsTask, nextOpenItem } from '../lib/goalTree';
 import { daysBetweenLocalISO, deadlineDaysLabel, goalTimingLabel, todayISO } from '../lib/dates';
 import ActivityRing from './ActivityRing';
 import { hapticTick } from '../lib/haptics';
+import './goalCard.css';
 
 /** Touch screens select with a long press; native drag there lifts rows at the slightest movement. */
 const coarsePointer = typeof window !== 'undefined' && Boolean(window.matchMedia?.('(pointer: coarse)').matches);
