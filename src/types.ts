@@ -33,6 +33,12 @@ export interface Task {
   /** Phone-calendar event created for this task, and the calendar it lives in. Both are ids from this phone. */
   calendarEventId?: string;
   calendarId?: string;
+  /**
+   * Which YouDO install created that event. The event id only means something on that phone, so a task
+   * restored onto another phone keeps its link but is never synced there. Missing on links made before
+   * this field existed; the first sync on the phone claims those.
+   */
+  calendarDeviceId?: string;
 }
 
 export interface SessionStopOutcome {
