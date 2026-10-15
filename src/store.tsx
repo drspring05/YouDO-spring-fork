@@ -12,6 +12,8 @@ import {
 import type { ActiveSession, GoalNode, SessionStopOutcome, Task, TaskSession } from './types';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { useSessionJournal } from './hooks/useSessionJournal';
+import { useTaskCalendarSync, withoutCalendarLink } from './hooks/useTaskCalendarSync';
+import CalendarEventGonePrompt from './components/CalendarEventGonePrompt';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { Capacitor } from '@capacitor/core';
 import { Share } from '@capacitor/share';
@@ -376,6 +378,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const tasksRef = useRef(tasks);
   tasksRef.current = tasks;
+  // Keeps tasks and their phone-calendar events in step (Android only; does nothing elsewhere).
+  const calendarSync = useTaskCalendarSync(tasks, tasksRef, setTasks);
+  const { releaseEvents } = calendarSync;
   const goalsRef = useRef(goals);
   goalsRef.current = goals;
   const sessionHistoryRef = useRef(sessionHistory);
@@ -618,8 +623,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const removeTask = useCallback((id: string) => {
     if (activeSessionRef.current?.taskId === id) return;
+    const removed = tasksRef.current.find((t) => t.id === id);
     setTasks((prev) => prev.filter((t) => t.id !== id));
-  }, [activeSessionRef, setTasks]);
+    if (removed) releaseEvents([removed]);
+  }, [activeSessionRef, setTasks, releaseEvents]);
 
   const reorder = useCallback(
     (fromId: string, toId: string) => {
@@ -758,10 +765,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (associatedTasks.length > 0) {
         const removeSet = new Set(associatedTasks.map((task) => task.id));
         setTasks((prev) => prev.filter((t) => !removeSet.has(t.id)));
+        releaseEvents(associatedTasks);
       }
       setGoals((prev) => removeGoalBranch(prev, rootId, nodeId));
     },
-    [activeSessionRef, setGoals, setTasks, setRecentlyDeletedGoals],
+    [activeSessionRef, setGoals, setTasks, setRecentlyDeletedGoals, releaseEvents],
   );
 
   /* ---------- Plan task (push to a date) ---------- */
@@ -879,6 +887,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const task = tasksRef.current.find((t) => t.id === taskId);
       const goalNodeId = task?.goalNodeId;
       setTasks((prev) => prev.filter((t) => t.id !== taskId));
+      if (task) releaseEvents([task]);
       setGoals((prev) =>
         prev.map((root) =>
           goalNodeId
@@ -887,7 +896,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         ),
       );
     },
-    [activeSessionRef, setTasks, setGoals],
+    [activeSessionRef, setTasks, setGoals, releaseEvents],
   );
 
   const toggleGoalStep = useCallback(
@@ -1135,11 +1144,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       if (taskIdsToRemove.length) {
         const removeTaskSet = new Set(taskIdsToRemove);
+        releaseEvents(tasksRef.current.filter((t) => removeTaskSet.has(t.id)));
         setTasks((prev) => prev.filter((t) => !removeTaskSet.has(t.id)));
       }
       setGoals((prev) => prev.map((root) => recomputeCompleted(removeNodes(root, idSet))).filter((r) => !idSet.has(r.id)));
     },
-    [activeSessionRef, setGoals, setTasks, setRecentlyDeletedGoals],
+    [activeSessionRef, setGoals, setTasks, setRecentlyDeletedGoals, releaseEvents],
   );
 
   const clearDeletedNotification = useCallback(() => {
@@ -1153,7 +1163,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const restored = restoreDeletedBranch(goalsRef.current, tasksRef.current, record);
       if (!restored) return false;
       setGoals(restored.goals);
-      setTasks(restored.tasks);
+      // The calendar events of these tasks were deleted with them, so the restored tasks start unlinked.
+      const revived = new Set((record.tasks ?? []).map((task) => task.id));
+      setTasks(restored.tasks.map((task) => (revived.has(task.id) ? withoutCalendarLink(task) : task)));
 
       setRecentlyDeletedGoals((prev) => prev.filter((r) => r.id !== recordId));
       setLastDeletedNotification(null);
@@ -2031,7 +2043,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }
   return (
     <DataCtx.Provider value={dataValue}>
-      <SessionCtx.Provider value={sessionValue}>{children}</SessionCtx.Provider>
+      <SessionCtx.Provider value={sessionValue}>
+        {children}
+        <CalendarEventGonePrompt
+          tasks={calendarSync.gone}
+          onDeleteTask={(id) => {
+            removeTask(id);
+            calendarSync.askLater(id);
+          }}
+          onKeepTask={calendarSync.keepWithoutEvent}
+          onLater={calendarSync.askLater}
+        />
+      </SessionCtx.Provider>
     </DataCtx.Provider>
   );
 }
