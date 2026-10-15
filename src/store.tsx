@@ -13,6 +13,7 @@ import type { ActiveSession, GoalNode, SessionStopOutcome, Task, TaskSession } f
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { useSessionJournal } from './hooks/useSessionJournal';
 import { useTaskCalendarSync, withoutCalendarLink } from './hooks/useTaskCalendarSync';
+import { useGoalCalendarSync } from './hooks/useGoalCalendarSync';
 import CalendarEventGonePrompt from './components/CalendarEventGonePrompt';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { Capacitor } from '@capacitor/core';
@@ -380,9 +381,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   tasksRef.current = tasks;
   // Keeps tasks and their phone-calendar events in step (Android only; does nothing elsewhere).
   const calendarSync = useTaskCalendarSync(tasks, tasksRef, setTasks);
-  const { releaseEvents } = calendarSync;
+  const { releaseEvents, linkPlanned } = calendarSync;
   const goalsRef = useRef(goals);
   goalsRef.current = goals;
+  // Open goal items that have dates appear on the phone calendar (Android only; does nothing elsewhere).
+  useGoalCalendarSync(goals);
   const sessionHistoryRef = useRef(sessionHistory);
   sessionHistoryRef.current = sessionHistory;
   const streakMetaRef = useRef(streakMeta);
@@ -819,8 +822,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setGoals((prev) =>
         prev.map((root) => updateNode(root, target.id, (n) => ({ ...n, todayTaskId: taskId }))),
       );
+      void linkPlanned([taskBase]);
     },
-    [activeSessionRef, setTasks, setGoals],
+    [activeSessionRef, setTasks, setGoals, linkPlanned],
   );
 
   const planBatch = useCallback(
@@ -877,8 +881,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           return working;
         }),
       );
+      void linkPlanned([...newTasks, ...rescheduledTasks.values()]);
     },
-    [activeSessionRef, setTasks, setGoals],
+    [activeSessionRef, setTasks, setGoals, linkPlanned],
   );
 
   const unlinkTask = useCallback(
