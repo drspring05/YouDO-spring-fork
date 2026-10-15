@@ -28,11 +28,22 @@ export interface DeviceCalendar {
   visible: boolean;
 }
 
+/** What the Android plugin needs to put one event on a calendar. Same epoch rules as `RawDeviceEvent`. */
+export interface NewDeviceEvent {
+  calendarId: string;
+  title: string;
+  description: string;
+  allDay: boolean;
+  begin: number;
+  end: number;
+}
+
 interface YouDoCalendarPlugin {
   checkPermissions(): Promise<PermissionStatus>;
   requestPermissions(options?: { permissions: PermissionAlias[] }): Promise<PermissionStatus>;
   listCalendars(): Promise<{ calendars: DeviceCalendar[] }>;
   listEvents(options: { start: number; end: number }): Promise<{ events: RawDeviceEvent[]; truncated: boolean }>;
+  createEvent(options: NewDeviceEvent): Promise<{ id: string }>;
   openAppSettings(): Promise<void>;
 }
 
@@ -57,6 +68,11 @@ export async function listDeviceCalendars(): Promise<DeviceCalendar[]> {
 
 export async function listRawDeviceEvents(start: number, end: number): Promise<RawDeviceEvent[]> {
   return (await YouDoCalendar.listEvents({ start, end })).events;
+}
+
+/** Adds an event to the phone calendar and returns its id. */
+export async function createDeviceEvent(event: NewDeviceEvent): Promise<string> {
+  return (await YouDoCalendar.createEvent(event)).id;
 }
 
 export async function openDeviceCalendarSettings(): Promise<void> {
