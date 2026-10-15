@@ -1,12 +1,17 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
 import {
+  createDeviceEvent,
   deleteDeviceEvent,
   getDeviceCalendarPermission,
   getDeviceEvents,
+  listDeviceCalendars,
+  requestDeviceCalendarAccess,
   supportsDeviceCalendar,
   updateDeviceEvent,
   type RawDeviceEvent,
 } from '../lib/nativeCalendar';
+import { readPlannedTasksToCalendar } from '../lib/calendarPrefs';
+import { chooseTaskCalendar, readTaskCalendarId } from '../lib/taskSchedule';
 import {
   getCalendarDeviceId,
   hasChanges,
@@ -15,6 +20,7 @@ import {
   readPendingDeletes,
   readSnapshots,
   reconcile,
+  taskWhen,
   writePendingDeletes,
   writeSnapshots,
 } from '../lib/taskCalendarSync';
@@ -218,6 +224,58 @@ export function useTaskCalendarSync(
     [supported],
   );
 
+  /**
+   * Gives tasks that were just planned (from the Goals tab, say) an all-day event on the phone calendar.
+   * Tasks that already have an event, or have no date, are left alone. Does nothing when the user has
+   * switched this off, or when calendar access is not granted (it asks once if it was never asked).
+   */
+  const linkPlanned = useCallback(
+    async (planned: Task[]) => {
+      if (!supported || !readPlannedTasksToCalendar()) return;
+      const candidates = planned.filter((task) => task.targetDate && !task.calendarEventId);
+      if (!candidates.length) return;
+      try {
+        let access = await getDeviceCalendarPermission();
+        if (access === 'prompt' || access === 'prompt-with-rationale') access = await requestDeviceCalendarAccess();
+        if (access !== 'granted') return;
+        const target = chooseTaskCalendar(await listDeviceCalendars(), readTaskCalendarId());
+        if (!target) return;
+        const deviceId = getCalendarDeviceId();
+        const links = new Map<string, Pick<Task, 'calendarEventId' | 'calendarId' | 'calendarDeviceId' | 'allDay'>>();
+        for (const task of candidates) {
+          const when = taskWhen({ ...task, allDay: true, startTime: undefined, endTime: undefined });
+          if (!when) continue;
+          const eventId = await createDeviceEvent({
+            calendarId: target.id,
+            title: task.title,
+            description: task.description,
+            allDay: true,
+            begin: when.begin,
+            end: when.end,
+          });
+          if (!tasksRef.current.some((item) => item.id === task.id)) {
+            // The task was removed while its event was being made; don't leave the event behind.
+            void deleteDeviceEvent(eventId).catch(() => undefined);
+            continue;
+          }
+          links.set(task.id, { calendarEventId: eventId, calendarId: target.id, calendarDeviceId: deviceId, allDay: true });
+        }
+        if (links.size) {
+          setTasks((prev) =>
+            prev.map((task) => {
+              const link = links.get(task.id);
+              return link && !task.calendarEventId ? { ...task, ...link } : task;
+            }),
+          );
+          notifyCalendarChanged();
+        }
+      } catch {
+        // No calendar event this time; the task itself is unaffected and can be planned again.
+      }
+    },
+    [supported, tasksRef, setTasks],
+  );
+
   /** The user chose to keep a task whose event is gone: it stops being linked. */
   const keepWithoutEvent = useCallback(
     (taskId: string) => {
@@ -234,10 +292,10 @@ export function useTaskCalendarSync(
     setGone((current) => current.filter((task) => task.id !== taskId));
   }, []);
 
-  return { gone, releaseEvents, keepWithoutEvent, askLater };
+  return { gone, releaseEvents, keepWithoutEvent, askLater, linkPlanned };
 }
 
-function notifyCalendarChanged() {
+export function notifyCalendarChanged() {
   window.dispatchEvent(new Event(CALENDAR_CHANGED_EVENT));
 }
 
