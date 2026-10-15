@@ -17,6 +17,8 @@ export interface RawDeviceEvent {
   end: number;
   color: string;
   writable: boolean;
+  /** True for a repeating event (the series itself, not a single edited occurrence). */
+  recurring?: boolean;
 }
 
 export interface DeviceCalendar {
@@ -38,12 +40,26 @@ export interface NewDeviceEvent {
   end: number;
 }
 
+/** Fields of an existing event that can be changed. Anything left out stays as it is. */
+export interface DeviceEventChanges {
+  title?: string;
+  description?: string;
+  location?: string;
+  allDay?: boolean;
+  /** epoch ms, same rules as `RawDeviceEvent`. Send `allDay`, `begin` and `end` together. */
+  begin?: number;
+  end?: number;
+}
+
 interface YouDoCalendarPlugin {
   checkPermissions(): Promise<PermissionStatus>;
   requestPermissions(options?: { permissions: PermissionAlias[] }): Promise<PermissionStatus>;
   listCalendars(): Promise<{ calendars: DeviceCalendar[] }>;
   listEvents(options: { start: number; end: number }): Promise<{ events: RawDeviceEvent[]; truncated: boolean }>;
+  getEvents(options: { ids: string[] }): Promise<{ events: RawDeviceEvent[] }>;
   createEvent(options: NewDeviceEvent): Promise<{ id: string }>;
+  updateEvent(options: DeviceEventChanges & { id: string }): Promise<{ updated: boolean }>;
+  deleteEvent(options: { id: string }): Promise<{ deleted: boolean }>;
   openAppSettings(): Promise<void>;
 }
 
@@ -70,9 +86,28 @@ export async function listRawDeviceEvents(start: number, end: number): Promise<R
   return (await YouDoCalendar.listEvents({ start, end })).events;
 }
 
+/**
+ * Looks events up by id, whatever date they are on. An id that is missing from the result no longer
+ * exists on the phone (deleted, or its calendar was removed).
+ */
+export async function getDeviceEvents(ids: string[]): Promise<RawDeviceEvent[]> {
+  if (!ids.length) return [];
+  return (await YouDoCalendar.getEvents({ ids })).events;
+}
+
 /** Adds an event to the phone calendar and returns its id. */
 export async function createDeviceEvent(event: NewDeviceEvent): Promise<string> {
   return (await YouDoCalendar.createEvent(event)).id;
+}
+
+/** Changes the event itself (the whole series, for a repeating event). Resolves false when the event is gone. */
+export async function updateDeviceEvent(id: string, changes: DeviceEventChanges): Promise<boolean> {
+  return (await YouDoCalendar.updateEvent({ ...changes, id })).updated;
+}
+
+/** Resolves true when an event was removed, false when it was already gone. */
+export async function deleteDeviceEvent(id: string): Promise<boolean> {
+  return (await YouDoCalendar.deleteEvent({ id })).deleted;
 }
 
 export async function openDeviceCalendarSettings(): Promise<void> {
