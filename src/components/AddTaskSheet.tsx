@@ -26,6 +26,7 @@ import {
   writeTaskCalendarId,
   type ScheduleDraft,
 } from '../lib/taskSchedule';
+import { getCalendarDeviceId } from '../lib/taskCalendarSync';
 
 interface Props {
   open: boolean;
@@ -111,7 +112,7 @@ export default function AddTaskSheet({ open, onClose, onAdd, initialDate }: Prop
   const canSubmit = Boolean(title.trim()) && !isTitleTooLong(title) && !timeError && !busy;
 
   /** Puts the task on the phone calendar and returns the ids that link the two. */
-  const createLinkedEvent = async (date: string): Promise<Pick<Task, 'calendarEventId' | 'calendarId'>> => {
+  const createLinkedEvent = async (date: string): Promise<Pick<Task, 'calendarEventId' | 'calendarId' | 'calendarDeviceId'>> => {
     let access = await getDeviceCalendarPermission();
     if (access !== 'granted') access = await requestDeviceCalendarAccess();
     if (access !== 'granted') {
@@ -132,13 +133,13 @@ export default function AddTaskSheet({ open, onClose, onAdd, initialDate }: Prop
       ...slot,
     });
     writeTaskCalendarId(target.id);
-    return { calendarEventId: id, calendarId: target.id };
+    return { calendarEventId: id, calendarId: target.id, calendarDeviceId: getCalendarDeviceId() };
   };
 
   const submit = async () => {
     if (!canSubmit) return;
     const date = targetDate || null;
-    let link: Pick<Task, 'calendarEventId' | 'calendarId'> = {};
+    let link: Pick<Task, 'calendarEventId' | 'calendarId' | 'calendarDeviceId'> = {};
     if (wantsCalendar && date) {
       setBusy(true);
       setCalendarError('');
