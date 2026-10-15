@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { useMemo, useState, useEffect, useRef, type TouchEvent as ReactTouchEvent } from 'react';
 import Overlay from './Overlay';
 import { useLocalDay } from '../hooks/useLocalDay';
 import CalendarDateDial from './CalendarDateDial';
@@ -9,8 +9,8 @@ import OriginChip from './OriginChip';
 import type { Task } from '../types';
 import { localISODate, pathTitles, useStore, isOpenBacklogTask } from '../store';
 import { useDeviceCalendar } from '../hooks/useDeviceCalendar';
-import { eventTimeLabel, groupDeviceEventsByDay } from '../lib/deviceCalendar';
-import { shiftLocalISO } from '../lib/dates';
+import { eventTimeLabel, groupDeviceEventsByDay, type DeviceCalendarEvent } from '../lib/deviceCalendar';
+import { chunkWeeks, layoutWeek, MAX_BAR_LANES, monthGridDays, readableTextColor } from '../lib/monthLayout';
 import { formatDuration } from '../lib/format';
 import { buildSessionSummary, isCountableSession, sessionOverlapsLocalDate } from '../lib/sessionStats';
 import { taskCompletionModeOnDate, taskOccurrenceOnDate, taskTimelineDates } from '../lib/taskTimeline';
@@ -23,6 +23,108 @@ interface Props {
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+type CalendarViewMode = 'month' | 'agenda';
+const VIEW_LABELS: Record<CalendarViewMode, string> = { month: 'Month', agenda: 'Agenda' };
+
+interface MonthWeekRowProps {
+  days: string[];
+  events: DeviceCalendarEvent[];
+  /** 0-11, used to dim the days that belong to the neighbouring months */
+  month: number;
+  todayStr: string;
+  selectedDate: string | null;
+  tasksByDate: Record<string, Task[]>;
+  onSelect: (date: string) => void;
+}
+
+/** One week of the month grid: tappable day cells underneath, date numbers and colored event bars on top. */
+function MonthWeekRow({ days, events, month, todayStr, selectedDate, tasksByDate, onSelect }: MonthWeekRowProps) {
+  const layout = useMemo(() => layoutWeek(days, events), [days, events]);
+
+  return (
+    <div className="relative border-t border-subtle first:border-t-0">
+      <div className="absolute inset-0 grid grid-cols-7">
+        {days.map((date) => {
+          const count = events.filter((ev) => ev.startDay <= date && ev.endDay >= date).length;
+          const fullDate = new Date(date + 'T12:00:00').toLocaleDateString(undefined, { dateStyle: 'full' });
+          return (
+            <button
+              key={date}
+              type="button"
+              aria-pressed={date === selectedDate}
+              aria-label={count > 0 ? `${fullDate}, ${count} calendar ${count === 1 ? 'event' : 'events'}` : fullDate}
+              onClick={() => onSelect(date)}
+              className={`border-r border-subtle last:border-r-0 transition-colors ${date === selectedDate ? 'bg-primary-soft' : ''}`}
+            />
+          );
+        })}
+      </div>
+      <div
+        className="relative pointer-events-none grid grid-cols-7 py-1"
+        style={{ gridTemplateRows: `20px repeat(${MAX_BAR_LANES}, 15px)`, rowGap: 2 }}
+      >
+        {days.map((date, col) => {
+          const inMonth = new Date(date + 'T12:00:00').getMonth() === month;
+          const isToday = date === todayStr;
+          const isSelected = date === selectedDate;
+          const dayTasks = tasksByDate[date] ?? [];
+          const allDone = dayTasks.length > 0 && dayTasks.every((task) => taskOccurrenceOnDate(task, date)?.completedOnDate);
+          const hidden = layout.hidden[col];
+          return (
+            <div
+              key={date}
+              style={{ gridColumn: col + 1, gridRow: 1 }}
+              className={`flex items-center justify-between px-1 ${inMonth ? '' : 'opacity-40'}`}
+            >
+              <span className="inline-flex items-baseline">
+                <span
+                  className={`min-w-[20px] h-5 px-1 rounded-full inline-flex items-center justify-center text-[11px] tabular-nums ${
+                    isSelected
+                      ? 'bg-primary text-on-primary font-semibold'
+                      : isToday
+                        ? 'bg-primary-soft text-primary-glow border border-primary/20 font-bold'
+                        : 'text-content-primary font-medium'
+                  }`}
+                >
+                  {Number(date.slice(8))}
+                </span>
+                {dayTasks.length > 0 && (
+                  <sup className={`task-sup font-bold ${allDone && !isSelected ? 'text-secondary' : 'text-warning'}`}>
+                    {dayTasks.length}
+                  </sup>
+                )}
+              </span>
+              {hidden > 0 && <span className="text-[9px] font-bold text-content-secondary">+{hidden}</span>}
+            </div>
+          );
+        })}
+        {layout.bars.map((bar) => {
+          const { event } = bar;
+          const left = bar.continuesBefore ? 0 : 4;
+          const right = bar.continuesAfter ? 0 : 4;
+          return (
+            <div
+              key={`${event.key}:${bar.startCol}`}
+              className="truncate text-[9.5px] leading-[15px] font-semibold px-1"
+              style={{
+                gridColumn: `${bar.startCol + 1} / ${bar.endCol + 2}`,
+                gridRow: bar.lane + 2,
+                backgroundColor: event.color,
+                color: readableTextColor(event.color),
+                marginLeft: bar.continuesBefore ? 0 : 2,
+                marginRight: bar.continuesAfter ? 0 : 2,
+                borderRadius: `${left}px ${right}px ${right}px ${left}px`,
+              }}
+            >
+              {event.title || '(No title)'}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) {
   const { goals, sessionHistory } = useStore();
   const [cursor, setCursor] = useState(() => {
@@ -31,7 +133,8 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
   });
   const todayStr = useLocalDay();
   const [selectedDate, setSelectedDate] = useState<string | null>(todayStr);
-  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [view, setView] = useState<CalendarViewMode>('month');
+  const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const previousToday = useRef(todayStr);
   useEffect(() => {
     if (todayStr !== previousToday.current && selectedDate === previousToday.current) {
@@ -76,20 +179,14 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
   const month = cursor.getMonth();
   const monthName = cursor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 
-  const firstDay = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  // Every day the month grid shows, including the neighbouring months' days that fill the first and last week.
+  const gridDays = useMemo(() => monthGridDays(year, month), [year, month]);
+  const weeks = useMemo(() => chunkWeeks(gridDays), [gridDays]);
+  const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
 
-  // Phone calendar events for the visible month, with a week of slack either side.
-  const deviceCalendar = useDeviceCalendar(
-    shiftLocalISO(localISODate(new Date(year, month, 1)), -7),
-    shiftLocalISO(localISODate(new Date(year, month, daysInMonth)), 7),
-  );
+  // Phone calendar events for everything the grid shows.
+  const deviceCalendar = useDeviceCalendar(gridDays[0], gridDays[gridDays.length - 1]);
   const eventsByDay = useMemo(() => groupDeviceEventsByDay(deviceCalendar.events), [deviceCalendar.events]);
-
-  const cells: (number | null)[] = [];
-  for (let i = 0; i < firstDay; i++) cells.push(null);
-  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
-  while (cells.length % 7 !== 0) cells.push(null);
 
   const prevMonth = () => setCursor(new Date(year, month - 1, 1));
   const nextMonth = () => setCursor(new Date(year, month + 1, 1));
@@ -107,6 +204,30 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
     const parsed = new Date(date + 'T12:00:00');
     setCursor(new Date(parsed.getFullYear(), parsed.getMonth(), 1));
   };
+  const showTodayButton = selectedDate !== todayStr || monthKey !== todayStr.slice(0, 7);
+
+  // Swipe the month grid sideways to change month; mostly-vertical drags are left to normal scrolling.
+  const onGridTouchStart = (event: ReactTouchEvent) => {
+    const touch = event.touches[0];
+    swipeStart.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
+  };
+  const onGridTouchEnd = (event: ReactTouchEvent) => {
+    const start = swipeStart.current;
+    swipeStart.current = null;
+    const touch = event.changedTouches[0];
+    if (!start || !touch) return;
+    const dx = touch.clientX - start.x;
+    const dy = touch.clientY - start.y;
+    if (Math.abs(dx) < 56 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    hapticTick();
+    if (dx < 0) nextMonth();
+    else prevMonth();
+  };
+
+  // Agenda: only the days of this month that have something on them.
+  const agendaDays = gridDays.filter(
+    (date) => date.startsWith(monthKey) && ((eventsByDay[date]?.length ?? 0) > 0 || (tasksByDate[date]?.length ?? 0) > 0),
+  );
 
   // Gather sessions for modal date
   const modalDateSessions = useMemo(() => {
@@ -185,12 +306,36 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
   return (
     <div className="calendar-workspace">
       <CalendarDateDial value={selectedDate ?? todayStr} today={todayStr} onChange={selectDay} />
-      <button type="button" className="calendar-expand" aria-expanded={calendarOpen} aria-controls="calendar-month-grid" onClick={() => setCalendarOpen((open) => !open)}>
-        <span>{calendarOpen ? 'Close calendar' : 'Choose another date'}</span><ChevronDown size={16} className={calendarOpen ? 'rotate-180' : ''} />
-      </button>
-      {calendarOpen && <div id="calendar-month-grid" className="calendar-month-panel">
+      <div className="flex items-center justify-between gap-2">
+        <div role="tablist" aria-label="Calendar view" className="inline-flex p-0.5 rounded-xl bg-surface border border-subtle">
+          {(Object.keys(VIEW_LABELS) as CalendarViewMode[]).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              role="tab"
+              aria-selected={view === mode}
+              onClick={() => setView(mode)}
+              className={`px-3.5 h-8 rounded-[10px] text-[12px] font-semibold transition-colors ${
+                view === mode ? 'bg-primary text-on-primary' : 'text-content-secondary'
+              }`}
+            >
+              {VIEW_LABELS[mode]}
+            </button>
+          ))}
+        </div>
+        {showTodayButton && (
+          <button
+            type="button"
+            onClick={() => selectDay(todayStr)}
+            className="h-8 px-3 rounded-xl text-[12px] font-semibold text-primary bg-primary-soft border border-primary/20"
+          >
+            Today
+          </button>
+        )}
+      </div>
+
       {/* Month navigation */}
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between">
         <button type="button" aria-label="Previous month" onClick={prevMonth} className="p-2 rounded-lg text-content-secondary hover:text-content-primary hover:bg-surface transition-colors">
           <ChevronLeft size={18} />
         </button>
@@ -200,69 +345,81 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
         </button>
       </div>
 
-      {/* Calendar grid */}
-      <div className="bg-surface border border-subtle rounded-2xl shadow-card p-3.5">
-        <div className="grid grid-cols-7 mb-2">
-          {WEEKDAYS.map((d) => (
-            <div key={d} className="text-center text-[10px] font-bold uppercase tracking-wider text-content-secondary py-1">{d}</div>
+      {view === 'month' ? (
+        <div
+          className="bg-surface border border-subtle rounded-2xl shadow-card overflow-hidden"
+          onTouchStart={onGridTouchStart}
+          onTouchEnd={onGridTouchEnd}
+        >
+          <div className="grid grid-cols-7 border-b border-subtle">
+            {WEEKDAYS.map((d) => (
+              <div key={d} className="text-center text-[10px] font-bold uppercase tracking-wider text-content-secondary py-1.5">{d}</div>
+            ))}
+          </div>
+          {weeks.map((days) => (
+            <MonthWeekRow
+              key={days[0]}
+              days={days}
+              events={deviceCalendar.events}
+              month={month}
+              todayStr={todayStr}
+              selectedDate={selectedDate}
+              tasksByDate={tasksByDate}
+              onSelect={selectDay}
+            />
           ))}
         </div>
-        <div className="grid grid-cols-7 gap-1">
-          {cells.map((day, i) => {
-            if (day === null) return <div key={i} />;
-            const dateStr = localISODate(new Date(year, month, day));
-            const dayTasks = tasksByDate[dateStr] ?? [];
-            const isToday = dateStr === todayStr;
-            const isSelected = dateStr === selectedDate;
-            const hasTasks = dayTasks.length > 0;
-            const allDone = hasTasks && dayTasks.every((task) => taskOccurrenceOnDate(task, dateStr)?.completedOnDate);
-            const dayEvents = eventsByDay[dateStr] ?? [];
-            const fullDate = new Date(dateStr + 'T12:00:00').toLocaleDateString(undefined, { dateStyle: 'full' });
-
-            return (
-              <button
-                key={i}
-                type="button"
-                aria-pressed={isSelected}
-                aria-label={dayEvents.length > 0 ? `${fullDate}, ${dayEvents.length} calendar ${dayEvents.length === 1 ? 'event' : 'events'}` : fullDate}
-                onClick={() => selectDay(dateStr)}
-                className={`relative aspect-square rounded-xl flex items-center justify-center transition-all text-[13px] font-medium ${
-                  isSelected
-                    ? 'bg-primary text-on-primary font-semibold'
-                    : isToday
-                      ? 'bg-primary-soft text-primary-glow font-bold border border-primary/20'
-                      : 'text-content-primary hover:bg-surface'
-                }`}
-              >
-                {/* Math Superscript Notation x^n */}
-                <span className="inline-flex items-baseline">
-                  <span>{day}</span>
-                  {hasTasks && (
-                    <sup className={`task-sup font-bold ${
-                      isSelected
-                        ? 'text-warning'
-                        : allDone
-                          ? 'text-secondary'
-                          : 'text-warning'
-                    }`}>
-                      {dayTasks.length}
-                    </sup>
-                  )}
-                </span>
-                {dayEvents.length > 0 && (
-                  <span className="absolute bottom-1 left-1/2 -translate-x-1/2 flex gap-0.5" aria-hidden>
-                    {dayEvents.slice(0, 3).map((ev) => (
-                      <span key={ev.key} className="w-1 h-1 rounded-full" style={{ backgroundColor: ev.color }} />
+      ) : (
+        <div className="bg-surface border border-subtle rounded-2xl shadow-card overflow-hidden">
+          {agendaDays.length === 0 ? (
+            <p className="p-6 text-center text-content-secondary text-xs">Nothing planned in {monthName}.</p>
+          ) : (
+            agendaDays.map((date) => {
+              const dayEvents = eventsByDay[date] ?? [];
+              const dayTasks = tasksByDate[date] ?? [];
+              const isSelected = date === selectedDate;
+              return (
+                <section key={date} className="border-t border-subtle first:border-t-0">
+                  <button
+                    type="button"
+                    aria-pressed={isSelected}
+                    onClick={() => selectDay(date)}
+                    className={`w-full flex items-center justify-between px-3.5 py-2 text-left ${isSelected ? 'bg-primary-soft' : ''}`}
+                  >
+                    <span className={`text-[12.5px] font-bold ${date === todayStr ? 'text-primary-glow' : 'text-content-primary'}`}>
+                      {new Date(date + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                    </span>
+                    {date === todayStr && <span className="text-[10px] font-bold uppercase tracking-wider text-primary-glow">Today</span>}
+                  </button>
+                  <ul className="px-3.5 pb-2.5 space-y-1.5">
+                    {dayEvents.map((ev) => (
+                      <li key={ev.key} className="flex gap-2.5 items-stretch">
+                        <span className="w-1 rounded-full shrink-0" style={{ backgroundColor: ev.color }} aria-hidden />
+                        <div className="min-w-0">
+                          <p className="text-[13px] font-semibold text-content-primary leading-snug truncate">{ev.title || '(No title)'}</p>
+                          <p className="text-[11px] text-content-secondary tabular-nums">{eventTimeLabel(ev, date)}</p>
+                        </div>
+                      </li>
                     ))}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+                    {dayTasks.map((task) => {
+                      const resolved = taskOccurrenceOnDate(task, date)?.resolved;
+                      return (
+                        <li key={task.id} className="flex gap-2.5 items-center">
+                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ml-[1px] ${resolved ? 'bg-secondary/30' : 'bg-primary'}`} aria-hidden />
+                          <p className={`min-w-0 flex-1 text-[13px] leading-snug truncate ${resolved ? 'line-through text-content-muted' : 'text-content-primary'}`}>{task.title}</p>
+                          <span className="text-[11px] font-bold tabular-nums text-content-secondary shrink-0">
+                            {task.progress}/{task.steps.length > 0 ? task.steps.length : 1}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
+              );
+            })
+          )}
         </div>
-      </div>
-
-      </div>}
+      )}
       <section className="calendar-day-summary" aria-label="Selected day summary">
         <div className="calendar-summary-heading">
           <h2>{selectedDate ? new Date(selectedDate + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) : 'Daily summary'}</h2>
