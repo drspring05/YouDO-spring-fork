@@ -8,6 +8,7 @@ import {
   type CalendarPermissionState,
 } from '../lib/nativeCalendar';
 import { queryWindow, toDeviceEvents, type DeviceCalendarEvent } from '../lib/deviceCalendar';
+import { CALENDAR_CHANGED_EVENT } from './useTaskCalendarSync';
 
 export type DeviceCalendarAccess = 'unsupported' | 'checking' | CalendarPermissionState;
 
@@ -54,11 +55,15 @@ export function useDeviceCalendar(startDate: string, endDate: string) {
     const refresh = () => {
       if (document.visibilityState === 'visible') void load();
     };
+    const reload = () => void load();
     window.addEventListener('focus', refresh);
     document.addEventListener('visibilitychange', refresh);
+    // YouDo itself changed the calendar (a task was edited or deleted), so show it now.
+    window.addEventListener(CALENDAR_CHANGED_EVENT, reload);
     return () => {
       window.removeEventListener('focus', refresh);
       document.removeEventListener('visibilitychange', refresh);
+      window.removeEventListener(CALENDAR_CHANGED_EVENT, reload);
     };
   }, [supported, load]);
 
