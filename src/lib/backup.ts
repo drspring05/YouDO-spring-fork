@@ -35,6 +35,7 @@ function normalizeImportedSchedule(t: Record<string, unknown>): Partial<Task> {
   if (typeof t.calendarEventId === 'string' && t.calendarEventId && typeof t.calendarId === 'string' && t.calendarId) {
     out.calendarEventId = t.calendarEventId;
     out.calendarId = t.calendarId;
+    if (typeof t.calendarDeviceId === 'string' && t.calendarDeviceId) out.calendarDeviceId = t.calendarDeviceId;
   }
   return out;
 }
