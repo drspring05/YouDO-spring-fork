@@ -22,6 +22,23 @@ function parseCreatedAt(value: unknown): number {
   return Date.now();
 }
 
+/** Keeps a task's calendar time only when it is well formed, so a bad backup can't break scheduling. */
+function normalizeImportedSchedule(t: Record<string, unknown>): Partial<Task> {
+  const out: Partial<Task> = {};
+  if (typeof t.allDay === 'boolean') out.allDay = t.allDay;
+  const clock = /^([01]\d|2[0-3]):[0-5]\d$/;
+  if (typeof t.startTime === 'string' && typeof t.endTime === 'string' && clock.test(t.startTime) && clock.test(t.endTime) && t.endTime > t.startTime) {
+    out.allDay = false;
+    out.startTime = t.startTime;
+    out.endTime = t.endTime;
+  }
+  if (typeof t.calendarEventId === 'string' && t.calendarEventId && typeof t.calendarId === 'string' && t.calendarId) {
+    out.calendarEventId = t.calendarEventId;
+    out.calendarId = t.calendarId;
+  }
+  return out;
+}
+
 export function normalizeImportedTask(raw: unknown): Task | null {
   const t = asRecord(raw);
   if (!t) return null;
@@ -53,6 +70,7 @@ export function normalizeImportedTask(raw: unknown): Task | null {
       ? t.pastFailedBacklogDates.filter((d): d is string => typeof d === 'string')
       : undefined,
     resumeNote: asString(t.resumeNote).trim() || undefined,
+    ...normalizeImportedSchedule(t),
   };
 }
 
