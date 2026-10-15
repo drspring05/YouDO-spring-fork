@@ -9,6 +9,10 @@ import OriginChip from './OriginChip';
 import type { Task } from '../types';
 import { localISODate, pathTitles, useStore, isOpenBacklogTask } from '../store';
 import { useDeviceCalendar } from '../hooks/useDeviceCalendar';
+import { useLocalStorage } from '../hooks/useLocalStorage';
+import WeekView from './WeekView';
+import { shiftLocalISO } from '../lib/dates';
+import { WEEK_NOTES_KEY, normalizeWeekNotes, weekDaysOf, weekRangeLabel, weekStartOf, withWeekNote } from '../lib/weekView';
 import { eventTimeLabel, groupDeviceEventsByDay, type DeviceCalendarEvent } from '../lib/deviceCalendar';
 import { chunkWeeks, layoutWeek, MAX_BAR_LANES, monthGridDays, readableTextColor } from '../lib/monthLayout';
 import { CALENDAR_VIEW_OPTIONS, readCalendarDefaultView, type CalendarViewMode } from '../lib/calendarPrefs';
@@ -132,6 +136,8 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
   const todayStr = useLocalDay();
   const [selectedDate, setSelectedDate] = useState<string | null>(todayStr);
   const [view, setView] = useState<CalendarViewMode>(readCalendarDefaultView);
+  const [storedWeekNotes, setStoredWeekNotes] = useLocalStorage<Record<string, string>>(WEEK_NOTES_KEY, {});
+  const weekNotes = useMemo(() => normalizeWeekNotes(storedWeekNotes), [storedWeekNotes]);
   const agendaRef = useRef<HTMLDivElement>(null);
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const previousToday = useRef(todayStr);
@@ -190,6 +196,14 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
   const prevMonth = () => setCursor(new Date(year, month - 1, 1));
   const nextMonth = () => setCursor(new Date(year, month + 1, 1));
 
+  // The Week view shows the week that holds the selected day; stepping a week moves the selection by seven days.
+  const weekAnchor = selectedDate ?? todayStr;
+  const weekStart = weekStartOf(weekAnchor);
+  const weekLabel = weekRangeLabel(weekDaysOf(weekAnchor));
+  const stepWeek = (direction: -1 | 1) => selectDay(shiftLocalISO(weekAnchor, direction * 7));
+  const onNoteChange = (start: string, text: string) =>
+    setStoredWeekNotes((current) => withWeekNote(normalizeWeekNotes(current), start, text));
+
   const selectedTasks = selectedDate ? (tasksByDate[selectedDate] ?? []) : [];
   const selectedEvents = selectedDate ? (eventsByDay[selectedDate] ?? []) : [];
   const selectedDone = selectedDate
@@ -205,8 +219,13 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
   };
   const showTodayButton = selectedDate !== todayStr || monthKey !== todayStr.slice(0, 7);
 
-  // Swipe the month grid sideways to change month; mostly-vertical drags are left to normal scrolling.
+  // Swipe the grid sideways to change month (or week); mostly-vertical drags are left to normal scrolling,
+  // and a drag that starts in the notes box is a text selection, not a swipe.
   const onGridTouchStart = (event: ReactTouchEvent) => {
+    if ((event.target as HTMLElement).closest('textarea')) {
+      swipeStart.current = null;
+      return;
+    }
     const touch = event.touches[0];
     swipeStart.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
   };
@@ -219,7 +238,8 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
     const dy = touch.clientY - start.y;
     if (Math.abs(dx) < 56 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
     hapticTick();
-    if (dx < 0) nextMonth();
+    if (view === 'week') stepWeek(dx < 0 ? 1 : -1);
+    else if (dx < 0) nextMonth();
     else prevMonth();
   };
 
@@ -344,13 +364,13 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
         )}
       </div>
 
-      {/* Month navigation */}
+      {/* Month / week navigation */}
       <div className="flex items-center justify-between">
-        <button type="button" aria-label="Previous month" onClick={prevMonth} className="p-2 rounded-lg text-content-secondary hover:text-content-primary hover:bg-surface transition-colors">
+        <button type="button" aria-label={view === 'week' ? 'Previous week' : 'Previous month'} onClick={view === 'week' ? () => stepWeek(-1) : prevMonth} className="p-2 rounded-lg text-content-secondary hover:text-content-primary hover:bg-surface transition-colors">
           <ChevronLeft size={18} />
         </button>
-        <h2 className="text-base font-bold text-content-primary">{monthName}</h2>
-        <button type="button" aria-label="Next month" onClick={nextMonth} className="p-2 rounded-lg text-content-secondary hover:text-content-primary hover:bg-surface transition-colors">
+        <h2 className="text-base font-bold text-content-primary">{view === 'week' ? weekLabel : monthName}</h2>
+        <button type="button" aria-label={view === 'week' ? 'Next week' : 'Next month'} onClick={view === 'week' ? () => stepWeek(1) : nextMonth} className="p-2 rounded-lg text-content-secondary hover:text-content-primary hover:bg-surface transition-colors">
           <ChevronRight size={18} />
         </button>
       </div>
@@ -378,6 +398,19 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
               onSelect={selectDay}
             />
           ))}
+        </div>
+      ) : view === 'week' ? (
+        <div onTouchStart={onGridTouchStart} onTouchEnd={onGridTouchEnd}>
+          <WeekView
+            anchorDate={weekAnchor}
+            todayStr={todayStr}
+            selectedDate={selectedDate}
+            eventsByDay={eventsByDay}
+            tasksByDate={tasksByDate}
+            note={weekNotes[weekStart] ?? ''}
+            onNoteChange={onNoteChange}
+            onSelect={selectDay}
+          />
         </div>
       ) : (
         <div
