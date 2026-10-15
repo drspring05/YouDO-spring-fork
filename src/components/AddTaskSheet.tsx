@@ -6,6 +6,26 @@ import type { Priority, Task } from '../types';
 import { todayISO, tomorrowISO } from '../store';
 import Overlay from './Overlay';
 import StepListEditor, { MAX_STEPS } from './StepListEditor';
+import Toggle from './Toggle';
+import {
+  createDeviceEvent,
+  getDeviceCalendarPermission,
+  listDeviceCalendars,
+  requestDeviceCalendarAccess,
+  supportsDeviceCalendar,
+  type DeviceCalendar,
+} from '../lib/nativeCalendar';
+import {
+  chooseTaskCalendar,
+  defaultTimes,
+  eventWindow,
+  readTaskCalendarId,
+  scheduleError,
+  scheduleFields,
+  writableCalendars,
+  writeTaskCalendarId,
+  type ScheduleDraft,
+} from '../lib/taskSchedule';
 
 interface Props {
   open: boolean;
@@ -31,36 +51,122 @@ export default function AddTaskSheet({ open, onClose, onAdd, initialDate }: Prop
   const [targetDate, setTargetDate] = useState('');
   const [deadline, setDeadline] = useState('');
   const [steps, setSteps] = useState<string[]>(['']);
+  const [allDay, setAllDay] = useState(true);
+  const [startTime, setStartTime] = useState('09:00');
+  const [endTime, setEndTime] = useState('10:00');
+  const [addToCalendar, setAddToCalendar] = useState(true);
+  const [calendars, setCalendars] = useState<DeviceCalendar[]>([]);
+  const [calendarId, setCalendarId] = useState('');
+  const [calendarError, setCalendarError] = useState('');
+  const [busy, setBusy] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
+  const calendarSupported = supportsDeviceCalendar();
 
   useEffect(() => {
     if (open) {
+      const times = defaultTimes();
       setTitle('');
       setDescription('');
       setPriority('medium');
       setTargetDate(initialDate ?? todayISO());
       setDeadline('');
       setSteps(['']);
+      setAllDay(true);
+      setStartTime(times.startTime);
+      setEndTime(times.endTime);
+      setAddToCalendar(true);
+      setCalendarError('');
+      setBusy(false);
       setTimeout(() => titleRef.current?.focus(), 150);
     }
   }, [open, initialDate]);
 
+  // If calendar access is already granted, load the calendars now so the picker is ready.
+  // Otherwise the permission is asked for when the task is added.
+  useEffect(() => {
+    if (!open || !calendarSupported) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        if ((await getDeviceCalendarPermission()) !== 'granted') return;
+        const list = await listDeviceCalendars();
+        if (cancelled) return;
+        setCalendars(list);
+        setCalendarId(chooseTaskCalendar(list, readTaskCalendarId())?.id ?? '');
+      } catch {
+        /* the picker simply stays hidden; adding the task will report any real problem */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, calendarSupported]);
+
   if (!open) return null;
 
-  const submit = () => {
-    if (!title.trim() || isTitleTooLong(title)) return;
+  const draft: ScheduleDraft = { allDay, startTime, endTime };
+  const timeError = targetDate && !allDay ? scheduleError(draft) : null;
+  const wantsCalendar = calendarSupported && addToCalendar && Boolean(targetDate);
+  const editableCalendars = writableCalendars(calendars);
+  const canSubmit = Boolean(title.trim()) && !isTitleTooLong(title) && !timeError && !busy;
+
+  /** Puts the task on the phone calendar and returns the ids that link the two. */
+  const createLinkedEvent = async (date: string): Promise<Pick<Task, 'calendarEventId' | 'calendarId'>> => {
+    let access = await getDeviceCalendarPermission();
+    if (access !== 'granted') access = await requestDeviceCalendarAccess();
+    if (access !== 'granted') {
+      throw new Error('Calendar access was not allowed. You can turn it on in Android settings.');
+    }
+    const list = calendars.length ? calendars : await listDeviceCalendars();
+    setCalendars(list);
+    const target =
+      list.find((calendar) => calendar.id === calendarId && calendar.writable) ??
+      chooseTaskCalendar(list, readTaskCalendarId());
+    if (!target) throw new Error('None of the calendars on this phone can be edited.');
+    const slot = eventWindow(date, draft);
+    if (!slot) throw new Error('Check the date and times.');
+    const id = await createDeviceEvent({
+      calendarId: target.id,
+      title: title.trim(),
+      description: description.trim(),
+      ...slot,
+    });
+    writeTaskCalendarId(target.id);
+    return { calendarEventId: id, calendarId: target.id };
+  };
+
+  const submit = async () => {
+    if (!canSubmit) return;
+    const date = targetDate || null;
+    let link: Pick<Task, 'calendarEventId' | 'calendarId'> = {};
+    if (wantsCalendar && date) {
+      setBusy(true);
+      setCalendarError('');
+      try {
+        link = await createLinkedEvent(date);
+      } catch (error) {
+        const reason = error instanceof Error && error.message ? error.message : 'Could not add to your calendar.';
+        setCalendarError(`${reason} Your task is not saved yet. Tap Add Task to save it without a calendar event.`);
+        setAddToCalendar(false);
+        setBusy(false);
+        return;
+      }
+      setBusy(false);
+    }
     const cleanSteps = steps.map((s) => s.trim()).filter(Boolean).slice(0, MAX_STEPS);
     onAdd({
       id: uid(),
       title: title.trim(),
       description: description.trim(),
       priority,
-      targetDate: targetDate || null,
+      targetDate: date,
       deadline: deadline ? new Date(deadline).toISOString() : null,
       steps: cleanSteps,
       progress: 0,
       createdAt: Date.now(),
       order: Date.now(),
+      ...scheduleFields(date, draft),
+      ...link,
     });
     onClose();
   };
@@ -83,7 +189,7 @@ export default function AddTaskSheet({ open, onClose, onAdd, initialDate }: Prop
               value={title}
               maxLength={Math.max(TITLE_MAX, title.length)}
               onChange={(e) => setTitle(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && submit()}
+              onKeyDown={(e) => e.key === 'Enter' && void submit()}
               placeholder="What needs doing?"
               className="w-full h-12 px-3.5 bg-transparent text-[14px] font-semibold text-content-primary placeholder:text-content-muted outline-none border-b border-subtle pr-14"
             />
@@ -171,6 +277,71 @@ export default function AddTaskSheet({ open, onClose, onAdd, initialDate }: Prop
               </div>
             )}
             
+            {targetDate && (
+              <div className="px-3.5 py-3 border-b border-subtle">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-content-muted">All day</span>
+                  <Toggle checked={allDay} onChange={() => setAllDay((value) => !value)} label="All day" />
+                </div>
+                {!allDay && (
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-content-muted">Start</span>
+                      <input
+                        type="time"
+                        value={startTime}
+                        onChange={(e) => setStartTime(e.target.value)}
+                        className="w-full h-10 px-3 bg-elevated border border-subtle rounded-xl text-[13px] font-medium text-content-primary outline-none focus:border-primary transition-colors"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-content-muted">End</span>
+                      <input
+                        type="time"
+                        value={endTime}
+                        onChange={(e) => setEndTime(e.target.value)}
+                        className="w-full h-10 px-3 bg-elevated border border-subtle rounded-xl text-[13px] font-medium text-content-primary outline-none focus:border-primary transition-colors"
+                      />
+                    </label>
+                  </div>
+                )}
+                {timeError && <p className="mt-2 text-[12px] font-medium text-error">{timeError}</p>}
+              </div>
+            )}
+
+            {calendarSupported && targetDate && (
+              <div className="px-3.5 py-3 border-b border-subtle">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={addToCalendar}
+                    onChange={(e) => {
+                      setAddToCalendar(e.target.checked);
+                      setCalendarError('');
+                    }}
+                    className="h-5 w-5 shrink-0 rounded accent-primary"
+                  />
+                  <span className="text-[13px] font-semibold text-content-primary">Add to calendar</span>
+                </label>
+                {addToCalendar && editableCalendars.length > 1 && (
+                  <select
+                    value={calendarId}
+                    onChange={(e) => setCalendarId(e.target.value)}
+                    aria-label="Calendar for this task"
+                    className="mt-2 w-full h-10 px-3 bg-elevated border border-subtle rounded-xl text-[13px] font-medium text-content-primary outline-none focus:border-primary transition-colors"
+                  >
+                    {editableCalendars.map((calendar) => (
+                      <option key={calendar.id} value={calendar.id}>
+                        {calendar.name}
+                        {calendar.accountName && calendar.accountName !== calendar.name ? ` (${calendar.accountName})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {calendarError && <p className="mt-2 text-[12px] font-medium text-error">{calendarError}</p>}
+              </div>
+            )}
+
             <div className="px-3.5 py-3">
               <label className="text-[10px] font-bold uppercase tracking-wider text-content-muted block mb-2">Hard deadline</label>
               <input
@@ -191,11 +362,11 @@ export default function AddTaskSheet({ open, onClose, onAdd, initialDate }: Prop
         {/* Footer Actions */}
         <div className="flex flex-col gap-2 mt-2 shrink-0">
           <button
-            onClick={submit}
-            disabled={!title.trim() || isTitleTooLong(title)}
+            onClick={() => void submit()}
+            disabled={!canSubmit}
             className="w-full h-12 rounded-2xl text-[13px] font-bold bg-primary text-on-primary disabled:opacity-40 transition-opacity flex items-center justify-center shadow-sm"
           >
-            Add Task
+            {busy ? 'Adding…' : 'Add Task'}
           </button>
         </div>
       </div>
