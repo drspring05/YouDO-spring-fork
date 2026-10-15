@@ -326,6 +326,7 @@ export function duplicateTaskAsFresh(
     // A copy is a new task: it must not share (or later delete) the original's calendar event.
     calendarEventId: undefined,
     calendarId: undefined,
+    calendarDeviceId: undefined,
   };
 }
 
