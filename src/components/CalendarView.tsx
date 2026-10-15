@@ -11,6 +11,7 @@ import { localISODate, pathTitles, useStore, isOpenBacklogTask } from '../store'
 import { useDeviceCalendar } from '../hooks/useDeviceCalendar';
 import { eventTimeLabel, groupDeviceEventsByDay, type DeviceCalendarEvent } from '../lib/deviceCalendar';
 import { chunkWeeks, layoutWeek, MAX_BAR_LANES, monthGridDays, readableTextColor } from '../lib/monthLayout';
+import { CALENDAR_VIEW_OPTIONS, readCalendarDefaultView, type CalendarViewMode } from '../lib/calendarPrefs';
 import { formatDuration } from '../lib/format';
 import { buildSessionSummary, isCountableSession, sessionOverlapsLocalDate } from '../lib/sessionStats';
 import { taskCompletionModeOnDate, taskOccurrenceOnDate, taskTimelineDates } from '../lib/taskTimeline';
@@ -22,9 +23,6 @@ interface Props {
 }
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-type CalendarViewMode = 'month' | 'agenda';
-const VIEW_LABELS: Record<CalendarViewMode, string> = { month: 'Month', agenda: 'Agenda' };
 
 interface MonthWeekRowProps {
   days: string[];
@@ -133,7 +131,8 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
   });
   const todayStr = useLocalDay();
   const [selectedDate, setSelectedDate] = useState<string | null>(todayStr);
-  const [view, setView] = useState<CalendarViewMode>('month');
+  const [view, setView] = useState<CalendarViewMode>(readCalendarDefaultView);
+  const agendaRef = useRef<HTMLDivElement>(null);
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const previousToday = useRef(todayStr);
   useEffect(() => {
@@ -229,6 +228,17 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
     (date) => date.startsWith(monthKey) && ((eventsByDay[date]?.length ?? 0) > 0 || (tasksByDate[date]?.length ?? 0) > 0),
   );
 
+  // Opening the Agenda (or changing month) scrolls its own list to the selected day.
+  const selectedDateRef = useRef(selectedDate);
+  selectedDateRef.current = selectedDate;
+  useEffect(() => {
+    if (view !== 'agenda') return;
+    const list = agendaRef.current;
+    const target = list?.querySelector<HTMLElement>(`[data-agenda-date="${selectedDateRef.current}"]`);
+    if (list && target) list.scrollTop = Math.max(0, target.offsetTop);
+    else if (list) list.scrollTop = 0;
+  }, [view, monthKey]);
+
   // Gather sessions for modal date
   const modalDateSessions = useMemo(() => {
     if (!dayStatsModalDate) return [];
@@ -308,7 +318,7 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
       <CalendarDateDial value={selectedDate ?? todayStr} today={todayStr} onChange={selectDay} />
       <div className="flex items-center justify-between gap-2">
         <div role="tablist" aria-label="Calendar view" className="inline-flex p-0.5 rounded-xl bg-surface border border-subtle">
-          {(Object.keys(VIEW_LABELS) as CalendarViewMode[]).map((mode) => (
+          {CALENDAR_VIEW_OPTIONS.map(({ id: mode, label }) => (
             <button
               key={mode}
               type="button"
@@ -319,7 +329,7 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
                 view === mode ? 'bg-primary text-on-primary' : 'text-content-secondary'
               }`}
             >
-              {VIEW_LABELS[mode]}
+              {label}
             </button>
           ))}
         </div>
@@ -370,7 +380,11 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
           ))}
         </div>
       ) : (
-        <div className="bg-surface border border-subtle rounded-2xl shadow-card overflow-hidden">
+        <div
+          ref={agendaRef}
+          className="relative max-h-[60vh] overflow-y-auto overscroll-contain bg-surface border border-subtle rounded-2xl shadow-card"
+          aria-label={`Agenda for ${monthName}`}
+        >
           {agendaDays.length === 0 ? (
             <p className="p-6 text-center text-content-secondary text-xs">Nothing planned in {monthName}.</p>
           ) : (
@@ -379,7 +393,7 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
               const dayTasks = tasksByDate[date] ?? [];
               const isSelected = date === selectedDate;
               return (
-                <section key={date} className="border-t border-subtle first:border-t-0">
+                <section key={date} data-agenda-date={date} className="border-t border-subtle first:border-t-0">
                   <button
                     type="button"
                     aria-pressed={isSelected}
