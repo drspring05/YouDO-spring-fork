@@ -4,10 +4,13 @@ import { useLocalDay } from '../hooks/useLocalDay';
 import CalendarDateDial from './CalendarDateDial';
 import { calendarFocusSummary } from '../lib/calendarSummary';
 import { hapticTick } from '../lib/haptics';
-import { ChevronLeft, ChevronRight, Plus, BarChart2, X, Info, ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MapPin, Plus, BarChart2, X, Info, ChevronDown, ChevronUp } from 'lucide-react';
 import OriginChip from './OriginChip';
 import type { Task } from '../types';
 import { localISODate, pathTitles, useStore, isOpenBacklogTask } from '../store';
+import { useDeviceCalendar } from '../hooks/useDeviceCalendar';
+import { eventTimeLabel, groupDeviceEventsByDay } from '../lib/deviceCalendar';
+import { shiftLocalISO } from '../lib/dates';
 import { formatDuration } from '../lib/format';
 import { buildSessionSummary, isCountableSession, sessionOverlapsLocalDate } from '../lib/sessionStats';
 import { taskCompletionModeOnDate, taskOccurrenceOnDate, taskTimelineDates } from '../lib/taskTimeline';
@@ -76,6 +79,13 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
 
+  // Phone calendar events for the visible month, with a week of slack either side.
+  const deviceCalendar = useDeviceCalendar(
+    shiftLocalISO(localISODate(new Date(year, month, 1)), -7),
+    shiftLocalISO(localISODate(new Date(year, month, daysInMonth)), 7),
+  );
+  const eventsByDay = useMemo(() => groupDeviceEventsByDay(deviceCalendar.events), [deviceCalendar.events]);
+
   const cells: (number | null)[] = [];
   for (let i = 0; i < firstDay; i++) cells.push(null);
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
@@ -85,6 +95,7 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
   const nextMonth = () => setCursor(new Date(year, month + 1, 1));
 
   const selectedTasks = selectedDate ? (tasksByDate[selectedDate] ?? []) : [];
+  const selectedEvents = selectedDate ? (eventsByDay[selectedDate] ?? []) : [];
   const selectedDone = selectedDate
     ? selectedTasks.filter((task) => taskOccurrenceOnDate(task, selectedDate)?.completedOnDate).length
     : 0;
@@ -205,13 +216,15 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
             const isSelected = dateStr === selectedDate;
             const hasTasks = dayTasks.length > 0;
             const allDone = hasTasks && dayTasks.every((task) => taskOccurrenceOnDate(task, dateStr)?.completedOnDate);
+            const dayEvents = eventsByDay[dateStr] ?? [];
+            const fullDate = new Date(dateStr + 'T12:00:00').toLocaleDateString(undefined, { dateStyle: 'full' });
 
             return (
               <button
                 key={i}
                 type="button"
                 aria-pressed={isSelected}
-                aria-label={new Date(dateStr + 'T12:00:00').toLocaleDateString(undefined, {dateStyle:'full'})}
+                aria-label={dayEvents.length > 0 ? `${fullDate}, ${dayEvents.length} calendar ${dayEvents.length === 1 ? 'event' : 'events'}` : fullDate}
                 onClick={() => selectDay(dateStr)}
                 className={`relative aspect-square rounded-xl flex items-center justify-center transition-all text-[13px] font-medium ${
                   isSelected
@@ -236,6 +249,13 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
                     </sup>
                   )}
                 </span>
+                {dayEvents.length > 0 && (
+                  <span className="absolute bottom-1 left-1/2 -translate-x-1/2 flex gap-0.5" aria-hidden>
+                    {dayEvents.slice(0, 3).map((ev) => (
+                      <span key={ev.key} className="w-1 h-1 rounded-full" style={{ backgroundColor: ev.color }} />
+                    ))}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -393,6 +413,54 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
           </div>
         )}
       </div>
+
+      {/* Phone calendar events (Android only) */}
+      {deviceCalendar.supported && deviceCalendar.access !== 'checking' && (
+        <section className="mt-5" aria-label="Phone calendar events">
+          <h3 className="text-[14px] font-bold text-content-primary mb-2">Calendar events</h3>
+          {deviceCalendar.access === 'granted' ? (
+            selectedEvents.length === 0 ? (
+              <div className="bg-surface border border-subtle rounded-2xl shadow-card p-6 text-center text-content-secondary text-xs">
+                Nothing on your calendar for this date.
+              </div>
+            ) : (
+              <ul className="space-y-2">
+                {selectedEvents.map((ev) => (
+                  <li key={ev.key} className="flex gap-3 bg-surface border border-subtle rounded-2xl shadow-card p-3.5">
+                    <span className="w-1 self-stretch rounded-full shrink-0" style={{ backgroundColor: ev.color }} aria-hidden />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[14px] font-bold text-content-primary leading-snug">{ev.title || '(No title)'}</p>
+                      <p className="text-[11.5px] text-content-secondary mt-0.5 tabular-nums">{eventTimeLabel(ev, selectedDate!)}</p>
+                      {ev.location && (
+                        <p className="flex items-center gap-1 text-[11px] text-content-muted mt-1 min-w-0">
+                          <MapPin size={11} className="shrink-0" />
+                          <span className="truncate">{ev.location}</span>
+                        </p>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )
+          ) : (
+            <div className="bg-surface border border-subtle rounded-2xl shadow-card p-4 space-y-3">
+              <p className="text-[12px] text-content-secondary leading-relaxed">
+                {deviceCalendar.access === 'denied'
+                  ? 'Calendar access is turned off for YouDO. Turn it on in Android settings to see and edit your events here.'
+                  : 'Show the events from your phone’s calendar here, including your Google calendars.'}
+              </p>
+              <button
+                type="button"
+                onClick={() => void (deviceCalendar.access === 'denied' ? deviceCalendar.openSettings() : deviceCalendar.requestAccess())}
+                className="bg-primary text-on-primary text-xs font-semibold rounded-xl px-3.5 py-2"
+              >
+                {deviceCalendar.access === 'denied' ? 'Open settings' : 'Allow calendar access'}
+              </button>
+            </div>
+          )}
+          {deviceCalendar.error && <p className="text-[11px] text-error mt-2">{deviceCalendar.error}</p>}
+        </section>
+      )}
 
       {/* ── Daily Focus Stats & Efficiency Modal ── */}
       {dayStatsModalDate && (
