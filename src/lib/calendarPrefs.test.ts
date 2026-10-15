@@ -15,6 +15,7 @@ describe('calendar default view', () => {
 
   it('falls back to Month for unknown values', () => {
     expect(normalizeCalendarView('agenda')).toBe('agenda');
+    expect(normalizeCalendarView('week')).toBe('week');
     expect(normalizeCalendarView('month')).toBe('month');
     expect(normalizeCalendarView('year')).toBe('month');
     expect(normalizeCalendarView(undefined)).toBe('month');
