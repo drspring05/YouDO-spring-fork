@@ -191,7 +191,11 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
 
   // Phone calendar events for everything the grid shows.
   const deviceCalendar = useDeviceCalendar(gridDays[0], gridDays[gridDays.length - 1]);
-  const eventsByDay = useMemo(() => groupDeviceEventsByDay(deviceCalendar.events), [deviceCalendar.events]);
+  // An event a task created is shown through that task, so it is not listed a second time as a bar.
+  const eventsByDay = useMemo(() => {
+    const linked = new Set(tasks.flatMap((task) => (task.calendarEventId ? [task.calendarEventId] : [])));
+    return groupDeviceEventsByDay(deviceCalendar.events.filter((event) => !linked.has(event.id)));
+  }, [deviceCalendar.events, tasks]);
 
   const prevMonth = () => setCursor(new Date(year, month - 1, 1));
   const nextMonth = () => setCursor(new Date(year, month + 1, 1));
