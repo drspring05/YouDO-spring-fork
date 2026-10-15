@@ -1,0 +1,2937 @@
+import { useUiPrefs } from '../hooks/useUiPrefs';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Browser } from '@capacitor/browser';
+import { Capacitor } from '@capacitor/core';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Bell,
+  Bug,
+  Check,
+  CheckCircle2,
+  ChevronRight,
+  Gauge,
+  Clock,
+  Download,
+  Edit2,
+  Flame,
+  Hash,
+  History,
+  Heart,
+  Info,
+  KeyRound,
+  LogIn,
+  LogOut,
+  Mail,
+  MessageCircle,
+  MessageSquare,
+  MonitorSmartphone,
+  Moon,
+  Palette,
+  Droplets,
+  Undo2,
+  RefreshCw,
+  Send,
+  ShieldCheck,
+  Smartphone,
+  Sparkles,
+  Sun,
+  Target,
+  Trash2,
+  TrendingUp,
+  Upload,
+  Users,
+  WifiOff,
+  X,
+} from 'lucide-react';
+import Overlay from './Overlay';
+import Toggle from './Toggle';
+import CalendarDefaultViewRow from './CalendarDefaultViewRow';
+import {
+  getNotificationPreferences,
+  saveNotificationPreferences,
+  checkNotificationPermission,
+  requestNotificationPermission,
+  refreshMorningBriefing,
+  extractBriefingData,
+  buildMorningBriefingContent,
+  calculateNextBriefingTime,
+  sendTestBriefingNotification,
+  type NotificationPreferences,
+  type RoomNotificationMode,
+} from '../lib/notifications';
+import { useReducedEffects } from '../hooks/useReducedEffects';
+import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../hooks/useTheme';
+import { ACCENT_COLORS, ACCENT_SWATCHES, resolveAccent } from '../lib/accentColors';
+import { visitSnapshotLabel } from '../lib/cloudBackup';
+import type { BackupSummary } from '../lib/backup';
+import { formatBackupStamp, formatDuration } from '../lib/format';
+import { useSessionStore, useStore } from '../store';
+import { useLocalStorage } from '../hooks/useLocalStorage';
+import {  requestAccountAccess, STORAGE_KEYS } from '../lib/storageKeys';
+import { hapticTick, setHapticsPreference } from '../lib/haptics';
+import { clampStreakBarHours, MAX_STREAK_BAR_HOURS, MIN_STREAK_BAR_HOURS } from '../lib/focusTrends';
+import { PACE_CHEATING_GUIDE, PACE_HONEST_QUOTE, paceWindowTotals } from '../lib/paceBoard';
+import { localISODate, todayISO } from '../lib/dates';
+import { checkAppUpdateStatus, type AppRelease } from '../lib/appUpdate';
+import UpdateAction from './UpdateAction';
+import { APP_VERSION } from '../lib/version';
+import SignedInDevices from './SignedInDevices';
+import SupportSheet from './SupportSheet';
+import AppIconPicker from './AppIconPicker';
+import { syncPushPreferences } from '../lib/pushPreferences';
+import CommunityHashtagProfileField from './community/CommunityHashtagProfileField';
+import type { CommunityHashtagContext } from '../lib/communityHashtags';
+import { parseSyncConflictRecord } from '../lib/syncConflictRecord';
+import { captureAccountSignOutAfterSync, captureWorkspace } from '../lib/workspaceReplacement';
+import { fetchProfile, upsertProfile, normalizeUsername, type Profile } from '../lib/profiles';
+import { fetchCommunityContext } from '../lib/community';
+
+export type SettingsTab = 'account' | 'preferences' | 'notifications' | 'board' | 'about';
+
+interface TabItem {
+  id: SettingsTab;
+  label: string;
+  icon: typeof ShieldCheck;
+  badge?: boolean;
+  badgeLabel?: string;
+}
+
+interface Props {
+  open: boolean;
+  onClose: () => void;
+  focusSection?: 'public-board';
+  initialTab?: SettingsTab;
+  streakBarHours: number;
+  onStreakBarHoursChange: (hours: number) => void;
+  /** The current and best streak, so the briefing preview matches the real one. */
+  briefingStreak?: { current: number; best: number };
+  /** Admins only: the Admin Hub row (the backup to holding the Settings button). */
+  onOpenAdminHub?: () => void;
+  adminPending?: number;
+}
+
+function SectionLabel({ children, icon }: { children: React.ReactNode; icon?: React.ReactNode }) {
+  const [{ legacyStyle }] = useUiPrefs();
+  return (
+    <h2 className={legacyStyle ? 'settings-section-label text-[10px] font-bold uppercase tracking-[0.16em] text-content-muted mb-2.5 px-1 flex items-center gap-1.5' : 'settings-section-label uppercase mb-2 flex items-center gap-1.5'}>
+      {icon}
+      <span>{children}</span>
+    </h2>
+  );
+}
+
+const TELEGRAM_UPDATES_URL = 'https://t.me/YouDO_Updates';
+const TELEGRAM_DISCUSSION_URL = 'https://t.me/+-manVNAPhThkMzRl';
+
+async function openExternalUrl(url: string): Promise<void> {
+  try {
+    await Browser.open({ url, toolbarColor: '#171612' });
+  } catch {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+}
+
+function backupSummaryText(summary: BackupSummary | null): string {
+  if (!summary) return 'Copy details unavailable';
+  const name = summary.rootNames.length > 0 ? `${summary.rootNames.join(', ')} · ` : '';
+  return `${name}${summary.nodes} tree items · ${summary.leaves} endpoint tasks · ${summary.tasks} planned cards`;
+}
+
+export default function SettingsSheet({
+  open,
+  onClose,
+  focusSection,
+  initialTab,
+  streakBarHours,
+  onStreakBarHoursChange,
+  briefingStreak,
+  onOpenAdminHub,
+  adminPending = 0,
+}: Props) {
+  const {
+    exportBackup,
+    importBackup,
+    syncToCloud,
+    cloudSyncConflict,
+    clearCloudData,
+    restoreFromCloud,
+    restoreFromVisitSnapshot,
+    listCloudRestorePoints,
+    recentlyDeletedGoals,
+    restoreDeletedGoal,
+    clearTrash,
+    pruneOldSessions,
+    sessionHistory,
+    pacePrefs,
+    updatePacePrefs,
+    publishPublicPace,
+    tasks,
+    goals,
+  } = useStore();
+  const { user, signOut, verifyAccount, deleteAccount, updateProfile, changeEmail, changePassword } = useAuth();
+  const cloudConflictDetails = (() => {
+    if (!user) return null;
+    try { return parseSyncConflictRecord(localStorage.getItem(STORAGE_KEYS.workspaceSyncConflict), user.id); }
+    catch { return null; }
+  })();
+  const { activeSession } = useSessionStore();
+  // An empty plan can still have focus history or durable deletion evidence.
+  // Never present uploading that copy as a full cloud clear.
+
+  const [theme, setTheme] = useTheme();
+  const [reducedEffects, setReducedEffects] = useReducedEffects();
+  const [{ legacyStyle, liquidGlass }, setUiPref] = useUiPrefs();
+  const publicBoardRef = useRef<HTMLElement>(null);
+  const [activeTab, setActiveTab] = useState<SettingsTab>(focusSection === 'public-board' ? 'board' : (initialTab ?? 'account'));
+  const [highlightBoard, setHighlightBoard] = useState(focusSection === 'public-board');
+  const contentRef = useRef<HTMLDivElement>(null);
+  const tabRefs = useRef<Partial<Record<SettingsTab, HTMLButtonElement | null>>>({});
+  const tabBarRef = useRef<HTMLDivElement>(null);
+
+  const [msg, setMsg] = useState<{ text: string; error?: boolean } | null>(null);
+  const [syncBusy, setSyncBusy] = useState(false);
+  const [signOutBusy, setSignOutBusy] = useState(false);
+  const [confirmImport, setConfirmImport] = useState(false);
+  const [restoreOpen, setRestoreOpen] = useState(false);
+  const [restoreLoading, setRestoreLoading] = useState(false);
+  const [restorePoints, setRestorePoints] = useState<{
+    live: { updatedAt: string; summary: BackupSummary | null } | null;
+    visits: { id: string; createdAt: string; summary: BackupSummary | null }[];
+  } | null>(null);
+  const [confirmRestore, setConfirmRestore] = useState<
+    { kind: 'live' } | { kind: 'visit'; id: string; label: string; when: string } | null
+  >(null);
+  const [confirmDeleteAccount, setConfirmDeleteAccount] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [confirmWipeCloud, setConfirmWipeCloud] = useState(false);
+  const [editProfileOpen, setEditProfileOpen] = useState(false);
+  const [editUsername, setEditUsername] = useState('');
+  const [editBio, setEditBio] = useState('');
+  const [editStatsPrivate, setEditStatsPrivate] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [editName, setEditName] = useState(user?.user_metadata?.full_name || '');
+  const [editAvatar, setEditAvatar] = useState(user?.user_metadata?.avatar_url || '🎓');
+  const [securityOpen, setSecurityOpen] = useState(false);
+  const [securityMode, setSecurityMode] = useState<'email' | 'password' | 'devices' | null>(null);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [nextEmail, setNextEmail] = useState('');
+  const [nextPassword, setNextPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [securityBusy, setSecurityBusy] = useState(false);
+  const [hashtagContext, setHashtagContext] = useState<CommunityHashtagContext>({ hashtags: [], requests: [] });
+
+  const [confirmTrimSessions, setConfirmTrimSessions] = useState(false);
+  const [availableUpdate, setAvailableUpdate] = useState<AppRelease | null>(null);
+  const [updateChecked, setUpdateChecked] = useState(false);
+  const [updateUnavailable, setUpdateUnavailable] = useState(false);
+  const [updateCheckKey, setUpdateCheckKey] = useState(0);
+
+  const [hapticsEnabled, setHapticsEnabled] = useLocalStorage(STORAGE_KEYS.haptics, true);
+
+  const toggleHaptics = () => {
+    const next = !hapticsEnabled;
+    setHapticsPreference(next);
+    setHapticsEnabled(next);
+    if (next) hapticTick();
+  };
+
+  const [trashOpen, setTrashOpen] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(false);
+  const [trashRestoreError, setTrashRestoreError] = useState<string | null>(null);
+  const [streakBarHelpOpen, setStreakBarHelpOpen] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const [notifPrefs, setNotifPrefs] = useState<NotificationPreferences>(() => getNotificationPreferences());
+  const [notifPermission, setNotifPermission] = useState<'granted' | 'denied' | 'prompt'>('prompt');
+  const [testNotifStatus, setTestNotifStatus] = useState<'idle' | 'sent' | 'permission_denied' | 'failed'>('idle');
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [accountProfile, setAccountProfile] = useState<Profile | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      setNotifPrefs(getNotificationPreferences());
+      void checkNotificationPermission().then(setNotifPermission);
+      if (user?.id) {
+        void fetchProfile(user.id).then(setAccountProfile);
+        void fetchCommunityContext(user.id).then((ctx) => {
+          setIsAdmin(Boolean(ctx.isAdmin));
+        }).catch(() => {
+          setIsAdmin(false);
+        });
+      } else {
+        setAccountProfile(null);
+        setIsAdmin(false);
+      }
+    }
+  }, [open, user?.id]);
+
+  const updateNotifPrefs = (updater: (prev: NotificationPreferences) => NotificationPreferences) => {
+    setNotifPrefs((prev) => {
+      const next = updater(prev);
+      saveNotificationPreferences(next);
+      void refreshMorningBriefing(tasks, goals);
+      void syncPushPreferences(user?.id, next);
+      return next;
+    });
+  };
+
+  // The preview describes the morning it will arrive, like the real briefing.
+  const streakCurrent = briefingStreak?.current ?? 0;
+  const streakBest = briefingStreak?.best ?? 0;
+  const briefingData = useMemo(() => {
+    const deliveryDay = localISODate(calculateNextBriefingTime(notifPrefs.morningBriefing.time));
+    return extractBriefingData(tasks, goals, streakCurrent, streakBest, deliveryDay, notifPrefs.morningBriefing.selectedGoalId);
+  }, [tasks, goals, streakCurrent, streakBest, notifPrefs.morningBriefing.time, notifPrefs.morningBriefing.selectedGoalId]);
+
+  const briefingPreview = useMemo(() => {
+    return buildMorningBriefingContent(briefingData, notifPrefs.morningBriefing);
+  }, [briefingData, notifPrefs.morningBriefing]);
+
+  const rootGoals = useMemo(() => {
+    return goals.filter((g) => !g.completed);
+  }, [goals]);
+
+  const handleSendTestNotification = async () => {
+    const granted = await requestNotificationPermission();
+    setNotifPermission(granted ? 'granted' : 'denied');
+    if (!granted) {
+      setTestNotifStatus('permission_denied');
+      setTimeout(() => setTestNotifStatus('idle'), 3000);
+      return;
+    }
+
+    const success = await sendTestBriefingNotification(briefingPreview);
+    if (success) {
+      setTestNotifStatus('sent');
+    } else {
+      setTestNotifStatus('failed');
+    }
+    setTimeout(() => setTestNotifStatus('idle'), 3000);
+  };
+
+  useEffect(() => {
+    if (!open) {
+      setEditProfileOpen(false);
+      setSecurityOpen(false);
+      setSecurityMode(null);
+      setCurrentPassword('');
+      setNextEmail('');
+      setNextPassword('');
+      setConfirmPassword('');
+      setTrashOpen(false);
+      setTrashRestoreError(null);
+      setStreakBarHelpOpen(false);
+      setHighlightBoard(false);
+      setActiveTab(initialTab ?? 'account');
+    }
+  }, [open, initialTab]);
+
+  useEffect(() => {
+    if (!open || !user || !restoreOpen) return;
+    let cancelled = false;
+    setRestoreLoading(true);
+    void listCloudRestorePoints()
+      .then((points) => {
+        if (cancelled) return;
+        setRestorePoints(points);
+        setRestoreLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setRestorePoints({ live: null, visits: [] });
+        setRestoreLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, user, restoreOpen, listCloudRestorePoints]);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setUpdateChecked(false);
+    void checkAppUpdateStatus({ includeDismissed: true, force: updateCheckKey > 0 })
+      .then(({ release, checked }) => {
+        if (!cancelled) {
+          setAvailableUpdate(release);
+          setUpdateUnavailable(!checked);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setUpdateChecked(true);
+      });
+    return () => { cancelled = true; };
+  }, [open, updateCheckKey]);
+
+  useEffect(() => {
+    if (!open) {
+      setHighlightBoard(false);
+      return;
+    }
+    if (focusSection === 'public-board') {
+      setActiveTab('board');
+      setHighlightBoard(true);
+      const timer = window.setTimeout(() => setHighlightBoard(false), 2400);
+      const frame = window.requestAnimationFrame(() => {
+        publicBoardRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      });
+      return () => {
+        window.clearTimeout(timer);
+        window.cancelAnimationFrame(frame);
+      };
+    }
+  }, [open, focusSection]);
+
+  useEffect(() => {
+    if (open && activeTab && !trashOpen) {
+      const btn = tabRefs.current[activeTab];
+      const bar = tabBarRef.current;
+      if (btn && bar) {
+        const left = btn.offsetLeft - (bar.clientWidth - btn.clientWidth) / 2;
+        if (typeof bar.scrollTo === 'function') {
+          bar.scrollTo({ left, behavior: 'smooth' });
+        }
+      }
+    }
+  }, [open, activeTab, trashOpen]);
+
+  const tabs = useMemo<TabItem[]>(() => [
+    {
+      id: 'account',
+      label: 'Account',
+      icon: ShieldCheck,
+      badge: Boolean(cloudSyncConflict),
+      badgeLabel: 'Sync conflict requires review',
+    },
+    {
+      id: 'preferences',
+      label: 'Preferences',
+      icon: Sparkles,
+    },
+    {
+      id: 'notifications',
+      label: 'Notifications',
+      icon: Bell,
+    },
+    {
+      id: 'board',
+      label: 'Board',
+      icon: TrendingUp,
+    },
+    {
+      id: 'about',
+      label: 'About',
+      icon: Info,
+      badge: Boolean(availableUpdate),
+      badgeLabel: 'App update available',
+    },
+  ], [cloudSyncConflict, availableUpdate]);
+
+  const handleTabClick = (tabId: SettingsTab) => {
+    if (tabId === activeTab) {
+      contentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    hapticTick();
+    setActiveTab(tabId);
+    contentRef.current?.scrollTo({ top: 0, behavior: 'instant' });
+  };
+
+  const handleTabKeyDown = (e: React.KeyboardEvent, index: number) => {
+    let nextIndex: number | null = null;
+    if (e.key === 'ArrowRight') {
+      nextIndex = (index + 1) % tabs.length;
+    } else if (e.key === 'ArrowLeft') {
+      nextIndex = (index - 1 + tabs.length) % tabs.length;
+    } else if (e.key === 'Home') {
+      nextIndex = 0;
+    } else if (e.key === 'End') {
+      nextIndex = tabs.length - 1;
+    }
+    if (nextIndex !== null) {
+      e.preventDefault();
+      const nextTab = tabs[nextIndex].id;
+      handleTabClick(nextTab);
+      tabRefs.current[nextTab]?.focus();
+    }
+  };
+
+  // Horizontal touch swipe to switch between tabs
+  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (trashOpen || editProfileOpen || securityOpen || restoreOpen || supportOpen) return;
+    if (e.touches.length !== 1) return;
+
+    const target = e.target as HTMLElement | null;
+    if (target) {
+      const tag = target.tagName.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+      if (target.closest('input, textarea, select, [data-no-swipe]')) return;
+    }
+
+    touchStartRef.current = {
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY,
+      time: Date.now(),
+    };
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!touchStartRef.current) return;
+    const start = touchStartRef.current;
+    touchStartRef.current = null;
+
+    if (e.changedTouches.length === 0) return;
+
+    const endX = e.changedTouches[0].clientX;
+    const endY = e.changedTouches[0].clientY;
+    const diffX = endX - start.x;
+    const diffY = endY - start.y;
+    const duration = Date.now() - start.time;
+
+    // Check if the gesture is predominantly horizontal
+    const isHorizontal = Math.abs(diffX) > Math.abs(diffY) * 1.25;
+    const isSufficientDistance = Math.abs(diffX) >= 45;
+    const isFastFlick = duration < 320 && Math.abs(diffX) >= 28;
+
+    if (isHorizontal && (isSufficientDistance || isFastFlick)) {
+      const currentIndex = tabs.findIndex((t) => t.id === activeTab);
+      if (currentIndex !== -1) {
+        if (diffX < 0 && currentIndex < tabs.length - 1) {
+          // Swiped left -> Next tab
+          handleTabClick(tabs[currentIndex + 1].id);
+        } else if (diffX > 0 && currentIndex > 0) {
+          // Swiped right -> Previous tab
+          handleTabClick(tabs[currentIndex - 1].id);
+        }
+      }
+    }
+  };
+
+  const handleTouchCancel = () => {
+    touchStartRef.current = null;
+  };
+
+  if (!open) return null;
+
+  const handleExport = async () => {
+    try {
+      const status = await exportBackup();
+      setMsg({ text: status });
+    } catch {
+      setMsg({ text: 'Failed to export backup.', error: true });
+    }
+  };
+
+  const handleImport = (file?: File) => {
+    if (!file) return;
+    setConfirmImport(false);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const ok = typeof reader.result === 'string' && importBackup(reader.result);
+      if (!ok) {
+        setMsg({ text: 'Backup was not imported. Check the file and available device storage; your previous copy remains intact.', error: true });
+        return;
+      }
+      if (!user) {
+        setMsg({ text: 'Backup restored on this device.' });
+        return;
+      }
+      const sync = await syncToCloud();
+      setMsg(sync.ok
+        ? { text: 'Backup restored on this device and synced to cloud.' }
+        : { text: 'Backup restored on this device. Cloud sync needs review: ' + (sync.error ?? 'try again later.'), error: true });
+    };
+    reader.onerror = () => setMsg({ text: 'Could not read that backup file. Nothing was replaced.', error: true });
+    reader.readAsText(file);
+  };
+
+  return (
+    <Overlay open={open} onClose={onClose} align="full">
+    <div
+      className={legacyStyle ? 'settings-shell app-frame h-full w-full max-w-md mx-auto bg-base page-slide-in flex flex-col overflow-hidden border-x border-subtle' : 'settings-shell app-frame h-full w-full max-w-md mx-auto bg-base page-slide-in flex flex-col overflow-hidden'}
+    >
+      {/* ── 1. Clean Top Bar ── */}
+      <div
+        className={legacyStyle ? 'settings-header flex items-center gap-3 px-4 border-b border-subtle shrink-0 bg-elevated' : 'settings-header flex items-center gap-2 px-3 shrink-0'}
+        style={legacyStyle
+          ? { paddingTop: 'max(1rem, var(--safe-area-top))', paddingBottom: '0.875rem' }
+          : { paddingTop: 'max(0.75rem, var(--safe-area-top))', paddingBottom: '0.75rem' }}
+      >
+        <button
+          onClick={
+            trashOpen
+              ? () => setTrashOpen(false)
+              : onClose
+          }
+          className={legacyStyle ? 'p-2 -ml-1.5 rounded-xl text-content-secondary hover:text-content-primary hover:bg-surface transition-colors active:scale-95 flex items-center justify-center' : 'glass rounded-full transition-opacity active:opacity-60 flex items-center justify-center'}
+          aria-label="Back"
+        >
+          {legacyStyle ? <ArrowLeft size={20} /> : <ArrowLeft size={21} strokeWidth={2.2} />}
+        </button>
+        <div className="min-w-0">
+          {legacyStyle && <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-primary">YouDO</p>}
+          <h1 className={legacyStyle ? 'text-[18px] leading-5 font-bold text-content-primary tracking-tight' : 'font-display text-[28px] leading-[34px] font-bold text-content-primary tracking-tight'}>
+            {trashOpen ? 'Recently Deleted' : 'Settings'}
+          </h1>
+          {!trashOpen && <p className={legacyStyle ? 'mt-0.5 text-[11px] text-content-muted' : 'text-[13px] text-content-secondary'}>Your workspace, focus rules and privacy</p>}
+        </div>
+      </div>
+
+      {/* ── 2. Tab Navigation Strip ── */}
+      {!trashOpen && (
+        <div className={legacyStyle ? 'settings-tab-bar shrink-0 px-3 pt-2 pb-2.5 bg-elevated/95 backdrop-blur-md border-b border-subtle' : 'settings-tab-bar shrink-0 px-4 pt-2 pb-3'}>
+          <div
+            ref={tabBarRef}
+            role="tablist"
+            aria-label="Settings categories"
+            className={legacyStyle ? 'relative flex items-center gap-1 overflow-x-auto overscroll-x-contain no-scrollbar scroll-smooth touch-pan-x p-1 bg-surface/90 rounded-2xl border border-subtle/80 shadow-inner' : 'ios-segmented relative overflow-x-auto overscroll-x-contain no-scrollbar scroll-smooth touch-pan-x'}
+          >
+            {tabs.map((tab, idx) => {
+              const isActive = activeTab === tab.id;
+              const Icon = tab.icon;
+              const accessibleLabel = tab.badge && tab.badgeLabel ? `${tab.label}, ${tab.badgeLabel}` : tab.label;
+              return (
+                <button
+                  key={tab.id}
+                  ref={(el) => { tabRefs.current[tab.id] = el; }}
+                  type="button"
+                  role="tab"
+                  id={`settings-tab-${tab.id}`}
+                  aria-label={accessibleLabel}
+                  aria-selected={isActive}
+                  aria-controls={`settings-panel-${tab.id}`}
+                  tabIndex={isActive ? 0 : -1}
+                  onKeyDown={(e) => handleTabKeyDown(e, idx)}
+                  onClick={() => handleTabClick(tab.id)}
+                  className={legacyStyle
+                    ? `shrink-0 flex-none px-3.5 py-1.5 rounded-xl text-[12px] tracking-tight whitespace-nowrap transition-all duration-200 flex items-center justify-center gap-1.5 select-none active:scale-[0.98] ${
+                        isActive
+                          ? 'bg-primary text-on-primary shadow-sm shadow-primary/25 font-bold'
+                          : 'text-content-secondary hover:text-content-primary hover:bg-white/5 font-semibold'
+                      }`
+                    : `shrink-0 flex-none px-3.5 py-1.5 !flex-none whitespace-nowrap select-none ${isActive ? 'font-semibold' : 'font-medium'}`}
+                >
+                  {legacyStyle
+                    ? <Icon size={13} className={isActive ? 'text-on-primary' : 'text-content-muted'} />
+                    : <Icon size={14} className={isActive ? 'text-primary' : 'text-content-secondary'} />}
+                  <span>{tab.label}</span>
+                  {tab.badge && (
+                    <span
+                      className={`size-1.5 rounded-full ${
+                        tab.id === 'account' ? 'bg-warning animate-pulse' : 'bg-primary animate-pulse'
+                      }`}
+                      aria-hidden="true"
+                    />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {trashOpen ? (
+      <div className="flex-1 overflow-y-auto overscroll-contain no-scrollbar px-4 pt-4 pb-12">
+        <p className="text-[12px] text-content-secondary leading-relaxed px-0.5 mb-4">
+          Deleted goals and their unfinished linked plans are kept here (up to 20). Completed Calendar cards stay in your history. Standalone Today tasks are not stored.
+        </p>
+        {trashRestoreError && (
+          <p role="alert" className="mb-3 rounded-xl border border-error/20 bg-error-soft p-3 text-[12px] text-error">
+            {trashRestoreError}
+          </p>
+        )}
+        {recentlyDeletedGoals.length === 0 ? (
+          <div className="bg-elevated rounded-2xl border border-subtle p-8 text-center">
+            <div className="mx-auto w-12 h-12 grid place-items-center rounded-2xl bg-surface">
+              <Trash2 size={20} className="text-content-muted" />
+            </div>
+            <p className="mt-3 text-[13px] font-semibold text-content-primary">Trash is empty</p>
+            <p className="mt-1 text-[12px] text-content-secondary">Deleted goals will appear here for recovery.</p>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between mb-2 px-0.5">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-content-muted">
+                {recentlyDeletedGoals.length} {recentlyDeletedGoals.length === 1 ? 'item' : 'items'}
+              </span>
+              <button
+                type="button"
+                onClick={clearTrash}
+                className="text-[11px] font-semibold text-error"
+              >
+                Empty trash
+              </button>
+            </div>
+            <div className="bg-elevated rounded-2xl border border-subtle overflow-hidden divide-y divide-white/5">
+              {recentlyDeletedGoals.map((rec) => (
+                <div key={rec.id} className="p-3.5 flex items-center gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[13px] font-semibold text-content-primary truncate">{rec.node.title}</div>
+                    <div className="mt-0.5 text-[11px] text-content-muted">
+                      {new Date(rec.deletedAt).toLocaleString(undefined, {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                      {rec.tasks.length > 0
+                        ? ` · ${rec.tasks.length} linked ${rec.tasks.length === 1 ? 'task' : 'tasks'}`
+                        : ''}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTrashRestoreError(restoreDeletedGoal(rec.id)
+                        ? null
+                        : 'Could not restore this goal because an item with the same ID already exists. The deleted copy is still here.');
+                    }}
+                    className="shrink-0 h-8 px-2.5 rounded-[10px] text-[11px] font-semibold bg-primary-soft text-primary"
+                  >
+                    Restore
+                  </button>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+      ) : (
+      <div
+        ref={contentRef}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchCancel}
+        className="settings-content flex-1 overflow-y-auto overscroll-contain no-scrollbar px-4 pt-4 pb-12 space-y-5 touch-pan-y"
+      >
+        {/* Status Messages */}
+        {msg && (
+          <div
+            className={`p-3 rounded-xl text-[12px] font-semibold flex items-start gap-3 animate-fade-in ${
+              msg.error
+                ? "bg-error-soft border border-error/20 text-error"
+                : "bg-secondary/10 border border-secondary/20 text-secondary"
+            }`}
+          >
+            <span className="flex-1 leading-relaxed">{msg.text}</span>
+            <button onClick={() => setMsg(null)} className="shrink-0 p-0.5 opacity-60 hover:opacity-100 transition-opacity">
+              <X size={16} />
+            </button>
+          </div>
+        )}
+
+        {/* ── TAB PANEL: ACCOUNT ── */}
+        <div
+          role="tabpanel"
+          id="settings-panel-account"
+          aria-labelledby="settings-tab-account"
+          hidden={activeTab !== 'account'}
+          tabIndex={activeTab === 'account' ? 0 : -1}
+          className={activeTab === 'account' ? 'space-y-5 fade-in outline-none' : 'hidden'}
+        >
+          {onOpenAdminHub && (
+            <section>
+              <button
+                type="button"
+                onClick={onOpenAdminHub}
+                className="settings-card flex w-full items-center gap-3 rounded-2xl border border-subtle bg-elevated p-4 text-left"
+                aria-label={adminPending > 0 ? `Admin Hub, ${adminPending} ${adminPending === 1 ? 'item' : 'items'} waiting` : 'Admin Hub'}
+              >
+                <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary-soft text-primary">
+                  <Gauge size={16} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-semibold text-content-primary">Admin Hub</span>
+                  <span className="mt-0.5 block text-[11px] text-content-muted">Tip: hold the Settings button to open it from anywhere</span>
+                </span>
+                {adminPending > 0 && (
+                  <span className="grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-on-primary" aria-hidden>
+                    {adminPending > 99 ? '99+' : adminPending}
+                  </span>
+                )}
+                <ChevronRight size={16} className="shrink-0 text-content-muted" />
+              </button>
+            </section>
+          )}
+
+          {/* ── SECTION 1: ACCOUNT & SYNC ── */}
+          <section>
+          <SectionLabel icon={<ShieldCheck size={13} className="text-primary" />}>ACCOUNT &amp; SYNC</SectionLabel>
+          <div className="settings-card settings-account-card relative rounded-2xl border border-subtle/80 bg-elevated overflow-hidden shadow-xl">
+            {user && (
+              <div className="relative">
+                {/* Ambient luxury glow overlay */}
+                <div
+                  className="pointer-events-none absolute inset-0 opacity-70"
+                  style={{
+                    background:
+                      'radial-gradient(100% 75% at 90% 0%, rgba(134, 165, 136, 0.16), transparent 58%), radial-gradient(90% 70% at 10% 0%, rgba(196, 165, 116, 0.16), transparent 56%)',
+                  }}
+                />
+
+                {/* ── Main Profile & Sync Summary Card ── */}
+                <div className="settings-account-summary relative p-4 sm:p-5 space-y-3.5">
+                  {/* Top: Avatar & User Identity */}
+                  <div className="flex items-start gap-3.5">
+                    {/* Sculpted Avatar with Verified Shield badge */}
+                    <div className="relative shrink-0">
+                      <div className="size-[52px] rounded-[18px] bg-gradient-to-br from-primary-soft to-surface border border-primary/30 ring-1 ring-primary/15 grid place-items-center text-[26px] shadow-md select-none overflow-hidden">
+                        {user.user_metadata?.avatar_url && /^https?:/.test(String(user.user_metadata.avatar_url)) ? (
+                          <img
+                            src={user.user_metadata.avatar_url}
+                            alt=""
+                            className="size-full object-cover"
+                          />
+                        ) : (
+                          user.user_metadata?.avatar_url || '🎓'
+                        )}
+                      </div>
+                      <span
+                        className="absolute -bottom-1 -right-1 size-5 rounded-full bg-secondary-soft border border-secondary/50 shadow-sm grid place-items-center"
+                        title={user.email_confirmed_at || user.confirmed_at ? 'Email verified' : 'Verified account'}
+                      >
+                        <ShieldCheck size={11} className="text-secondary" strokeWidth={2.5} />
+                      </span>
+                    </div>
+
+                    {/* User credentials & names */}
+                    <div className="min-w-0 flex-1 pt-0.5">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-secondary">
+                        Your account
+                      </p>
+
+                      <h3 className="text-[17px] font-bold text-content-primary leading-tight mt-0.5 truncate flex items-center gap-2">
+                        <span className="truncate">
+                          {user.user_metadata?.full_name || user.email?.split('@')[0] || 'Aspirant'}
+                        </span>
+                        {normalizeUsername(accountProfile?.username) ? (
+                          <span className="text-[11px] font-semibold font-mono text-primary bg-primary-soft/80 border border-primary/25 px-1.5 py-0.5 rounded-md tracking-wide shrink-0">
+                            @{accountProfile!.username}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-medium text-content-muted bg-surface/60 border border-subtle/80 px-1.5 py-0.5 rounded-md tracking-wide shrink-0">
+                            No @handle set
+                          </span>
+                        )}
+                      </h3>
+
+                      <p className="mt-0.5 text-[12px] text-content-secondary truncate">
+                        {user.email}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* ── Metadata & Status Chips Row ── */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {/* Live Sync Status Pill */}
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold tracking-wide border shrink-0 transition-colors ${
+                        cloudSyncConflict
+                          ? 'text-warning bg-warning/10 border-warning/30'
+                          : 'text-secondary bg-secondary-soft border-secondary/30'
+                      }`}
+                    >
+                      <span
+                        className={`size-1.5 rounded-full ${
+                          cloudSyncConflict ? 'bg-warning animate-pulse' : 'bg-secondary animate-pulse'
+                        }`}
+                      />
+                      {cloudSyncConflict ? 'Sync paused safely' : 'Cloud live'}
+                    </span>
+
+                    {/* Exam Hashtag Pill */}
+                    <span className="settings-account-hashtag text-[10px] shrink-0">
+                      {hashtagContext.mine ? `#${hashtagContext.mine.label}` : '#Exam hashtag not set'}
+                    </span>
+
+                    {/* Email Verification Pill */}
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium border border-subtle/70 bg-surface/60 text-content-muted shrink-0">
+                      <ShieldCheck size={11} className={user.email_confirmed_at || user.confirmed_at ? 'text-secondary' : 'text-content-muted'} />
+                      <span>{user.email_confirmed_at || user.confirmed_at ? 'Email verified' : 'Email pending'}</span>
+                    </span>
+                  </div>
+
+                  {/* ── Sync Command Deck ── */}
+                  <div className="rounded-xl border border-subtle/80 bg-surface/50 p-3.5 space-y-3 shadow-inner">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[12px] font-bold text-content-primary leading-tight">
+                          Cloud Workspace Backup
+                        </p>
+                        <p className="text-[10.5px] text-content-muted mt-0.5 leading-snug">
+                          Continuous sync & multi-device restore points
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={syncBusy}
+                        onClick={async () => {
+                          if (syncBusy) return;
+                          setSyncBusy(true);
+                          try {
+                            const res = await syncToCloud();
+                            setMsg(
+                              res.ok
+                                ? { text: '✓ Cloud backup synced.' }
+                                : { text: `✗ ${res.error || 'Failed to sync.'}`, error: true },
+                            );
+                          } finally {
+                            setSyncBusy(false);
+                          }
+                        }}
+                        className="h-9 px-4 rounded-xl bg-primary text-on-primary text-[12px] font-bold flex items-center justify-center gap-1.5 shadow-md shadow-primary/10 hover:brightness-105 active:scale-[0.98] transition-all shrink-0 disabled:opacity-60"
+                      >
+                        {syncBusy ? (
+                          <>
+                            <RefreshCw size={13} className="animate-spin" />
+                            <span>Syncing…</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload size={13} strokeWidth={2.4} />
+                            <span>Sync now</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Clear cloud backup flow in-place */}
+                    {!confirmWipeCloud ? (
+                      <div className="flex items-center justify-between pt-1 border-t border-subtle/50 text-[10.5px]">
+                        <span className="text-content-muted">Encrypted cloud copy</span>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmWipeCloud(true)}
+                          className="inline-flex items-center gap-1.5 font-medium text-content-muted hover:text-error transition-colors py-0.5"
+                        >
+                          <Trash2 size={11} />
+                          Clear cloud backup
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-error/30 bg-error-soft/90 p-3 space-y-2.5">
+                        <div className="flex items-center gap-2 text-error font-semibold text-[11.5px]">
+                          <AlertTriangle size={14} className="shrink-0" />
+                          <span>Permanently clear cloud backup?</span>
+                        </div>
+                        <p className="text-[11px] text-content-secondary leading-relaxed">
+                          Clearing the cloud backup deletes your data from the server. Your local device copy will NOT be deleted.
+                        </p>
+                        <div className="flex gap-2 pt-0.5">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const success = await clearCloudData();
+                              setConfirmWipeCloud(false);
+                              setMsg(
+                                success
+                                  ? { text: '✓ Cloud backup permanently cleared.' }
+                                  : { text: '✗ Failed to clear cloud backup.', error: true },
+                              );
+                            }}
+                            className="flex-1 h-9 rounded-xl bg-error text-white text-[11.5px] font-bold shadow-sm active:scale-[0.98] transition-all"
+                          >
+                            Yes, clear cloud
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmWipeCloud(false)}
+                            className="flex-1 h-9 rounded-xl border border-subtle bg-surface text-[11.5px] font-semibold text-content-secondary hover:text-content-primary active:scale-[0.98] transition-all"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Conflict resolution card */}
+                  {cloudSyncConflict && (
+                    <div className="rounded-xl border border-warning/30 bg-warning/10 p-3 space-y-2.5">
+                      <div className="flex items-start gap-2.5">
+                        <ShieldCheck size={16} className="mt-0.5 shrink-0 text-warning" />
+                        <div className="min-w-0">
+                          <p className="text-[12px] font-bold text-content-primary">Both copies are preserved</p>
+                          <p className="mt-0.5 text-[11px] leading-relaxed text-content-secondary">
+                            This device and cloud contain different work. YouDO stopped before overwriting either copy.
+                          </p>
+                          {cloudConflictDetails && (
+                            <p className="mt-1 text-[10.5px] leading-relaxed text-content-muted">
+                              {cloudConflictDetails.reason}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const result = await syncToCloud({ conflictStrategy: 'merge' });
+                            setMsg(
+                              result.ok
+                                ? { text: '✓ Device and cloud branches combined safely.' }
+                                : { text: `✗ ${result.error || 'Could not combine copies.'}`, error: true },
+                            );
+                          }}
+                          className="h-9 rounded-xl bg-primary text-on-primary text-[11.5px] font-bold shadow-sm active:scale-[0.98] transition-all"
+                        >
+                          Combine copies
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setConfirmRestore(null);
+                            setRestoreOpen(true);
+                            setEditProfileOpen(false);
+                            setSecurityOpen(false);
+                          }}
+                          className="h-9 rounded-xl border border-subtle bg-surface text-content-secondary hover:text-content-primary text-[11.5px] font-semibold active:scale-[0.98] transition-all"
+                        >
+                          Review copies
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Quick Action Hub (3 Interactive Tabs) ── */}
+                  <div className="grid grid-cols-3 gap-2 pt-0.5">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!editProfileOpen) {
+                          setEditName(user.user_metadata?.full_name || '');
+                          setEditAvatar(user.user_metadata?.avatar_url || '🎓');
+                          setEditProfileOpen(true);
+                          setRestoreOpen(false);
+                          setSecurityOpen(false);
+                          setProfileLoading(true);
+                          const profile = await fetchProfile(user.id);
+                          setAccountProfile(profile);
+                          if (profile) {
+                            setEditUsername(profile.username || '');
+                            setEditBio(profile.bio || '');
+                            setEditStatsPrivate(profile.stats_private || false);
+                          } else {
+                            setEditUsername('');
+                            setEditBio('');
+                            setEditStatsPrivate(false);
+                          }
+                          setProfileLoading(false);
+                        } else {
+                          setEditProfileOpen(false);
+                        }
+                      }}
+                      className={`h-10 px-2 rounded-xl text-[11.5px] font-semibold border flex items-center justify-center gap-1.5 transition-all active:scale-[0.97] ${
+                        editProfileOpen
+                          ? 'bg-primary-soft border-primary/50 text-primary shadow-sm ring-1 ring-primary/20'
+                          : 'bg-surface/60 border-subtle/80 text-content-secondary hover:text-content-primary hover:bg-surface'
+                      }`}
+                    >
+                      <Edit2 size={12} className={editProfileOpen ? 'text-primary' : 'text-primary/80'} />
+                      <span>Edit Profile</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setConfirmRestore(null);
+                        setRestoreOpen((v) => !v);
+                        setEditProfileOpen(false);
+                        setSecurityOpen(false);
+                      }}
+                      className={`h-10 px-2 rounded-xl text-[11.5px] font-semibold border flex items-center justify-center gap-1.5 transition-all active:scale-[0.97] ${
+                        restoreOpen
+                          ? 'bg-secondary-soft border-secondary/50 text-secondary shadow-sm ring-1 ring-secondary/20'
+                          : 'bg-surface/60 border-subtle/80 text-content-secondary hover:text-content-primary hover:bg-surface'
+                      }`}
+                    >
+                      <History size={12} className={restoreOpen ? 'text-secondary' : 'text-secondary/80'} />
+                      <span>Restore</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSecurityOpen((value) => !value);
+                        setSecurityMode(null);
+                        setEditProfileOpen(false);
+                        setRestoreOpen(false);
+                        setCurrentPassword('');
+                      }}
+                      className={`h-10 px-2 rounded-xl text-[11.5px] font-semibold border flex items-center justify-center gap-1.5 transition-all active:scale-[0.97] ${
+                        securityOpen
+                          ? 'bg-secondary-soft border-secondary/50 text-secondary shadow-sm ring-1 ring-secondary/20'
+                          : 'bg-surface/60 border-subtle/80 text-content-secondary hover:text-content-primary hover:bg-surface'
+                      }`}
+                    >
+                      <KeyRound size={12} className={securityOpen ? 'text-secondary' : 'text-secondary/80'} />
+                      <span>Security</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* ── Expandable: Edit Profile Sub-panel ── */}
+                {editProfileOpen && (
+                  <div className="relative border-t border-subtle/80 bg-surface/40 px-4 sm:px-5 py-4 space-y-3.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <Edit2 size={13} className="text-primary" />
+                        <h4 className="text-[12px] font-bold text-content-primary">Edit Profile</h4>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setEditProfileOpen(false)}
+                        className="size-7 rounded-lg text-content-muted hover:text-content-primary hover:bg-surface grid place-items-center transition-colors"
+                        aria-label="Close edit profile"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+
+                    {profileLoading ? (
+                      <div className="py-6 text-center text-xs text-content-muted flex items-center justify-center gap-2">
+                        <RefreshCw size={13} className="animate-spin text-primary" />
+                        <span>Loading profile details…</span>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase tracking-wider text-content-muted mb-1">
+                              Username
+                            </label>
+                            <input
+                              type="text"
+                              value={editUsername}
+                              onChange={(e) => setEditUsername(e.target.value.toLowerCase())}
+                              placeholder="@username"
+                              className="w-full bg-surface border border-subtle rounded-xl px-3 py-2 text-[12.5px] text-content-primary focus:outline-none focus:border-primary transition-colors"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase tracking-wider text-content-muted mb-1">
+                              Display Name
+                            </label>
+                            <input
+                              type="text"
+                              value={editName}
+                              onChange={(e) => setEditName(e.target.value)}
+                              placeholder="Your name"
+                              className="w-full bg-surface border border-subtle rounded-xl px-3 py-2 text-[12.5px] text-content-primary focus:outline-none focus:border-primary transition-colors"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-content-muted mb-1">
+                            Bio
+                          </label>
+                          <textarea
+                            value={editBio}
+                            onChange={(e) => setEditBio(e.target.value)}
+                            placeholder="Short bio about your goals..."
+                            maxLength={150}
+                            rows={2}
+                            className="w-full bg-surface border border-subtle rounded-xl px-3 py-2 text-[12.5px] text-content-primary focus:outline-none focus:border-primary resize-none transition-colors"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-content-muted mb-1">
+                            Avatar Icon
+                          </label>
+                          <div className="flex gap-2 items-center overflow-x-auto no-scrollbar py-1">
+                            {['🎓', '⚡', '🏆', '🚀', '🦉', '🧠', '🎯', '📚', '🔥', '👑', '🌟', '💻', '🎨', '🎧', '🏋️', '🌱', '☀️', '🌙', '🌊', '☕'].map((emoji) => (
+                              <button
+                                key={emoji}
+                                type="button"
+                                onClick={() => setEditAvatar(emoji)}
+                                className={`size-9 rounded-xl text-lg flex items-center justify-center transition-all border shrink-0 ${
+                                  editAvatar === emoji
+                                    ? 'bg-primary-soft border-primary ring-1 ring-primary/40 scale-105 shadow-sm'
+                                    : 'bg-surface border-subtle text-content-muted hover:bg-elevated'
+                                }`}
+                              >
+                                {emoji}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-surface border border-subtle">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[12px] font-semibold text-content-primary">Private Stats</p>
+                            <p className="text-[10px] text-content-muted mt-0.5">Hide your focus hours from others</p>
+                          </div>
+                          <Toggle
+                            checked={editStatsPrivate}
+                            label="Keep focus stats private on profile"
+                            onChange={() => setEditStatsPrivate((v) => !v)}
+                          />
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!editUsername) {
+                              setMsg({ text: 'Username is required.', error: true });
+                              return;
+                            }
+                            if (!/^[a-z0-9_]+$/.test(editUsername)) {
+                              setMsg({ text: 'Username can only contain lowercase letters, numbers, and underscores.', error: true });
+                              return;
+                            }
+                            setProfileLoading(true);
+
+                            // Save to Auth (for quick display)
+                            const ok = await updateProfile({ fullName: editName, avatarUrl: editAvatar });
+
+                            // Save to Profiles table
+                            const profileSave = await upsertProfile({
+                              id: user.id,
+                              username: editUsername,
+                              display_name: editName,
+                              bio: editBio,
+                              stats_private: editStatsPrivate,
+                              avatar_url: editAvatar,
+                            });
+
+                            if (ok && profileSave.ok) {
+                              setEditProfileOpen(false);
+                              setMsg({ text: '✓ Profile updated.' });
+                              void fetchProfile(user.id).then(setAccountProfile);
+                              if (pacePrefs.optedIn) void publishPublicPace();
+                            } else {
+                              setMsg({ text: profileSave.error || 'Profile could not be updated.', error: true });
+                            }
+                            setProfileLoading(false);
+                          }}
+                          className="w-full h-10 rounded-xl bg-primary text-on-primary text-[12.5px] font-bold shadow-md shadow-primary/10 hover:brightness-105 active:scale-[0.98] transition-all"
+                        >
+                          Save profile
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {/* ── Expandable: Restore Points Sub-panel ── */}
+                {restoreOpen && (
+                  <div className="relative border-t border-subtle/80 bg-surface/40 px-4 sm:px-5 py-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <History size={13} className="text-primary" />
+                        <h4 className="text-[12px] font-bold text-content-primary">Cloud Restore Points</h4>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRestoreOpen(false);
+                          setConfirmRestore(null);
+                        }}
+                        className="size-7 rounded-lg text-content-muted hover:text-content-primary hover:bg-surface grid place-items-center transition-colors"
+                        aria-label="Close restore"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+
+                    <p className="text-[11px] text-content-secondary leading-relaxed">
+                      Safety copies are preserved when workspace content changes (up to 10 latest). Select a copy to preview and restore.
+                    </p>
+
+                    {restoreLoading && (
+                      <div className="py-6 text-center text-xs text-content-muted flex items-center justify-center gap-2">
+                        <RefreshCw size={13} className="animate-spin text-primary" />
+                        <span>Loading copies…</span>
+                      </div>
+                    )}
+
+                    {!restoreLoading && restorePoints && !restorePoints.live && restorePoints.visits.length === 0 && (
+                      <div className="p-4 rounded-xl border border-subtle bg-surface/60 text-center text-[12px] text-content-muted">
+                        No cloud backups found yet.
+                      </div>
+                    )}
+
+                    {!restoreLoading && restorePoints?.live && (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmRestore({ kind: 'live' })}
+                        className="w-full text-left p-3 rounded-xl bg-surface border border-subtle hover:border-primary/50 transition-all group"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-[12px] font-bold text-content-primary group-hover:text-primary transition-colors">
+                            Latest cloud copy
+                          </span>
+                          <span className="text-[10px] font-semibold text-primary bg-primary-soft/80 border border-primary/25 px-1.5 py-0.5 rounded">
+                            Live
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-content-secondary mt-0.5">
+                          Includes this visit · {formatBackupStamp(restorePoints.live.updatedAt)}
+                        </div>
+                        <div className="mt-1 text-[10.5px] leading-relaxed text-content-muted">
+                          {backupSummaryText(restorePoints.live.summary)}
+                        </div>
+                      </button>
+                    )}
+
+                    {!restoreLoading &&
+                      restorePoints?.visits.map((visit, index) => (
+                        <button
+                          key={visit.id}
+                          type="button"
+                          onClick={() =>
+                            setConfirmRestore({
+                              kind: 'visit',
+                              id: visit.id,
+                              label: visitSnapshotLabel(index),
+                              when: formatBackupStamp(visit.createdAt),
+                            })
+                          }
+                          className="w-full text-left p-3 rounded-xl bg-surface border border-subtle hover:border-secondary/50 transition-all group"
+                        >
+                          <div className="text-[12px] font-bold text-content-primary group-hover:text-secondary transition-colors">
+                            {visitSnapshotLabel(index)}
+                          </div>
+                          <div className="text-[11px] text-content-secondary mt-0.5">
+                            {formatBackupStamp(visit.createdAt)}
+                          </div>
+                          <div className="mt-1 text-[10.5px] leading-relaxed text-content-muted">
+                            {backupSummaryText(visit.summary)}
+                          </div>
+                        </button>
+                      ))}
+
+                    {/* Restore Confirmation Alert */}
+                    {confirmRestore && (
+                      <div className="rounded-xl bg-error-soft/90 border border-error/25 p-3.5 space-y-2.5">
+                        <div className="flex items-center gap-2 text-error font-semibold text-[12px]">
+                          <AlertTriangle size={14} className="shrink-0" />
+                          <span>Replace current data?</span>
+                        </div>
+                        <p className="text-[11px] text-content-secondary leading-relaxed">
+                          {confirmRestore.kind === 'live'
+                            ? 'Restore the latest cloud copy. Anything only on this device since the last sync will be lost.'
+                            : `Restore “${confirmRestore.label}” from ${confirmRestore.when}. Work after that copy will be lost.`}
+                        </p>
+                        <div className="flex gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const ok =
+                                confirmRestore.kind === 'live'
+                                  ? await restoreFromCloud()
+                                  : await restoreFromVisitSnapshot(confirmRestore.id);
+                              setConfirmRestore(null);
+                              setRestoreOpen(false);
+                              setMsg(
+                                ok
+                                  ? { text: '✓ Restored from cloud copy.' }
+                                  : { text: '✗ Could not restore that copy.', error: true },
+                              );
+                            }}
+                            className="flex-1 py-2 rounded-xl text-[11.5px] font-bold text-white bg-error active:scale-[0.98] transition-all"
+                          >
+                            Restore this copy
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmRestore(null)}
+                            className="flex-1 py-2 rounded-xl text-[11.5px] font-semibold text-content-secondary bg-surface border border-subtle hover:text-content-primary active:scale-[0.98] transition-all"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ── Expandable: Account Security Sub-panel ── */}
+                {securityOpen && (
+                  <div className="relative border-t border-subtle/80 bg-surface/40 px-4 sm:px-5 py-4 space-y-3.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <KeyRound size={13} className="text-primary" />
+                        <h4 className="text-[12px] font-bold text-content-primary">Account Security</h4>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSecurityOpen(false);
+                          setSecurityMode(null);
+                          setConfirmDeleteAccount(false);
+                        }}
+                        className="size-7 rounded-lg text-content-muted hover:text-content-primary hover:bg-surface grid place-items-center transition-colors"
+                        aria-label="Close security"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+
+                    {!securityMode ? (
+                      <div className="space-y-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSecurityMode('email');
+                            setNextEmail('');
+                            setCurrentPassword('');
+                          }}
+                          className="flex w-full items-center gap-3 rounded-xl border border-subtle bg-surface p-3 text-left hover:border-primary/40 transition-all group"
+                        >
+                          <span className="grid size-9 place-items-center rounded-xl bg-primary-soft text-primary shrink-0">
+                            <Mail size={15} />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-[12px] font-semibold text-content-primary group-hover:text-primary transition-colors">
+                              Change email
+                            </span>
+                            <span className="block truncate text-[10.5px] text-content-muted">{user.email}</span>
+                          </span>
+                          <ChevronRight size={15} className="text-content-muted group-hover:text-content-primary transition-colors" />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSecurityMode('password');
+                            setNextPassword('');
+                            setConfirmPassword('');
+                            setCurrentPassword('');
+                          }}
+                          className="flex w-full items-center gap-3 rounded-xl border border-subtle bg-surface p-3 text-left hover:border-secondary/40 transition-all group"
+                        >
+                          <span className="grid size-9 place-items-center rounded-xl bg-secondary-soft text-secondary shrink-0">
+                            <KeyRound size={15} />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-[12px] font-semibold text-content-primary group-hover:text-secondary transition-colors">
+                              Change password
+                            </span>
+                            <span className="block text-[10.5px] text-content-muted">Verify current password first</span>
+                          </span>
+                          <ChevronRight size={15} className="text-content-muted group-hover:text-content-primary transition-colors" />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setSecurityMode('devices')}
+                          className="flex w-full items-center gap-3 rounded-xl border border-subtle bg-surface p-3 text-left hover:border-primary/40 transition-all group"
+                        >
+                          <span className="grid size-9 place-items-center rounded-xl bg-primary-soft text-primary shrink-0">
+                            <MonitorSmartphone size={15} />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-[12px] font-semibold text-content-primary group-hover:text-primary transition-colors">
+                              Signed-in devices
+                            </span>
+                            <span className="block text-[10.5px] text-content-muted">Review active sessions &amp; remote sign-out</span>
+                          </span>
+                          <ChevronRight size={15} className="text-content-muted group-hover:text-content-primary transition-colors" />
+                        </button>
+
+                        <div className="flex items-center gap-2 px-1 pt-1 text-[10.5px] text-content-muted">
+                          <ShieldCheck size={13} className="shrink-0 text-secondary" />
+                          <span>{user.email_confirmed_at || user.confirmed_at ? 'Email verified' : 'Email confirmation is pending'}</span>
+                        </div>
+                      </div>
+                    ) : securityMode === 'devices' ? (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-end">
+                          <button
+                            type="button"
+                            onClick={() => setSecurityMode(null)}
+                            className="text-[11px] font-semibold text-primary hover:underline"
+                          >
+                            ← Back to options
+                          </button>
+                        </div>
+                        {user && <SignedInDevices key={user.id} accountId={user.id} />}
+                      </div>
+                    ) : (
+                      <form
+                        className="space-y-3"
+                        onSubmit={async (event) => {
+                          event.preventDefault();
+                          if (securityMode === 'password' && nextPassword !== confirmPassword) {
+                            setMsg({ text: 'New passwords do not match.', error: true });
+                            return;
+                          }
+                          setSecurityBusy(true);
+                          const result =
+                            securityMode === 'email'
+                              ? await changeEmail(currentPassword, nextEmail)
+                              : await changePassword(currentPassword, nextPassword);
+                          setSecurityBusy(false);
+                          if (!result.ok) {
+                            setMsg({ text: result.error || 'Account security could not be updated.', error: true });
+                            return;
+                          }
+                          setMsg({ text: `✓ ${result.message || 'Account security updated.'}` });
+                          setSecurityMode(null);
+                          setCurrentPassword('');
+                          setNextEmail('');
+                          setNextPassword('');
+                          setConfirmPassword('');
+                        }}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-[12px] font-bold text-content-primary">
+                              {securityMode === 'email' ? 'New account email' : 'New password'}
+                            </p>
+                            <p className="text-[10px] text-content-muted">Your workspace stays attached to this account.</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setSecurityMode(null)}
+                            className="text-[11px] font-semibold text-primary hover:underline"
+                          >
+                            Back
+                          </button>
+                        </div>
+
+                        {securityMode === 'email' && (
+                          <>
+                            <input
+                              type="email"
+                              aria-label="New email address"
+                              autoComplete="email"
+                              required
+                              value={nextEmail}
+                              onChange={(event) => setNextEmail(event.target.value)}
+                              placeholder="New email address"
+                              className="h-10 w-full rounded-xl border border-subtle bg-surface px-3 text-[12px] outline-none focus:border-primary transition-colors"
+                            />
+                            <p className="rounded-xl border border-warning/20 bg-warning/8 px-3 py-2 text-[10.5px] leading-relaxed text-content-secondary">
+                              Keep access to both inboxes. Open the confirmation email in each to finish the change.
+                            </p>
+                          </>
+                        )}
+
+                        {securityMode === 'password' && (
+                          <>
+                            <input
+                              type="password"
+                              aria-label="New password"
+                              autoComplete="new-password"
+                              minLength={10}
+                              required
+                              value={nextPassword}
+                              onChange={(event) => setNextPassword(event.target.value)}
+                              placeholder="New password · 10+ characters"
+                              className="h-10 w-full rounded-xl border border-subtle bg-surface px-3 text-[12px] outline-none focus:border-primary transition-colors"
+                            />
+                            <input
+                              type="password"
+                              aria-label="Repeat new password"
+                              autoComplete="new-password"
+                              minLength={10}
+                              required
+                              value={confirmPassword}
+                              onChange={(event) => setConfirmPassword(event.target.value)}
+                              placeholder="Repeat new password"
+                              className="h-10 w-full rounded-xl border border-subtle bg-surface px-3 text-[12px] outline-none focus:border-primary transition-colors"
+                            />
+                          </>
+                        )}
+
+                        <input
+                          type="password"
+                          aria-label="Current password"
+                          autoComplete="current-password"
+                          required
+                          value={currentPassword}
+                          onChange={(event) => setCurrentPassword(event.target.value)}
+                          placeholder="Current password"
+                          className="h-10 w-full rounded-xl border border-subtle bg-surface px-3 text-[12px] outline-none focus:border-primary transition-colors"
+                        />
+                        <button
+                          type="submit"
+                          disabled={securityBusy}
+                          className="h-10 w-full rounded-xl bg-primary text-[12px] font-bold text-on-primary shadow-md shadow-primary/10 hover:brightness-105 active:scale-[0.98] transition-all disabled:opacity-50"
+                        >
+                          {securityBusy ? 'Verifying…' : securityMode === 'email' ? 'Request email change' : 'Change password'}
+                        </button>
+                      </form>
+                    )}
+
+                    {/* Danger zone: Account deletion */}
+                    <div className="pt-3 border-t border-subtle/60">
+                      {!confirmDeleteAccount ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDeleteConfirmation('');
+                            setConfirmDeleteAccount(true);
+                          }}
+                          className="text-[11px] font-medium text-content-muted hover:text-error flex items-center gap-1.5 py-1 transition-colors group"
+                        >
+                          <Trash2 size={12} className="group-hover:text-error transition-colors" />
+                          <span>Delete account</span>
+                        </button>
+                      ) : (
+                        <div className="w-full rounded-xl bg-error-soft/90 border border-error/25 p-3.5 space-y-2.5">
+                          <div className="flex items-center gap-2 text-error font-semibold text-[11.5px]">
+                            <AlertTriangle size={13} className="shrink-0" />
+                            <span>Permanently delete this account?</span>
+                          </div>
+                          <p className="text-[10.5px] leading-relaxed text-content-secondary">
+                            This removes your login, cloud backup, restore points, and public Board profile. Export a backup first if needed.
+                          </p>
+                          {activeSession && (
+                            <p className="rounded-lg bg-error/15 px-2.5 py-2 text-[10.5px] font-medium text-error">
+                              Stop the active focus session before deleting your account.
+                            </p>
+                          )}
+                          <input
+                            type="text"
+                            value={deleteConfirmation}
+                            onChange={(event) => setDeleteConfirmation(event.target.value)}
+                            placeholder="Type DELETE to confirm"
+                            autoCapitalize="characters"
+                            className="w-full h-9 rounded-lg border border-error/30 bg-base px-2.5 text-[11.5px] text-content-primary outline-none focus:border-error transition-colors"
+                          />
+                          <div className="flex gap-2 pt-0.5">
+                            <button
+                              type="button"
+                              disabled={deleteConfirmation !== 'DELETE' || deleteBusy || Boolean(activeSession)}
+                              onClick={async () => {
+                                setDeleteBusy(true);
+                                const result = await deleteAccount();
+                                setDeleteBusy(false);
+                                if (!result.ok) {
+                                  setMsg({ text: result.error || 'Account deletion failed.', error: true });
+                                  return;
+                                }
+                                setConfirmDeleteAccount(false);
+                              }}
+                              className="flex-1 py-2 rounded-lg text-[11.5px] font-bold text-white bg-error hover:bg-error/90 active:scale-[0.98] transition-all disabled:opacity-40"
+                            >
+                              {deleteBusy ? 'Deleting…' : 'Delete forever'}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={deleteBusy}
+                              onClick={() => {
+                                setConfirmDeleteAccount(false);
+                                setDeleteConfirmation('');
+                              }}
+                              className="flex-1 py-2 rounded-lg text-[11.5px] font-semibold text-content-secondary bg-surface border border-subtle hover:text-content-primary active:scale-[0.98] transition-all"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Footer Session Control (Sign Out) ── */}
+                <div className="border-t border-subtle/60 p-4 sm:p-5 pt-3 space-y-2.5 bg-surface/20">
+                  {/* Active Sitting Warning banner (if session in progress) */}
+                  {activeSession && (
+                    <div className="flex items-center gap-2 p-2.5 rounded-xl bg-warning/10 border border-warning/20 text-warning text-[11px] leading-tight">
+                      <AlertTriangle size={13} className="shrink-0" />
+                      <span>Finish or discard the active sitting before signing out.</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 text-[10.5px] text-content-muted">
+                      <span className="size-1.5 rounded-full bg-secondary" />
+                      <span>Encrypted local workspace</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={Boolean(activeSession) || signOutBusy}
+                      onClick={async () => {
+                        setSignOutBusy(true);
+                        try {
+                          const beforeSync = captureWorkspace();
+                          const synced = await syncToCloud();
+                          if (!synced.ok) {
+                            if ((await verifyAccount()) === 'gone') return;
+                            setMsg({
+                              text: `Could not sign out safely: ${synced.error || 'sync failed'}. Export a backup or reconnect first.`,
+                              error: true,
+                            });
+                            return;
+                          }
+                          const syncedWorkspace = captureAccountSignOutAfterSync(beforeSync);
+                          const result = await signOut({ clearWorkspace: true, syncedWorkspace });
+                          if (!result.ok) setMsg({ text: result.error || 'Could not sign out.', error: true });
+                        } catch (error) {
+                          setMsg({
+                            text: error instanceof Error ? error.message : 'The workspace could not be checked. Nothing was cleared.',
+                            error: true,
+                          });
+                        } finally {
+                          setSignOutBusy(false);
+                        }
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-subtle/70 bg-surface/40 text-content-muted hover:text-error hover:border-error/30 hover:bg-error-soft text-[11.5px] font-semibold disabled:opacity-40 disabled:hover:text-content-muted disabled:hover:border-subtle/70 disabled:hover:bg-surface/40 transition-all active:scale-[0.98]"
+                    >
+                      <LogOut size={12} />
+                      <span>{signOutBusy ? 'Checking…' : 'Sign out'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {!user && (
+              <div className="p-4 sm:p-5 relative overflow-hidden">
+                <div
+                  className="pointer-events-none absolute inset-0 opacity-60"
+                  style={{
+                    background:
+                      'radial-gradient(100% 75% at 90% 0%, rgba(134, 165, 136, 0.12), transparent 58%), radial-gradient(90% 70% at 10% 0%, rgba(196, 165, 116, 0.12), transparent 56%)',
+                  }}
+                />
+                <div className="relative flex items-start gap-3.5">
+                  <div className="grid size-11 shrink-0 place-items-center rounded-[16px] bg-secondary-soft border border-secondary/35 text-secondary shadow-sm">
+                    <WifiOff size={18} strokeWidth={2.3} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-secondary">Offline workspace</p>
+                      <span className="text-[10px] font-medium text-content-muted bg-surface border border-subtle px-1.5 py-0.5 rounded-full">
+                        Local device
+                      </span>
+                    </div>
+                    <h3 className="mt-1 text-[16px] font-bold text-content-primary leading-tight">Stored on this device</h3>
+                    <p className="mt-1.5 text-[11px] leading-relaxed text-content-secondary">
+                      You can use every private planning tool without an account. Connect when you want encrypted cloud backup and multi-device sync.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    requestAccountAccess();
+                  }}
+                  className="relative mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary text-on-primary text-[12.5px] font-bold shadow-md shadow-primary/10 hover:brightness-105 active:scale-[0.98] transition-all"
+                >
+                  <LogIn size={15} strokeWidth={2.4} /> Connect an account
+                </button>
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
+
+      {/* ── TAB PANEL: PREFERENCES ── */}
+      <div
+        role="tabpanel"
+        id="settings-panel-preferences"
+        aria-labelledby="settings-tab-preferences"
+        hidden={activeTab !== 'preferences'}
+        tabIndex={activeTab === 'preferences' ? 0 : -1}
+        className={activeTab === 'preferences' ? 'space-y-5 fade-in outline-none' : 'hidden'}
+      >
+        {/* ── SECTION 4: APPEARANCE & EXPERIENCE ── */}
+        <section>
+          <SectionLabel icon={<Sparkles size={13} className="text-primary" />}>APPEARANCE &amp; EXPERIENCE</SectionLabel>
+          <div className="settings-card bg-elevated rounded-2xl border border-subtle overflow-hidden shadow-lg divide-y divide-white/5">
+            <div className="settings-data-row p-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="w-9 h-9 rounded-xl bg-primary-soft flex items-center justify-center text-primary shrink-0">
+                  {theme.darkMode ? <Moon size={16} /> : <Sun size={16} />}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-xs font-semibold text-content-primary">Theme</h3>
+                  <p className="text-[10.5px] text-content-secondary font-medium">Dark or Light look</p>
+                </div>
+              </div>
+
+              {/* Segmented Switch Control */}
+              <div className="settings-segment flex bg-base p-1 rounded-xl border border-subtle shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setTheme((prev) => ({ ...prev, darkMode: true }))}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${
+                    theme.darkMode
+                      ? 'bg-primary text-on-primary'
+                      : 'text-content-secondary hover:text-content-primary'
+                  }`}
+                >
+                  <Moon size={12} /> Dark
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTheme((prev) => ({ ...prev, darkMode: false }))}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${
+                    !theme.darkMode
+                      ? 'bg-primary text-on-primary'
+                      : 'text-content-secondary hover:text-content-primary'
+                  }`}
+                >
+                  <Sun size={12} /> Light
+                </button>
+              </div>
+            </div>
+
+            {!legacyStyle && <div className="settings-data-row p-4 flex flex-col items-stretch gap-3">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="w-9 h-9 rounded-xl bg-primary-soft flex items-center justify-center text-primary shrink-0">
+                  <Palette size={16} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-xs font-semibold text-content-primary">Accent Color</h3>
+                  <p className="text-[10.5px] text-content-secondary font-medium">{ACCENT_SWATCHES[resolveAccent(theme)].label} tints buttons, rings and links</p>
+                </div>
+              </div>
+              <div role="radiogroup" aria-label="Accent color" className="flex items-center justify-between gap-1 px-1">
+                {ACCENT_COLORS.map((accent) => {
+                  const swatch = ACCENT_SWATCHES[accent];
+                  const selected = resolveAccent(theme) === accent;
+                  return (
+                    <button
+                      key={accent}
+                      type="button"
+                      role="radio"
+                      aria-checked={selected}
+                      aria-label={swatch.label}
+                      title={swatch.label}
+                      onClick={() => setTheme((prev) => ({ ...prev, accent }))}
+                      className="accent-swatch"
+                      style={{ background: theme.darkMode ? swatch.dark : swatch.light }}
+                    >
+                      {selected && <Check size={16} strokeWidth={3} />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>}
+
+            <div className="settings-data-row p-4 flex flex-col items-stretch gap-3">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="w-9 h-9 rounded-xl bg-primary-soft flex items-center justify-center text-primary shrink-0">
+                  <Smartphone size={16} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-xs font-semibold text-content-primary">App Icon</h3>
+                  <p className="text-[10.5px] text-content-secondary font-medium">Pick the icon on your home screen</p>
+                </div>
+              </div>
+              <AppIconPicker />
+            </div>
+
+            <div className="settings-data-row p-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="w-9 h-9 rounded-xl bg-primary-soft flex items-center justify-center text-primary shrink-0">
+                  <Smartphone size={16} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-xs font-semibold text-content-primary">Haptic Feedback</h3>
+                  <p className="text-[10.5px] text-content-secondary font-medium">Distinct cues for meaningful actions</p>
+                </div>
+              </div>
+
+              <Toggle checked={hapticsEnabled} onChange={toggleHaptics} label="Haptic feedback" />
+            </div>
+
+            <div className="settings-data-row p-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="w-9 h-9 rounded-xl bg-secondary-soft flex items-center justify-center text-secondary shrink-0">
+                  <Sparkles size={16} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-xs font-semibold text-content-primary">Reduced Effects</h3>
+                  <p className="text-[10.5px] text-content-secondary font-medium">Less motion and blur. Same features.</p>
+                </div>
+              </div>
+              <Toggle checked={reducedEffects} onChange={() => setReducedEffects(!reducedEffects)} label="Reduced effects" />
+            </div>
+
+            <div className="settings-data-row p-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="w-9 h-9 rounded-xl bg-primary-soft flex items-center justify-center text-primary shrink-0">
+                  <Droplets size={16} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-xs font-semibold text-content-primary">Liquid Glass</h3>
+                  <p className="text-[10.5px] text-content-secondary font-medium">
+                    {reducedEffects
+                      ? 'Paused while Reduced Effects is on.'
+                      : legacyStyle
+                        ? 'Bouncy icon buttons. The glass tab pill is part of the new look.'
+                        : liquidGlass
+                          ? 'Glass bars and buttons that catch the light, a gliding tab pill and bouncy buttons.'
+                          : 'Off: solid bars and buttons, no glass or motion effects.'}
+                  </p>
+                </div>
+              </div>
+              <Toggle checked={liquidGlass} onChange={() => setUiPref('liquidGlass', !liquidGlass)} label="Liquid Glass" />
+            </div>
+            <div className="settings-data-row p-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="w-9 h-9 rounded-xl bg-secondary-soft flex items-center justify-center text-secondary shrink-0">
+                  <Undo2 size={16} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-xs font-semibold text-content-primary">Classic Look</h3>
+                  <p className="text-[10.5px] text-content-secondary font-medium">The v7 design: its header, nav bar and task cards.</p>
+                </div>
+              </div>
+              <Toggle checked={legacyStyle} onChange={() => setUiPref('legacyStyle', !legacyStyle)} label="Classic look" />
+            </div>
+            <CalendarDefaultViewRow />
+          </div>
+        </section>
+
+        {/* ── SECTION 5: DATA & STORAGE ── */}
+        <section>
+          <SectionLabel icon={<History size={13} className="text-primary" />}>DATA &amp; STORAGE</SectionLabel>
+          <div className="settings-card settings-data-card bg-elevated rounded-2xl border border-subtle overflow-hidden shadow-lg divide-y divide-white/5">
+            <button
+              type="button"
+              onClick={() => setTrashOpen(true)}
+              className="settings-data-row w-full p-4 flex flex-nowrap items-center justify-between text-left hover:bg-white/2 transition"
+            >
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                <Trash2 size={16} className="text-primary shrink-0" />
+                <div className="min-w-0">
+                  <h3 className="text-xs font-semibold text-content-primary">Recently Deleted Goals</h3>
+                  <p className="text-[10.5px] text-content-secondary font-medium">
+                    {recentlyDeletedGoals.length} {recentlyDeletedGoals.length === 1 ? 'item' : 'items'} in trash
+                  </p>
+                </div>
+              </div>
+              <ChevronRight size={16} className="text-content-muted" />
+            </button>
+
+            {/* Row 2: Export JSON */}
+            <div className="settings-data-row p-4 flex flex-nowrap items-center justify-between">
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                <Download size={16} className="text-primary shrink-0" />
+                <div className="min-w-0">
+                  <h3 className="text-xs font-semibold text-content-primary">Export Backup (JSON)</h3>
+                  <p className="text-[10.5px] text-content-secondary font-medium">Download offline JSON snapshot</p>
+                </div>
+              </div>
+              <button
+                onClick={handleExport}
+                className="py-1.5 px-3 rounded-xl bg-primary-soft hover:bg-primary-soft text-primary-glow text-xs font-semibold transition active:scale-95"
+              >
+                Export
+              </button>
+            </div>
+
+            {/* Row 3: Import JSON */}
+            <div className="settings-data-row p-4 flex flex-nowrap items-center justify-between">
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                <Upload size={16} className="text-secondary shrink-0" />
+                <div className="min-w-0">
+                  <h3 className="text-xs font-semibold text-content-primary">Import Backup (JSON)</h3>
+                  <p className="text-[10.5px] text-content-secondary font-medium">Restore state from file</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setMsg(null);
+                  setConfirmImport(true);
+                }}
+                className="py-1.5 px-3 rounded-xl bg-secondary/10 hover:bg-secondary/20 text-secondary text-xs font-semibold transition active:scale-95"
+              >
+                Import
+              </button>
+            </div>
+
+            <div className="settings-data-row p-4 flex flex-nowrap items-center justify-between">
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                <History size={16} className="text-primary shrink-0" />
+                <div className="min-w-0">
+                  <h3 className="text-xs font-semibold text-content-primary">Trim old sittings</h3>
+                  <p className="text-[10.5px] text-content-secondary font-medium">
+                    Keep the last 90 days of focus history
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setMsg(null);
+                  setConfirmTrimSessions(true);
+                }}
+                className="py-1.5 px-3 rounded-xl bg-primary-soft text-primary-glow text-xs font-semibold"
+              >
+                Trim
+              </button>
+            </div>
+          </div>
+
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            onChange={(e) => {
+              handleImport(e.target.files?.[0]);
+              if (fileRef.current) fileRef.current.value = '';
+            }}
+          />
+
+          {confirmImport && (
+            <div className="rounded-2xl bg-error-soft border border-error/20 p-3.5 space-y-2.5 animate-fade-in">
+              <div className="flex items-center gap-2 text-error font-semibold text-[12px]">
+                <AlertTriangle size={14} className="shrink-0" />
+                Replace ALL current data?
+              </div>
+              <p className="text-[11px] text-error/75 font-medium leading-relaxed">
+                Your goals and tasks will be overwritten by the backup file. This cannot be undone.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => fileRef.current?.click()}
+                  className="flex-1 py-2 rounded-xl text-[11px] font-bold text-white bg-error hover:bg-error-soft transition"
+                >
+                  Yes, Replace All
+                </button>
+                <button
+                  onClick={() => setConfirmImport(false)}
+                  className="flex-1 py-2 rounded-xl text-[11px] font-bold text-content-secondary bg-surface hover:bg-elevated transition"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+          {confirmTrimSessions && (
+            <div className="rounded-2xl bg-surface border border-subtle p-3.5 space-y-2.5 mt-2">
+              <p className="text-[12px] font-semibold text-content-primary">Remove sittings older than 90 days?</p>
+              <p className="text-[11px] text-content-secondary leading-relaxed">
+                Recent focus stats stay. Older rows leave this phone, then the next cloud sync. Goals and Today cards are not touched.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const removed = pruneOldSessions();
+                    setConfirmTrimSessions(false);
+                    setMsg({
+                      text: removed === 0 ? 'Nothing older than 90 days to trim.' : `Removed ${removed} old ${removed === 1 ? 'sitting' : 'sittings'}.`,
+                    });
+                  }}
+                  className="flex-1 py-2 rounded-xl text-[11px] font-bold bg-primary text-on-primary"
+                >
+                  Trim
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmTrimSessions(false)}
+                  className="flex-1 py-2 rounded-xl text-[11px] font-bold text-content-secondary bg-elevated"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
+      </div>
+
+      {/* ── TAB PANEL: NOTIFICATIONS ── */}
+      <div
+        role="tabpanel"
+        id="settings-panel-notifications"
+        aria-labelledby="settings-tab-notifications"
+        hidden={activeTab !== 'notifications'}
+        tabIndex={activeTab === 'notifications' ? 0 : -1}
+        className={activeTab === 'notifications' ? 'space-y-5 fade-in outline-none' : 'hidden'}
+      >
+        {/* ── SECTION 3: NOTIFICATIONS & BRIEFINGS ── */}
+        <section>
+          <SectionLabel icon={<Bell size={13} className="text-primary" />}>NOTIFICATIONS &amp; BRIEFINGS</SectionLabel>
+
+          {/* Master Notification Switch & System Permission Status */}
+          <div className="settings-card bg-elevated rounded-2xl border border-subtle p-4 shadow-lg space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="w-9 h-9 rounded-xl bg-primary-soft flex items-center justify-center text-primary shrink-0">
+                  <Bell size={16} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-xs font-semibold text-content-primary">Notifications</h3>
+                  <p className="text-[10.5px] text-content-secondary font-medium truncate">Device alerts &amp; morning focus briefings</p>
+                </div>
+              </div>
+              <Toggle
+                checked={notifPrefs.enabled}
+                onChange={() => updateNotifPrefs((p) => ({ ...p, enabled: !p.enabled }))}
+                label="Master notifications switch"
+              />
+            </div>
+
+            {/* Permission banner if needed */}
+            {notifPermission !== 'granted' && (
+              <div className="mt-2.5 p-3 rounded-xl bg-primary-soft/40 border border-primary/20 flex items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11.5px] font-semibold text-content-primary">Device Permission Required</p>
+                  <p className="text-[10.5px] text-content-secondary mt-0.5">
+                    Allow notifications so YouDO can deliver lockscreen morning summaries and chat messages.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const granted = await requestNotificationPermission();
+                    setNotifPermission(granted ? 'granted' : 'denied');
+                    if (granted) {
+                      updateNotifPrefs((p) => ({ ...p, enabled: true }));
+                    }
+                  }}
+                  className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-on-primary shadow-sm hover:opacity-90 active:scale-95 transition"
+                >
+                  Enable
+                </button>
+              </div>
+            )}
+            {notifPermission === 'granted' && (
+              <div className="pt-1 flex items-center gap-2 text-[11px] text-secondary font-medium">
+                <CheckCircle2 size={13} className="shrink-0" />
+                <span>Device notifications enabled &amp; system channels active</span>
+              </div>
+            )}
+          </div>
+
+          {/* DAILY MORNING BRIEFING CARD */}
+          <div className={`settings-card bg-elevated rounded-2xl border border-subtle p-4 shadow-lg mt-2.5 space-y-3 transition-opacity ${notifPrefs.enabled ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3 min-w-0 flex-1">
+                <div className="w-9 h-9 rounded-xl bg-secondary-soft flex items-center justify-center text-secondary shrink-0 mt-0.5">
+                  <Clock size={16} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-xs font-semibold text-content-primary">Daily Morning Briefing</h3>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-primary-soft text-primary shrink-0">Daily</span>
+                  </div>
+                  <p className="text-[10.5px] text-content-secondary font-medium mt-0.5 leading-snug">
+                    Informative lockscreen summary of goal deadlines, today's schedule, and backlog
+                  </p>
+                </div>
+              </div>
+              <Toggle
+                checked={notifPrefs.morningBriefing.enabled}
+                onChange={() =>
+                  updateNotifPrefs((p) => ({
+                    ...p,
+                    morningBriefing: { ...p.morningBriefing, enabled: !p.morningBriefing.enabled },
+                  }))
+                }
+                label="Daily morning briefing"
+              />
+            </div>
+
+            {notifPrefs.morningBriefing.enabled && (
+              <div className="space-y-3 pt-2 border-t border-subtle">
+                {/* Time Selector */}
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-[11.5px] font-semibold text-content-primary">Delivery Time</h4>
+                    <p className="text-[10px] text-content-secondary">When to trigger the morning focus alert</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <input
+                      type="time"
+                      value={notifPrefs.morningBriefing.time}
+                      onChange={(e) => {
+                        const val = e.target.value || '04:00';
+                        updateNotifPrefs((p) => ({
+                          ...p,
+                          morningBriefing: { ...p.morningBriefing, time: val },
+                        }));
+                      }}
+                      className="px-2.5 py-1 bg-base border border-subtle rounded-xl text-xs font-semibold text-content-primary outline-none focus:border-primary"
+                    />
+                  </div>
+                </div>
+
+                {/* Sub-toggles for content */}
+                <div className="bg-base/60 rounded-xl p-3 border border-subtle/80 space-y-2.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-content-muted block mb-1">
+                    Include in Morning Summary
+                  </span>
+                  
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <Target size={13} className="text-primary shrink-0" />
+                      <span className="text-xs text-content-primary truncate">Goal countdowns (days remaining)</span>
+                    </div>
+                    <Toggle
+                      checked={notifPrefs.morningBriefing.includeGoals}
+                      onChange={() =>
+                        updateNotifPrefs((p) => ({
+                          ...p,
+                          morningBriefing: { ...p.morningBriefing, includeGoals: !p.morningBriefing.includeGoals },
+                        }))
+                      }
+                      label="Include goals"
+                    />
+                  </div>
+
+                  {notifPrefs.morningBriefing.includeGoals && rootGoals.length >= 2 && (
+                    <div className="pt-0.5 pb-1 pl-5 flex items-center justify-between gap-2 border-l-2 border-primary/20 ml-1">
+                      <div className="min-w-0 flex-1">
+                        <span className="text-[11px] font-semibold text-content-primary block truncate">Featured Goal</span>
+                        <span className="text-[10px] text-content-secondary block truncate">Choose which goal to highlight</span>
+                      </div>
+                      <select
+                        aria-label="Featured root goal"
+                        data-testid="featured-goal-select"
+                        value={
+                          notifPrefs.morningBriefing.selectedGoalId &&
+                          rootGoals.some((g) => g.id === notifPrefs.morningBriefing.selectedGoalId)
+                            ? notifPrefs.morningBriefing.selectedGoalId
+                            : 'auto'
+                        }
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          updateNotifPrefs((p) => ({
+                            ...p,
+                            morningBriefing: { ...p.morningBriefing, selectedGoalId: val },
+                          }));
+                        }}
+                        className="px-2 py-1 bg-base border border-subtle rounded-xl text-xs font-semibold text-content-primary outline-none focus:border-primary max-w-[170px] truncate cursor-pointer shrink-0"
+                      >
+                        <option value="auto">Automatic (nearest deadline)</option>
+                        {rootGoals.map((g) => (
+                          <option key={g.id} value={g.id}>
+                            {g.title.trim() || 'Untitled Goal'}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <Check size={13} className="text-secondary shrink-0" />
+                      <span className="text-xs text-content-primary truncate">Today's planned schedule &amp; focus</span>
+                    </div>
+                    <Toggle
+                      checked={notifPrefs.morningBriefing.includeTodayPlan}
+                      onChange={() =>
+                        updateNotifPrefs((p) => ({
+                          ...p,
+                          morningBriefing: { ...p.morningBriefing, includeTodayPlan: !p.morningBriefing.includeTodayPlan },
+                        }))
+                      }
+                      label="Include today plan"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <AlertTriangle size={13} className="text-amber-400 shrink-0" />
+                      <span className="text-xs text-content-primary truncate">Uncompleted backlog tasks alert</span>
+                    </div>
+                    <Toggle
+                      checked={notifPrefs.morningBriefing.includeBacklog}
+                      onChange={() =>
+                        updateNotifPrefs((p) => ({
+                          ...p,
+                          morningBriefing: { ...p.morningBriefing, includeBacklog: !p.morningBriefing.includeBacklog },
+                        }))
+                      }
+                      label="Include backlog"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <Flame size={13} className="text-orange-400 shrink-0" />
+                      <span className="text-xs text-content-primary truncate">Streak counter &amp; momentum</span>
+                    </div>
+                    <Toggle
+                      checked={notifPrefs.morningBriefing.includeStreak}
+                      onChange={() =>
+                        updateNotifPrefs((p) => ({
+                          ...p,
+                          morningBriefing: { ...p.morningBriefing, includeStreak: !p.morningBriefing.includeStreak },
+                        }))
+                      }
+                      label="Include streak"
+                    />
+                  </div>
+                </div>
+
+                {/* Live Preview Box */}
+                <div className="rounded-xl border border-subtle bg-base/80 p-3 space-y-1.5 shadow-inner">
+                  <div className="flex items-center justify-between text-[10px] font-semibold text-content-muted tracking-wider uppercase">
+                    <span className="flex items-center gap-1.5">
+                      <Sparkles size={11} className="text-primary" />
+                      Briefing Preview ({notifPrefs.morningBriefing.time})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleSendTestNotification}
+                      className="text-[10px] font-semibold text-primary hover:underline transition-colors"
+                    >
+                      {testNotifStatus === 'sent'
+                        ? 'Sent to phone!'
+                        : testNotifStatus === 'permission_denied'
+                          ? 'Permission required!'
+                          : testNotifStatus === 'failed'
+                            ? 'Could not send'
+                            : 'Test notification'}
+                    </button>
+                  </div>
+                  <div className="pt-1">
+                    {briefingPreview.summaryText && (
+                      <div className="mb-0.5 text-[10.5px] text-content-muted">YouDO · {briefingPreview.summaryText}</div>
+                    )}
+                    <div className="text-[12px] font-bold text-content-primary flex items-center gap-1.5">
+                      {briefingPreview.title}
+                    </div>
+                    <div className="mt-1 text-[11px] text-content-secondary leading-relaxed whitespace-pre-line font-mono bg-elevated/80 p-2 rounded-lg border border-subtle">
+                      {briefingPreview.body}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* PRIVATE HUB NOTIFICATIONS CARD */}
+          <div className={`settings-card bg-elevated rounded-2xl border border-subtle p-4 shadow-lg mt-2.5 space-y-3 transition-opacity ${notifPrefs.enabled ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3 min-w-0 flex-1">
+                <div className="w-9 h-9 rounded-xl bg-primary-soft flex items-center justify-center text-primary shrink-0 mt-0.5">
+                  <MessageSquare size={16} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-xs font-semibold text-content-primary">Private Hub</h3>
+                  <p className="text-[10.5px] text-content-secondary font-medium mt-0.5 leading-snug">
+                    Direct messages, room chats, requests and invites
+                  </p>
+                </div>
+              </div>
+              <Toggle
+                checked={notifPrefs.privateHub.enabled}
+                onChange={() =>
+                  updateNotifPrefs((p) => ({
+                    ...p,
+                    privateHub: { ...p.privateHub, enabled: !p.privateHub.enabled },
+                  }))
+                }
+                label="Private hub notifications"
+              />
+            </div>
+
+            {notifPrefs.privateHub.enabled && (
+              <div className="space-y-3 pt-2 border-t border-subtle">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-[11.5px] font-semibold text-content-primary">Direct Messages</h4>
+                    <p className="text-[10px] text-content-secondary">When a friend sends you a message</p>
+                  </div>
+                  <Toggle
+                    checked={notifPrefs.privateHub.directMessages}
+                    onChange={() =>
+                      updateNotifPrefs((p) => ({
+                        ...p,
+                        privateHub: { ...p.privateHub, directMessages: !p.privateHub.directMessages },
+                      }))
+                    }
+                    label="Direct message notifications"
+                  />
+                </div>
+
+                {notifPrefs.privateHub.directMessages && (
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-[11.5px] font-semibold text-content-primary">Show Message Text</h4>
+                      <p className="text-[10px] text-content-secondary">Off shows only who wrote, not what</p>
+                    </div>
+                    <Toggle
+                      checked={notifPrefs.privateHub.messagePreviews !== false}
+                      onChange={() =>
+                        updateNotifPrefs((p) => ({
+                          ...p,
+                          privateHub: { ...p.privateHub, messagePreviews: p.privateHub.messagePreviews === false },
+                        }))
+                      }
+                      label="Show message text in notifications"
+                    />
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <h4 className="text-[11.5px] font-semibold text-content-primary">Requests &amp; Invites</h4>
+                    <p className="text-[10px] text-content-secondary">Friend requests, room invites and join requests</p>
+                  </div>
+                  <Toggle
+                    checked={notifPrefs.privateHub.friendRequests || notifPrefs.privateHub.roomInvites}
+                    onChange={() =>
+                      updateNotifPrefs((p) => {
+                        const next = !(p.privateHub.friendRequests || p.privateHub.roomInvites);
+                        return { ...p, privateHub: { ...p.privateHub, friendRequests: next, roomInvites: next } };
+                      })
+                    }
+                    label="Request and invite notifications"
+                  />
+                </div>
+
+                <div className="pt-1">
+                  <h4 className="text-[11.5px] font-semibold text-content-primary">Room Chat</h4>
+                  <p className="text-[10px] text-content-secondary mb-1.5">How much your rooms can notify you</p>
+                  <div className="settings-segment flex bg-base p-1 rounded-xl border border-subtle gap-1" role="radiogroup" aria-label="Room chat notifications">
+                    {(['all', 'mentions', 'off'] as RoomNotificationMode[]).map((mode) => {
+                      const active = notifPrefs.privateHub.roomMessages === mode;
+                      return (
+                        <button
+                          key={mode}
+                          type="button"
+                          role="radio"
+                          aria-checked={active}
+                          onClick={() =>
+                            updateNotifPrefs((p) => ({ ...p, privateHub: { ...p.privateHub, roomMessages: mode, roomMessagesChosen: true } }))
+                          }
+                          className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold transition ${
+                            active ? 'bg-primary text-on-primary' : 'text-content-secondary hover:text-content-primary'
+                          }`}
+                        >
+                          {mode === 'all' ? 'All messages' : mode === 'mentions' ? '@Mentions' : 'Muted'}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* PUBLIC HUB NOTIFICATIONS CARD */}
+          <div className={`settings-card bg-elevated rounded-2xl border border-subtle p-4 shadow-lg mt-2.5 space-y-3 transition-opacity ${notifPrefs.enabled ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3 min-w-0 flex-1">
+                <div className="w-9 h-9 rounded-xl bg-primary-soft flex items-center justify-center text-primary shrink-0 mt-0.5">
+                  <Users size={16} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-xs font-semibold text-content-primary">Public Hub &amp; Community</h3>
+                  <p className="text-[10.5px] text-content-secondary font-medium mt-0.5 leading-snug">
+                    Community chat and exam hashtag channels
+                  </p>
+                </div>
+              </div>
+              <Toggle
+                checked={notifPrefs.publicHub.enabled}
+                onChange={() =>
+                  updateNotifPrefs((p) => ({
+                    ...p,
+                    publicHub: { ...p.publicHub, enabled: !p.publicHub.enabled },
+                  }))
+                }
+                label="Public hub notifications"
+              />
+            </div>
+
+            {notifPrefs.publicHub.enabled && (
+              <div className="space-y-3 pt-2 border-t border-subtle">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <MessageSquare size={13} className="text-primary shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-[11.5px] font-semibold text-content-primary">Community Chat Messages</h4>
+                      <p className="text-[10px] text-content-secondary">Alerts for new messages in public chat</p>
+                    </div>
+                  </div>
+                  <Toggle
+                    checked={notifPrefs.publicHub.communityMessages}
+                    onChange={() =>
+                      updateNotifPrefs((p) => ({
+                        ...p,
+                        publicHub: { ...p.publicHub, communityMessages: !p.publicHub.communityMessages },
+                      }))
+                    }
+                    label="Community chat message notifications"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <Hash size={13} className="text-primary shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-[11.5px] font-semibold text-content-primary">Hashtag Community Updates</h4>
+                      <p className="text-[10px] text-content-secondary">Alerts for your selected exam hashtag</p>
+                    </div>
+                  </div>
+                  <Toggle
+                    checked={notifPrefs.publicHub.hashtagMentions}
+                    onChange={() =>
+                      updateNotifPrefs((p) => ({
+                        ...p,
+                        publicHub: { ...p.publicHub, hashtagMentions: !p.publicHub.hashtagMentions },
+                      }))
+                    }
+                    label="Hashtag community updates"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ADMIN HUB NOTIFICATIONS CARD (VISIBLE ONLY TO ADMINS) */}
+          {isAdmin && (
+            <div className={`settings-card bg-elevated rounded-2xl border border-subtle p-4 shadow-lg mt-2.5 space-y-3 transition-opacity ${notifPrefs.enabled ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3 min-w-0 flex-1">
+                  <div className="w-9 h-9 rounded-xl bg-primary-soft flex items-center justify-center text-primary shrink-0 mt-0.5">
+                    <ShieldCheck size={16} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-xs font-semibold text-content-primary">Admin Hub Notifications</h3>
+                    <p className="text-[10.5px] text-content-secondary font-medium mt-0.5 leading-snug">
+                      Moderation alerts and room request management
+                    </p>
+                  </div>
+                </div>
+                <Toggle
+                  checked={notifPrefs.adminHub?.enabled ?? true}
+                  onChange={() =>
+                    updateNotifPrefs((p) => {
+                      const current = p.adminHub ?? { enabled: true, newHashtagRequests: true, reportedMessages: true, chatReplies: true };
+                      return {
+                        ...p,
+                        adminHub: { ...current, enabled: !current.enabled },
+                      };
+                    })
+                  }
+                  label="Admin hub notifications"
+                />
+              </div>
+
+              {(notifPrefs.adminHub?.enabled ?? true) && (
+                <div className="space-y-3 pt-2 border-t border-subtle">
+                  {/* New Hashtag Requests */}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <Hash size={13} className="text-primary shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <h4 className="text-[11.5px] font-semibold text-content-primary">New Hashtag Requests</h4>
+                        <p className="text-[10px] text-content-secondary">Alerts when users submit new exam room requests</p>
+                      </div>
+                    </div>
+                    <Toggle
+                      checked={notifPrefs.adminHub?.newHashtagRequests ?? true}
+                      onChange={() =>
+                        updateNotifPrefs((p) => {
+                          const current = p.adminHub ?? { enabled: true, newHashtagRequests: true, reportedMessages: true, chatReplies: true };
+                          return {
+                            ...p,
+                            adminHub: { ...current, newHashtagRequests: !current.newHashtagRequests },
+                          };
+                        })
+                      }
+                      label="New hashtag requests"
+                    />
+                  </div>
+
+                  {/* Reported Messages */}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <AlertTriangle size={13} className="text-warning shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <h4 className="text-[11.5px] font-semibold text-content-primary">Reported Messages</h4>
+                        <p className="text-[10px] text-content-secondary">Alerts when members flag chat messages for moderation</p>
+                      </div>
+                    </div>
+                    <Toggle
+                      checked={notifPrefs.adminHub?.reportedMessages ?? true}
+                      onChange={() =>
+                        updateNotifPrefs((p) => {
+                          const current = p.adminHub ?? { enabled: true, newHashtagRequests: true, reportedMessages: true, chatReplies: true };
+                          return {
+                            ...p,
+                            adminHub: { ...current, reportedMessages: !current.reportedMessages },
+                          };
+                        })
+                      }
+                      label="Reported messages"
+                    />
+                  </div>
+
+                  {/* Support Chat Replies */}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <MessageSquare size={13} className="text-primary shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <h4 className="text-[11.5px] font-semibold text-content-primary">Support Chat Replies</h4>
+                        <p className="text-[10px] text-content-secondary">Alerts when a requester answers your note in Support Chat</p>
+                      </div>
+                    </div>
+                    <Toggle
+                      checked={notifPrefs.adminHub?.chatReplies ?? true}
+                      onChange={() =>
+                        updateNotifPrefs((p) => {
+                          const current = p.adminHub ?? { enabled: true, newHashtagRequests: true, reportedMessages: true, chatReplies: true };
+                          return {
+                            ...p,
+                            adminHub: { ...current, chatReplies: !current.chatReplies },
+                          };
+                        })
+                      }
+                      label="Support chat replies"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </section>
+      </div>
+
+      {/* ── TAB PANEL: BOARD ── */}
+      <div
+        role="tabpanel"
+        id="settings-panel-board"
+        aria-labelledby="settings-tab-board"
+        hidden={activeTab !== 'board'}
+        tabIndex={activeTab === 'board' ? 0 : -1}
+        className={activeTab === 'board' ? 'space-y-5 fade-in outline-none' : 'hidden'}
+      >
+        {/* ── SECTION 2: FOCUS & LEADERBOARD ── */}
+        <section
+          ref={publicBoardRef}
+          className={
+            highlightBoard
+              ? 'rounded-2xl ring-2 ring-primary ring-offset-2 ring-offset-base transition-all duration-700'
+              : ''
+          }
+        >
+          <SectionLabel icon={<Flame size={13} className="text-primary" />}>FOCUS &amp; LEADERBOARD</SectionLabel>
+
+          {/* Daily streak bar card */}
+          <div className="settings-card settings-focus-card bg-elevated rounded-2xl border border-subtle p-4 shadow-lg mb-2.5">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-xl bg-primary-soft flex items-center justify-center text-primary shrink-0">
+                <Flame size={16} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-xs font-semibold text-content-primary">Daily streak bar</h3>
+                  <button
+                    type="button"
+                    onClick={() => setStreakBarHelpOpen((v) => !v)}
+                    className={`p-1.5 rounded-lg shrink-0 transition ${
+                      streakBarHelpOpen
+                        ? 'bg-primary-soft text-primary'
+                        : 'text-content-secondary hover:text-content-primary hover:bg-base'
+                    }`}
+                    title="How streaks work"
+                    aria-label="How streaks work"
+                    aria-expanded={streakBarHelpOpen}
+                  >
+                    <Info size={15} />
+                  </button>
+                </div>
+                <p className="text-[10.5px] text-content-secondary font-medium mt-0.5">
+                  Minimum focus per day to keep your streak. Syncs with cloud.
+                </p>
+                {streakBarHelpOpen && (
+                  <div className="mt-2.5 bg-base border border-subtle rounded-[12px] p-3 space-y-2 text-[11.5px] text-content-secondary leading-relaxed">
+                    <p>
+                      <span className="font-semibold text-content-primary">Keep it:</span> Hit this much net focus
+                      each day. Paused time does not count.
+                    </p>
+                    <p>
+                      <span className="font-semibold text-content-primary">Miss a day:</span> You have{' '}
+                      <span className="font-semibold text-content-primary">1 day</span> to restore.
+                    </p>
+                    <p>
+                      Had overdue tasks in Backlog? Finish every task marked{' '}
+                      <span className="text-primary font-semibold">Save streak</span> (frozen backlog plus today’s
+                      scheduled work, including tasks you add today), then hit this bar once.
+                    </p>
+                    <p>
+                      <span className="font-semibold text-content-primary">No backlog?</span> Hit{' '}
+                      <span className="font-semibold text-content-primary">1.5×</span> this bar once that day (6h bar
+                      → 9h). That restores the streak.
+                    </p>
+                    <p>
+                      <span className="font-semibold text-content-primary">Range:</span> 30 minutes to 10 hours.
+                    </p>
+                  </div>
+                )}
+                <div className="flex items-center justify-between mt-3">
+                  <span className="text-[11px] font-semibold text-content-muted uppercase tracking-wider">
+                    Hours
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      aria-label="Decrease streak bar"
+                      className="settings-stepper-button rounded-[10px] border border-subtle bg-base text-content-primary text-sm font-semibold disabled:opacity-35"
+                      disabled={streakBarHours <= MIN_STREAK_BAR_HOURS}
+                      onClick={() => {
+                        hapticTick();
+                        onStreakBarHoursChange(clampStreakBarHours(streakBarHours - 0.5));
+                      }}
+                    >
+                      −
+                    </button>
+                    <span className="tabular-nums text-sm font-semibold text-content-primary w-12 text-center">
+                      {streakBarHours}h
+                    </span>
+                    <button
+                      type="button"
+                      aria-label="Increase streak bar"
+                      className="settings-stepper-button rounded-[10px] border border-subtle bg-base text-content-primary text-sm font-semibold disabled:opacity-35"
+                      disabled={streakBarHours >= MAX_STREAK_BAR_HOURS}
+                      onClick={() => {
+                        hapticTick();
+                        onStreakBarHoursChange(clampStreakBarHours(streakBarHours + 0.5));
+                      }}
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Public Board Participation Card */}
+          <div className="settings-card settings-board-card bg-elevated rounded-2xl border border-subtle p-4 shadow-lg space-y-3">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-xl bg-primary-soft flex items-center justify-center text-primary shrink-0">
+                <TrendingUp size={16} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-xs font-semibold text-content-primary">Appear on the board</h3>
+                <p className="text-[10.5px] text-content-secondary font-medium mt-0.5 leading-relaxed">
+                  Off by default. Uses your Profile name on the board, plus synced focus, streak, and bar. Turning it off removes your public row.
+                </p>
+              </div>
+              <Toggle checked={pacePrefs.optedIn} label="Public Board participation" onChange={() => {
+                  if (!user) {
+                    setMsg({ text: 'Sign in to join the public board.', error: true });
+                    return;
+                  }
+                  const profileName =
+                    (typeof user?.user_metadata?.full_name === 'string' ? user.user_metadata.full_name.trim() : '') ||
+                    editName.trim();
+                  if (!pacePrefs.optedIn && !profileName) {
+                    setMsg({ text: 'Set your name in Profile first.', error: true });
+                    return;
+                  }
+                  hapticTick();
+                  updatePacePrefs({ optedIn: !pacePrefs.optedIn });
+                }} />
+            </div>
+            {user && <CommunityHashtagProfileField
+              boardEnabled={pacePrefs.optedIn}
+              onBeforeChoose={async () => { await publishPublicPace(); }}
+              onContextChange={setHashtagContext}
+            />}
+            {(() => {
+              const preview = paceWindowTotals(Object.values(sessionHistory).flat(), todayISO());
+              const name =
+                (typeof user?.user_metadata?.full_name === 'string' ? user.user_metadata.full_name.trim() : '') ||
+                editName.trim() ||
+                'Your name';
+              return (
+                <div className="rounded-[12px] border border-subtle bg-base p-3">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-content-muted">Device preview · Board updates after sync</p>
+                  <div className="mt-1.5 flex items-baseline justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-semibold text-content-primary truncate">{name}</p>
+                      {hashtagContext.mine ? (
+                        <p className="text-[11px] text-secondary truncate">#{hashtagContext.mine.label}</p>
+                      ) : null}
+                    </div>
+                    <p className="text-[13px] font-semibold tabular-nums text-content-primary shrink-0">
+                      {formatDuration(preview.todayMs)} today
+                    </p>
+                  </div>
+                </div>
+              );
+            })()}
+            <details className="group overflow-hidden rounded-[12px] border border-subtle bg-base">
+              <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-left [&::-webkit-details-marker]:hidden">
+                <div className="min-w-0">
+                  <p className="text-[11.5px] font-semibold text-content-primary">How to cheat the Board</p>
+                  <p className="mt-0.5 text-[10px] text-content-muted">A shortcut to a better number and the same preparation.</p>
+                </div>
+                <ChevronRight size={15} className="shrink-0 text-primary transition-transform group-open:rotate-90" />
+              </summary>
+              <div className="border-t border-subtle px-3 pb-3 pt-2.5">
+                <p className="text-[10.5px] font-semibold text-content-secondary">Congratulations. You found the method:</p>
+                <ol className="mt-2 space-y-1.5 pl-4 text-[10.5px] leading-relaxed text-content-muted">
+                  {PACE_CHEATING_GUIDE.map((method) => (
+                    <li key={method} className="list-decimal pl-1">{method}</li>
+                  ))}
+                </ol>
+                <p className="mt-3 border-t border-subtle pt-3 text-[12px] font-semibold leading-relaxed text-content-primary">
+                  {PACE_HONEST_QUOTE}
+                </p>
+              </div>
+            </details>
+          </div>
+        </section>
+      </div>
+
+      {/* ── TAB PANEL: ABOUT ── */}
+      <div
+        role="tabpanel"
+        id="settings-panel-about"
+        aria-labelledby="settings-tab-about"
+        hidden={activeTab !== 'about'}
+        tabIndex={activeTab === 'about' ? 0 : -1}
+        className={activeTab === 'about' ? 'space-y-5 fade-in outline-none' : 'hidden'}
+      >
+        {/* ── SECTION 6: UPDATES & COMMUNITY ── */}
+        <section>
+          <SectionLabel icon={<Info size={13} className="text-primary" />}>UPDATES &amp; COMMUNITY</SectionLabel>
+
+          {/* App updates card */}
+          <div className="settings-card bg-elevated rounded-2xl border border-subtle overflow-hidden shadow-lg mb-2.5">
+            <div className="settings-data-row p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <h3 className="text-xs font-semibold text-content-primary">
+                    {!updateChecked ? 'Checking for updates' : updateUnavailable ? 'Update status unavailable' : availableUpdate ? 'A newer YouDO is ready' : 'YouDO is up to date'}
+                  </h3>
+                  <p className="mt-0.5 text-[10px] text-content-muted">
+                    {updateUnavailable && updateChecked ? 'Reconnect and check again' : 'GitHub Releases'}
+                  </p>
+                </div>
+                {!availableUpdate && (
+                  <button
+                    type="button"
+                    disabled={!updateChecked}
+                    onClick={() => setUpdateCheckKey((key) => key + 1)}
+                    className="shrink-0 min-h-11 px-2 text-[11px] font-semibold text-primary disabled:opacity-40"
+                  >
+                    Check again
+                  </button>
+                )}
+              </div>
+              <div className="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-[14px] border border-subtle bg-surface px-3 py-3">
+                <div className="min-w-0">
+                  <p className="text-[8.5px] font-semibold uppercase tracking-[0.15em] text-content-muted">Installed</p>
+                  <p className="mt-1 text-[13px] font-bold tabular-nums text-content-primary">v{APP_VERSION}</p>
+                </div>
+                <div className="flex items-center">
+                  <span className="h-px w-4 bg-border-subtle" />
+                  <span className={`grid size-8 shrink-0 place-items-center rounded-full border ${!updateChecked || updateUnavailable ? 'border-subtle text-content-muted' : availableUpdate ? 'border-primary/25 bg-primary-soft text-primary' : 'border-success/25 bg-success-soft text-success'}`}>
+                    {!updateChecked || updateUnavailable ? <Info size={14} /> : availableUpdate ? <Download size={14} /> : <Check size={14} strokeWidth={2.5} />}
+                  </span>
+                  <span className="h-px w-4 bg-border-subtle" />
+                </div>
+                <div className="min-w-0 text-right">
+                  <p className="text-[8.5px] font-semibold uppercase tracking-[0.15em] text-content-muted">{availableUpdate ? 'Available' : 'Latest'}</p>
+                  <p className={`mt-1 text-[13px] font-bold tabular-nums ${availableUpdate ? 'text-primary' : 'text-secondary'}`}>
+                    {!updateChecked ? 'Checking…' : updateUnavailable ? 'Unknown' : `v${availableUpdate?.version ?? APP_VERSION}`}
+                  </p>
+                </div>
+              </div>
+            </div>
+            {(availableUpdate || !Capacitor.isNativePlatform()) && (
+              <div className="px-4 pb-3">
+                <UpdateAction release={availableUpdate} />
+              </div>
+            )}
+            {availableUpdate && availableUpdate.highlights.length > 0 && (
+              <div className="border-t border-subtle px-4 py-3">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-content-muted mb-2.5">What's new</p>
+                <ul className="space-y-2">
+                  {availableUpdate.highlights.map((item, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <span className="mt-[5px] size-1.5 shrink-0 rounded-full bg-primary" />
+                      <span className="text-[11px] leading-relaxed text-content-secondary">{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+
+          {/* Telegram links */}
+          <div className="settings-card bg-elevated rounded-2xl border border-subtle overflow-hidden shadow-lg divide-y divide-white/5">
+            <button
+              type="button"
+              onClick={() => void openExternalUrl(TELEGRAM_UPDATES_URL)}
+              className="settings-data-row w-full p-4 flex flex-nowrap items-center justify-between gap-3 text-left hover:bg-white/2 transition"
+            >
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                <div className="size-9 shrink-0 rounded-xl bg-primary-soft text-primary grid place-items-center">
+                  <Send size={16} />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-xs font-semibold text-content-primary">YouDO Updates</h3>
+                  <p className="text-[10.5px] text-content-secondary font-medium leading-relaxed">
+                    Releases, fixes and important announcements
+                  </p>
+                </div>
+              </div>
+              <ChevronRight size={16} className="shrink-0 text-content-muted" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void openExternalUrl(TELEGRAM_DISCUSSION_URL)}
+              className="settings-data-row w-full p-4 flex flex-nowrap items-center justify-between gap-3 text-left hover:bg-white/2 transition"
+            >
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                <div className="relative size-9 shrink-0 rounded-xl bg-secondary-soft text-secondary grid place-items-center">
+                  <MessageCircle size={16} />
+                  <Bug size={9} className="absolute bottom-1 right-1" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-xs font-semibold text-content-primary">Discussion &amp; bug reports</h3>
+                  <p className="text-[10.5px] text-content-secondary font-medium leading-relaxed">
+                    Ask for help, suggest improvements or attach a bug screenshot
+                  </p>
+                </div>
+              </div>
+              <ChevronRight size={16} className="shrink-0 text-content-muted" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSupportOpen(true)}
+              className="settings-data-row w-full p-4 flex flex-nowrap items-center justify-between gap-3 text-left hover:bg-white/2 transition"
+            >
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                <div className="size-9 shrink-0 rounded-xl bg-primary-soft text-primary grid place-items-center">
+                  <Heart size={16} />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-xs font-semibold text-content-primary">Support YouDO</h3>
+                  <p className="text-[10.5px] text-content-secondary font-medium leading-relaxed">
+                    Optional UPI support and the Founding Backer badge
+                  </p>
+                </div>
+              </div>
+              <ChevronRight size={16} className="shrink-0 text-content-muted" />
+            </button>
+          </div>
+          <p className="mt-2 px-1 text-[10px] leading-relaxed text-content-muted">
+            For a bug, mention what you were doing, what happened and what you expected. Remove personal information from screenshots.
+          </p>
+        </section>
+      </div>
+
+      </div>
+      )}
+    </div>
+    <SupportSheet open={supportOpen} onClose={() => setSupportOpen(false)} />
+    </Overlay>
+  );
+}
