@@ -21,7 +21,7 @@ import java.util.Map;
 import java.util.TimeZone;
 
 /**
- * Reads and adds to the phone's calendar (which includes any Google account added to the phone).
+ * Reads, adds, changes and deletes events on the phone's calendar (which includes any Google account added to the phone).
  * Permissions are exposed as the aliases readCalendar / writeCalendar; Capacitor supplies
  * checkPermissions() and requestPermissions() for them.
  */
@@ -241,6 +241,231 @@ public class YouDoCalendarPlugin extends Plugin {
             call.reject("Calendar permission is not granted.", "PERMISSION_DENIED");
         } catch (Exception error) {
             call.reject("Could not add the event to your calendar.");
+        }
+    }
+
+    private static final String[] EVENT_PROJECTION = {
+        CalendarContract.Events._ID,
+        CalendarContract.Events.CALENDAR_ID,
+        CalendarContract.Events.TITLE,
+        CalendarContract.Events.DESCRIPTION,
+        CalendarContract.Events.EVENT_LOCATION,
+        CalendarContract.Events.ALL_DAY,
+        CalendarContract.Events.DTSTART,
+        CalendarContract.Events.DTEND,
+        CalendarContract.Events.RRULE,
+        CalendarContract.Events.RDATE,
+        CalendarContract.Events.STATUS,
+        CalendarContract.Events.EVENT_COLOR
+    };
+    private static final int MAX_LOOKUP_IDS = 200;
+
+    /**
+     * Looks events up by id, whatever date they are on. Deleted and cancelled events are left out, so an id
+     * missing from the result means the event is gone. A repeating event comes back once, as the series.
+     */
+    @PluginMethod
+    public void getEvents(PluginCall call) {
+        if (!canRead()) {
+            call.reject("Calendar permission is not granted.", "PERMISSION_DENIED");
+            return;
+        }
+        JSArray requested = call.getArray("ids");
+        if (requested == null) {
+            call.reject("No events were asked for.");
+            return;
+        }
+        try {
+            java.util.List<String> ids = new java.util.ArrayList<>();
+            for (int i = 0; i < requested.length() && ids.size() < MAX_LOOKUP_IDS; i++) {
+                ids.add(String.valueOf(Long.parseLong(requested.getString(i))));
+            }
+            JSArray events = new JSArray();
+            if (!ids.isEmpty()) {
+                Map<Long, JSObject> calendars = loadCalendars();
+                StringBuilder marks = new StringBuilder();
+                for (int i = 0; i < ids.size(); i++) marks.append(i == 0 ? "?" : ",?");
+                String selection = CalendarContract.Events._ID + " IN (" + marks + ") AND "
+                    + CalendarContract.Events.DELETED + " = 0";
+                try (Cursor cursor = getContext().getContentResolver().query(
+                    CalendarContract.Events.CONTENT_URI,
+                    EVENT_PROJECTION,
+                    selection,
+                    ids.toArray(new String[0]),
+                    null
+                )) {
+                    while (cursor != null && cursor.moveToNext()) {
+                        if (!cursor.isNull(10) && cursor.getInt(10) == CalendarContract.Events.STATUS_CANCELED) continue;
+                        long calendarId = cursor.getLong(1);
+                        JSObject calendar = calendars.get(calendarId);
+                        boolean allDay = cursor.getInt(5) == 1;
+                        long begin = cursor.getLong(6);
+                        long end = cursor.isNull(7) ? begin + (allDay ? 86400000L : 0L) : cursor.getLong(7);
+                        boolean recurring = !cursor.isNull(8) && !cursor.getString(8).isEmpty()
+                            || !cursor.isNull(9) && !cursor.getString(9).isEmpty();
+
+                        String color = FALLBACK_COLOR;
+                        if (!cursor.isNull(11) && cursor.getInt(11) != 0) {
+                            color = hexColor(cursor.getInt(11));
+                        } else if (calendar != null) {
+                            color = calendar.getString("color");
+                        }
+
+                        JSObject event = new JSObject();
+                        event.put("id", String.valueOf(cursor.getLong(0)));
+                        event.put("calendarId", String.valueOf(calendarId));
+                        event.put("title", text(cursor, 2));
+                        event.put("description", text(cursor, 3));
+                        event.put("location", text(cursor, 4));
+                        event.put("allDay", allDay);
+                        event.put("begin", begin);
+                        event.put("end", end);
+                        event.put("color", color);
+                        event.put("writable", calendar != null && calendar.optBoolean("writable", false));
+                        event.put("recurring", recurring);
+                        events.put(event);
+                    }
+                }
+            }
+            JSObject result = new JSObject();
+            result.put("events", events);
+            call.resolve(result);
+        } catch (NumberFormatException error) {
+            call.reject("Those event ids are not valid.");
+        } catch (SecurityException error) {
+            call.reject("Calendar permission is not granted.", "PERMISSION_DENIED");
+        } catch (Exception error) {
+            call.reject("Could not read your calendar events.");
+        }
+    }
+
+    /** True when the event row exists, is not deleted, and is a repeating event (its start and end then stay as they are). */
+    private Boolean eventRepeats(long eventId) {
+        try (Cursor cursor = getContext().getContentResolver().query(
+            ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId),
+            new String[] { CalendarContract.Events.RRULE, CalendarContract.Events.RDATE, CalendarContract.Events.DELETED },
+            null,
+            null,
+            null
+        )) {
+            if (cursor == null || !cursor.moveToFirst() || cursor.getInt(2) == 1) return null;
+            return (!cursor.isNull(0) && !cursor.getString(0).isEmpty()) || (!cursor.isNull(1) && !cursor.getString(1).isEmpty());
+        }
+    }
+
+    /**
+     * Changes the fields that are sent and leaves the rest. A repeating event only takes its title,
+     * description and location, so its schedule is never shifted by accident.
+     * Resolves updated=false when the event no longer exists.
+     */
+    @PluginMethod
+    public void updateEvent(PluginCall call) {
+        if (!canWrite()) {
+            call.reject("Calendar permission is not granted.", "PERMISSION_DENIED");
+            return;
+        }
+        long eventId;
+        try {
+            eventId = Long.parseLong(call.getString("id", ""));
+        } catch (NumberFormatException error) {
+            call.reject("That event id is not valid.");
+            return;
+        }
+        try {
+            Boolean repeats = eventRepeats(eventId);
+            JSObject result = new JSObject();
+            if (repeats == null) {
+                result.put("updated", false);
+                call.resolve(result);
+                return;
+            }
+            JSObject data = call.getData();
+            ContentValues values = new ContentValues();
+            if (data.has("title")) {
+                String title = call.getString("title", "");
+                if (title.trim().isEmpty()) {
+                    call.reject("An event needs a title.");
+                    return;
+                }
+                values.put(CalendarContract.Events.TITLE, title);
+            }
+            if (data.has("description")) values.put(CalendarContract.Events.DESCRIPTION, call.getString("description", ""));
+            if (data.has("location")) values.put(CalendarContract.Events.EVENT_LOCATION, call.getString("location", ""));
+            if (!repeats && data.has("begin") && data.has("end") && data.has("allDay")) {
+                long begin = data.optLong("begin", -1);
+                long end = data.optLong("end", -1);
+                boolean allDay = call.getBoolean("allDay", false);
+                if (begin < 0 || end <= begin) {
+                    call.reject("That event needs a start before its end.");
+                    return;
+                }
+                values.put(CalendarContract.Events.DTSTART, begin);
+                values.put(CalendarContract.Events.DTEND, end);
+                values.put(CalendarContract.Events.ALL_DAY, allDay ? 1 : 0);
+                values.put(CalendarContract.Events.EVENT_TIMEZONE, allDay ? "UTC" : TimeZone.getDefault().getID());
+            }
+            if (values.size() == 0) {
+                result.put("updated", true);
+                call.resolve(result);
+                return;
+            }
+            int rows = getContext().getContentResolver().update(
+                ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId),
+                values,
+                null,
+                null
+            );
+            if (rows == 0) {
+                call.reject("Your calendar did not accept the change.");
+                return;
+            }
+            result.put("updated", true);
+            call.resolve(result);
+        } catch (SecurityException error) {
+            call.reject("Calendar permission is not granted.", "PERMISSION_DENIED");
+        } catch (Exception error) {
+            call.reject("Could not change the event on your calendar.");
+        }
+    }
+
+    /**
+     * Deletes one event (a whole series, for a repeating event). Resolves deleted=false when it was already gone.
+     */
+    @PluginMethod
+    public void deleteEvent(PluginCall call) {
+        if (!canWrite()) {
+            call.reject("Calendar permission is not granted.", "PERMISSION_DENIED");
+            return;
+        }
+        long eventId;
+        try {
+            eventId = Long.parseLong(call.getString("id", ""));
+        } catch (NumberFormatException error) {
+            call.reject("That event id is not valid.");
+            return;
+        }
+        try {
+            JSObject result = new JSObject();
+            if (eventRepeats(eventId) == null) {
+                result.put("deleted", false);
+                call.resolve(result);
+                return;
+            }
+            int rows = getContext().getContentResolver().delete(
+                ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId),
+                null,
+                null
+            );
+            if (rows == 0) {
+                call.reject("Your calendar did not allow deleting that event.");
+                return;
+            }
+            result.put("deleted", true);
+            call.resolve(result);
+        } catch (SecurityException error) {
+            call.reject("Calendar permission is not granted.", "PERMISSION_DENIED");
+        } catch (Exception error) {
+            call.reject("Could not delete the event from your calendar.");
         }
     }
 
