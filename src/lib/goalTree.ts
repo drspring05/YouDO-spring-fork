@@ -323,6 +323,9 @@ export function duplicateTaskAsFresh(
     pastFailedNativeDates: undefined,
     pastFailedBacklogDates: undefined,
     resumeNote: undefined,
+    // A copy is a new task: it must not share (or later delete) the original's calendar event.
+    calendarEventId: undefined,
+    calendarId: undefined,
   };
 }
 
