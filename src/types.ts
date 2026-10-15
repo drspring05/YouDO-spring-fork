@@ -23,6 +23,16 @@ export interface Task {
   pastFailedBacklogDates?: string[];
   /** Short-lived handoff note for resuming an unfinished task. Cleared on completion. */
   resumeNote?: string;
+  /**
+   * When on `targetDate` the task happens. `allDay` (or no times at all) means no clock time.
+   * Times are local 24-hour "HH:mm" and the end is always later than the start on the same day.
+   */
+  allDay?: boolean;
+  startTime?: string;
+  endTime?: string;
+  /** Phone-calendar event created for this task, and the calendar it lives in. Both are ids from this phone. */
+  calendarEventId?: string;
+  calendarId?: string;
 }
 
 export interface SessionStopOutcome {
