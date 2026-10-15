@@ -2,6 +2,7 @@ package com.mattedhairr.youdo;
 
 import android.Manifest;
 import android.content.ContentUris;
+import android.content.ContentValues;
 import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
@@ -17,9 +18,10 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.TimeZone;
 
 /**
- * Reads the phone's calendar (which includes any Google account added to the phone).
+ * Reads and adds to the phone's calendar (which includes any Google account added to the phone).
  * Permissions are exposed as the aliases readCalendar / writeCalendar; Capacitor supplies
  * checkPermissions() and requestPermissions() for them.
  */
@@ -59,6 +61,10 @@ public class YouDoCalendarPlugin extends Plugin {
 
     private boolean canRead() {
         return getPermissionState("readCalendar") == PermissionState.GRANTED;
+    }
+
+    private boolean canWrite() {
+        return getPermissionState("writeCalendar") == PermissionState.GRANTED;
     }
 
     private static String hexColor(int color) {
@@ -185,6 +191,56 @@ public class YouDoCalendarPlugin extends Plugin {
             call.reject("Calendar permission is not granted.", "PERMISSION_DENIED");
         } catch (Exception error) {
             call.reject("Could not read your calendar events.");
+        }
+    }
+
+    /**
+     * Adds one event. All-day events must arrive as UTC midnights with an exclusive end, and are stored in
+     * the UTC time zone as Android requires; timed events are stored in the phone's own time zone.
+     * Resolves with the new event's id.
+     */
+    @PluginMethod
+    public void createEvent(PluginCall call) {
+        if (!canWrite()) {
+            call.reject("Calendar permission is not granted.", "PERMISSION_DENIED");
+            return;
+        }
+        long calendarId;
+        try {
+            calendarId = Long.parseLong(call.getString("calendarId", ""));
+        } catch (NumberFormatException error) {
+            call.reject("Choose a calendar first.");
+            return;
+        }
+        long begin = call.getData().optLong("begin", -1);
+        long end = call.getData().optLong("end", -1);
+        boolean allDay = call.getBoolean("allDay", false);
+        String title = call.getString("title", "");
+        if (begin < 0 || end <= begin || title.trim().isEmpty()) {
+            call.reject("That event needs a title and a start before its end.");
+            return;
+        }
+        try {
+            ContentValues values = new ContentValues();
+            values.put(CalendarContract.Events.CALENDAR_ID, calendarId);
+            values.put(CalendarContract.Events.TITLE, title);
+            values.put(CalendarContract.Events.DESCRIPTION, call.getString("description", ""));
+            values.put(CalendarContract.Events.DTSTART, begin);
+            values.put(CalendarContract.Events.DTEND, end);
+            values.put(CalendarContract.Events.ALL_DAY, allDay ? 1 : 0);
+            values.put(CalendarContract.Events.EVENT_TIMEZONE, allDay ? "UTC" : TimeZone.getDefault().getID());
+            Uri created = getContext().getContentResolver().insert(CalendarContract.Events.CONTENT_URI, values);
+            if (created == null) {
+                call.reject("Your calendar did not accept the event.");
+                return;
+            }
+            JSObject result = new JSObject();
+            result.put("id", String.valueOf(ContentUris.parseId(created)));
+            call.resolve(result);
+        } catch (SecurityException error) {
+            call.reject("Calendar permission is not granted.", "PERMISSION_DENIED");
+        } catch (Exception error) {
+            call.reject("Could not add the event to your calendar.");
         }
     }
 
