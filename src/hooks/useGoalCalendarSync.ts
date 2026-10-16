@@ -27,7 +27,7 @@ const DEBOUNCE_MS = 900;
 function goalSignature(goals: GoalNode[]): string {
   const parts: string[] = [];
   const visit = (node: GoalNode) => {
-    parts.push([node.id, node.title, node.description ?? '', node.startDate ?? '', node.endDate ?? '', node.completed ? 1 : 0].join('\u0001'));
+    parts.push([node.id, node.title, node.description ?? '', node.startDate ?? '', node.endDate ?? '', node.completed ? 1 : 0, node.children.length > 0 ? 1 : 0].join('\u0001'));
     node.children.forEach(visit);
   };
   goals.forEach(visit);
