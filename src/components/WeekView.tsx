@@ -38,7 +38,7 @@ export default function WeekView({
       {cells.map((cell) => {
         if (cell.kind === 'notes') {
           return (
-            <div key="notes" className="bg-surface flex flex-col min-h-[132px] p-2 gap-1">
+            <div key="notes" className="bg-surface flex flex-col min-h-[144px] p-2 gap-1">
               <label htmlFor="week-notes" className="text-[10px] font-bold uppercase tracking-wider text-content-secondary">
                 Week notes
               </label>
@@ -70,8 +70,9 @@ export default function WeekView({
           ...events.map((event) => ({ type: 'event' as const, event })),
           ...tasks.map((task) => ({ type: 'task' as const, task })),
         ];
-        const overflow = total > WEEK_CELL_MAX_ITEMS ? total - (WEEK_CELL_MAX_ITEMS - 1) : 0;
-        const visible = overflow > 0 ? items.slice(0, WEEK_CELL_MAX_ITEMS - 1) : items;
+        // Up to 5 items show; anything beyond that is counted on its own "+N more" line below them.
+        const overflow = total > WEEK_CELL_MAX_ITEMS ? total - WEEK_CELL_MAX_ITEMS : 0;
+        const visible = items.slice(0, WEEK_CELL_MAX_ITEMS);
 
         return (
           <button
@@ -80,7 +81,7 @@ export default function WeekView({
             aria-pressed={isSelected}
             aria-label={`${fullDate}, ${events.length} calendar ${events.length === 1 ? 'event' : 'events'}, ${tasks.length} ${tasks.length === 1 ? 'task' : 'tasks'}`}
             onClick={() => onSelect(date)}
-            className={`text-left flex flex-col min-h-[132px] p-1.5 gap-1 transition-colors ${
+            className={`text-left flex flex-col min-h-[144px] p-1.5 gap-1 transition-colors ${
               isSelected ? 'bg-primary-soft' : 'bg-surface'
             }`}
           >
