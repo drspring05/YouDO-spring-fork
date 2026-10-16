@@ -6,8 +6,8 @@ export const WEEK_NOTES_KEY = 'youdo-calendar-week-notes-v1';
 /** Longest note kept per week, so a runaway paste cannot fill local storage. */
 export const WEEK_NOTE_MAX_LENGTH = 4000;
 
-/** Items one day cell lists before the rest collapse into "+N more". */
-export const WEEK_CELL_MAX_ITEMS = 4;
+/** Items one day cell lists before the rest collapse into a "+N more" line underneath. */
+export const WEEK_CELL_MAX_ITEMS = 5;
 
 /** One cell of the 2×4 week grid: a day, or the notes cell that closes the grid. */
 export type WeekCell =
