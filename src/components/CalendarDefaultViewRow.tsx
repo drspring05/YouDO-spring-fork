@@ -19,6 +19,7 @@ import {
   supportsDeviceCalendar,
   type DeviceCalendar,
 } from '../lib/nativeCalendar';
+import { chooseTaskCalendar, readTaskCalendarId, writableCalendars, writeTaskCalendarId } from '../lib/taskSchedule';
 
 interface SwitchProps {
   storageKey: string;
@@ -48,11 +49,9 @@ function CalendarSwitch({ storageKey, title, hint }: SwitchProps) {
   );
 }
 
-/** One switch per phone calendar (grouped by account): which ones the Calendar tab shows. */
-function CalendarShownList() {
+/** The phone's calendars, once calendar access is granted. Empty until then (and when there is no access). */
+function usePhoneCalendars(): DeviceCalendar[] {
   const [calendars, setCalendars] = useState<DeviceCalendar[]>([]);
-  const [hidden, setHidden] = useState<string[]>(() => readHiddenCalendarIds());
-
   useEffect(() => {
     let live = true;
     (async () => {
@@ -61,13 +60,64 @@ function CalendarShownList() {
         const list = await listDeviceCalendars();
         if (live) setCalendars(list);
       } catch {
-        /* no list to show; the Calendar tab keeps showing everything */
+        /* no list to show; the app keeps working with its defaults */
       }
     })();
     return () => {
       live = false;
     };
   }, []);
+  return calendars;
+}
+
+const calendarLabel = (calendar: DeviceCalendar) =>
+  calendar.accountName && calendar.accountName !== calendar.name ? `${calendar.name} (${calendar.accountName})` : calendar.name;
+
+/** Which phone calendar YouDo's own events (planned tasks, dated goal items, new events) are written to. */
+function CalendarTargetPicker({ calendars }: { calendars: DeviceCalendar[] }) {
+  const writable = writableCalendars(calendars);
+  const [chosen, setChosen] = useState<string>(() => readTaskCalendarId() ?? '');
+  const current = chooseTaskCalendar(writable, chosen || null)?.id ?? '';
+
+  // Nothing to choose between.
+  if (writable.length < 2) return null;
+
+  return (
+    <div className="space-y-2 pt-1">
+      <div>
+        <label htmlFor="youdo-event-calendar" className="text-xs font-semibold text-content-primary block">
+          Calendar for YouDo events
+        </label>
+        <p className="text-[10.5px] text-content-secondary font-medium">
+          Planned tasks, dated goal items and new events are added here. Events already on your calendar stay where they are.
+          To move goal items, switch &ldquo;Dated goal items on my calendar&rdquo; off and on again
+        </p>
+      </div>
+      <select
+        id="youdo-event-calendar"
+        value={current}
+        onChange={(e) => {
+          setChosen(e.target.value);
+          writeTaskCalendarId(e.target.value);
+          window.dispatchEvent(new Event(CALENDAR_PREFS_CHANGED_EVENT));
+        }}
+        className="w-full h-10 px-3 bg-surface border border-subtle rounded-xl text-[13px] font-medium text-content-primary outline-none focus:border-primary transition-colors"
+      >
+        {[...writable]
+          .sort((a, b) => a.accountName.localeCompare(b.accountName) || a.name.localeCompare(b.name))
+          .map((calendar) => (
+            <option key={calendar.id} value={calendar.id}>
+              {calendarLabel(calendar)}
+            </option>
+          ))}
+      </select>
+    </div>
+  );
+}
+
+/** One switch per phone calendar (grouped by account): which ones the Calendar tab shows. */
+function CalendarShownList({ calendars }: { calendars: DeviceCalendar[] }) {
+  const [hidden, setHidden] = useState<string[]>(() => readHiddenCalendarIds());
 
   if (calendars.length === 0) return null;
 
@@ -122,6 +172,7 @@ export default function CalendarDefaultViewRow() {
   const [stored, setStored] = useLocalStorage<CalendarViewMode>(CALENDAR_DEFAULT_VIEW_KEY, 'month');
   const current = normalizeCalendarView(stored);
   const phoneCalendar = supportsDeviceCalendar();
+  const calendars = usePhoneCalendars();
 
   return (
     <div className="settings-data-row p-4 space-y-3">
@@ -164,7 +215,8 @@ export default function CalendarDefaultViewRow() {
           />
         </div>
       )}
-      {phoneCalendar && <CalendarShownList />}
+      {phoneCalendar && <CalendarTargetPicker calendars={calendars} />}
+      {phoneCalendar && <CalendarShownList calendars={calendars} />}
     </div>
   );
 }
