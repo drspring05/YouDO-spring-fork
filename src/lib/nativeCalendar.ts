@@ -60,6 +60,7 @@ interface YouDoCalendarPlugin {
   createEvent(options: NewDeviceEvent): Promise<{ id: string }>;
   updateEvent(options: DeviceEventChanges & { id: string }): Promise<{ updated: boolean }>;
   deleteEvent(options: { id: string }): Promise<{ deleted: boolean }>;
+  deleteOccurrence(options: { id: string; begin: number }): Promise<{ deleted: boolean }>;
   openAppSettings(): Promise<void>;
 }
 
@@ -108,6 +109,14 @@ export async function updateDeviceEvent(id: string, changes: DeviceEventChanges)
 /** Resolves true when an event was removed, false when it was already gone. */
 export async function deleteDeviceEvent(id: string): Promise<boolean> {
   return (await YouDoCalendar.deleteEvent({ id })).deleted;
+}
+
+/**
+ * Deletes one occurrence of a repeating event and keeps the rest of the series. `begin` is that
+ * occurrence's own start (the `begin` of the event as listed). Resolves false when the event was already gone.
+ */
+export async function deleteDeviceOccurrence(id: string, begin: number): Promise<boolean> {
+  return (await YouDoCalendar.deleteOccurrence({ id, begin })).deleted;
 }
 
 export async function openDeviceCalendarSettings(): Promise<void> {
