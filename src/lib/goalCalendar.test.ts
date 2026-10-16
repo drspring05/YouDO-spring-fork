@@ -28,7 +28,7 @@ describe('goalEventWindow', () => {
 });
 
 describe('desiredGoalEvents', () => {
-  it('lists open dated items at any depth and skips undated, done and untitled ones', () => {
+  it('lists only open dated items with nothing inside them, and skips undated, done and untitled ones', () => {
     const tree = [
       node('root', { startDate: '2026-10-01' }, [
         node('a', { endDate: '2026-10-05' }),
@@ -38,7 +38,8 @@ describe('desiredGoalEvents', () => {
         node('e', { startDate: '2026-10-08' }, [node('f', { endDate: '2026-10-09' })]),
       ]),
     ];
-    expect(desiredGoalEvents(tree).map((e) => e.nodeId)).toEqual(['root', 'a', 'e', 'f']);
+    // root and e hold other items, so only a and f (the lowest dated items) reach the calendar.
+    expect(desiredGoalEvents(tree).map((e) => e.nodeId)).toEqual(['a', 'f']);
   });
 });
 
