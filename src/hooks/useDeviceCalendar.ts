@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CALENDAR_PREFS_CHANGED_EVENT, readHiddenCalendarIds } from '../lib/calendarPrefs';
 import {
   getDeviceCalendarPermission,
   listRawDeviceEvents,
@@ -20,9 +21,22 @@ export type DeviceCalendarAccess = 'unsupported' | 'checking' | CalendarPermissi
 export function useDeviceCalendar(startDate: string, endDate: string) {
   const supported = supportsDeviceCalendar();
   const [access, setAccess] = useState<DeviceCalendarAccess>(supported ? 'checking' : 'unsupported');
-  const [events, setEvents] = useState<DeviceCalendarEvent[]>([]);
+  const [allEvents, setEvents] = useState<DeviceCalendarEvent[]>([]);
+  const [hiddenCalendars, setHiddenCalendars] = useState<string[]>(() => readHiddenCalendarIds());
   const [error, setError] = useState('');
   const latest = useRef(0);
+
+  // Calendars switched off in Settings stay out of the Calendar tab (the phone's own calendar is untouched).
+  useEffect(() => {
+    const apply = () => setHiddenCalendars(readHiddenCalendarIds());
+    window.addEventListener(CALENDAR_PREFS_CHANGED_EVENT, apply);
+    return () => window.removeEventListener(CALENDAR_PREFS_CHANGED_EVENT, apply);
+  }, []);
+
+  const events = useMemo(
+    () => (hiddenCalendars.length ? allEvents.filter((event) => !hiddenCalendars.includes(event.calendarId)) : allEvents),
+    [allEvents, hiddenCalendars],
+  );
 
   const load = useCallback(async () => {
     if (!supported) return;
