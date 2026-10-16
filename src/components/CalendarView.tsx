@@ -9,7 +9,9 @@ import OriginChip from './OriginChip';
 import type { Task } from '../types';
 import { localISODate, pathTitles, useStore, isOpenBacklogTask } from '../store';
 import { useDeviceCalendar } from '../hooks/useDeviceCalendar';
+import { notifyCalendarChanged } from '../hooks/useTaskCalendarSync';
 import { useLocalStorage } from '../hooks/useLocalStorage';
+import CalendarEventSheet from './CalendarEventSheet';
 import WeekView from './WeekView';
 import { shiftLocalISO } from '../lib/dates';
 import { WEEK_NOTES_KEY, normalizeWeekNotes, weekDaysOf, weekRangeLabel, weekStartOf, withWeekNote } from '../lib/weekView';
@@ -152,6 +154,8 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
   const [dayStatsModalDate, setDayStatsModalDate] = useState<string | null>(null);
   const [showDayStatsHelp, setShowDayStatsHelp] = useState(false);
   const [openSessionSummaryId, setOpenSessionSummaryId] = useState<string | null>(null);
+  /** The phone-calendar event being edited, or `{ event: null }` while a new one is being made. */
+  const [eventSheet, setEventSheet] = useState<{ event: DeviceCalendarEvent | null } | null>(null);
 
   useEffect(() => {
     setOpenSessionSummaryId(null);
@@ -444,12 +448,18 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
                   </button>
                   <ul className="px-3.5 pb-2.5 space-y-1.5">
                     {dayEvents.map((ev) => (
-                      <li key={ev.key} className="flex gap-2.5 items-stretch">
-                        <span className="w-1 rounded-full shrink-0" style={{ backgroundColor: ev.color }} aria-hidden />
-                        <div className="min-w-0">
-                          <p className="text-[13px] font-semibold text-content-primary leading-snug truncate">{ev.title || '(No title)'}</p>
-                          <p className="text-[11px] text-content-secondary tabular-nums">{eventTimeLabel(ev, date)}</p>
-                        </div>
+                      <li key={ev.key}>
+                        <button
+                          type="button"
+                          onClick={() => setEventSheet({ event: ev })}
+                          className="w-full flex gap-2.5 items-stretch text-left"
+                        >
+                          <span className="w-1 rounded-full shrink-0" style={{ backgroundColor: ev.color }} aria-hidden />
+                          <div className="min-w-0">
+                            <p className="text-[13px] font-semibold text-content-primary leading-snug truncate">{ev.title || '(No title)'}</p>
+                            <p className="text-[11px] text-content-secondary tabular-nums">{eventTimeLabel(ev, date)}</p>
+                          </div>
+                        </button>
                       </li>
                     ))}
                     {dayTasks.map((task) => {
@@ -625,7 +635,18 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
       {/* Phone calendar events (Android only) */}
       {deviceCalendar.supported && deviceCalendar.access !== 'checking' && (
         <section className="mt-5" aria-label="Phone calendar events">
-          <h3 className="text-[14px] font-bold text-content-primary mb-2">Calendar events</h3>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-[14px] font-bold text-content-primary">Calendar events</h3>
+            {deviceCalendar.access === 'granted' && selectedDate && (
+              <button
+                type="button"
+                onClick={() => setEventSheet({ event: null })}
+                className="calendar-add-task flex items-center gap-1.5 bg-primary text-on-primary text-xs font-semibold"
+              >
+                <Plus size={14} /> Add event
+              </button>
+            )}
+          </div>
           {deviceCalendar.access === 'granted' ? (
             selectedEvents.length === 0 ? (
               <div className="bg-surface border border-subtle rounded-2xl shadow-card p-6 text-center text-content-secondary text-xs">
@@ -634,18 +655,25 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
             ) : (
               <ul className="space-y-2">
                 {selectedEvents.map((ev) => (
-                  <li key={ev.key} className="flex gap-3 bg-surface border border-subtle rounded-2xl shadow-card p-3.5">
-                    <span className="w-1 self-stretch rounded-full shrink-0" style={{ backgroundColor: ev.color }} aria-hidden />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[14px] font-bold text-content-primary leading-snug">{ev.title || '(No title)'}</p>
-                      <p className="text-[11.5px] text-content-secondary mt-0.5 tabular-nums">{eventTimeLabel(ev, selectedDate!)}</p>
-                      {ev.location && (
-                        <p className="flex items-center gap-1 text-[11px] text-content-muted mt-1 min-w-0">
-                          <MapPin size={11} className="shrink-0" />
-                          <span className="truncate">{ev.location}</span>
-                        </p>
-                      )}
-                    </div>
+                  <li key={ev.key}>
+                    <button
+                      type="button"
+                      onClick={() => setEventSheet({ event: ev })}
+                      aria-label={`${ev.title || '(No title)'}, ${eventTimeLabel(ev, selectedDate!)}. Tap to ${ev.writable ? 'edit' : 'view'}`}
+                      className="w-full text-left flex gap-3 bg-surface border border-subtle rounded-2xl shadow-card p-3.5"
+                    >
+                      <span className="w-1 self-stretch rounded-full shrink-0" style={{ backgroundColor: ev.color }} aria-hidden />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[14px] font-bold text-content-primary leading-snug">{ev.title || '(No title)'}</p>
+                        <p className="text-[11.5px] text-content-secondary mt-0.5 tabular-nums">{eventTimeLabel(ev, selectedDate!)}</p>
+                        {ev.location && (
+                          <p className="flex items-center gap-1 text-[11px] text-content-muted mt-1 min-w-0">
+                            <MapPin size={11} className="shrink-0" />
+                            <span className="truncate">{ev.location}</span>
+                          </p>
+                        )}
+                      </div>
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -668,6 +696,15 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
           )}
           {deviceCalendar.error && <p className="text-[11px] text-error mt-2">{deviceCalendar.error}</p>}
         </section>
+      )}
+
+      {eventSheet && (
+        <CalendarEventSheet
+          event={eventSheet.event}
+          date={selectedDate ?? todayStr}
+          onClose={() => setEventSheet(null)}
+          onChanged={notifyCalendarChanged}
+        />
       )}
 
       {/* ── Daily Focus Stats & Efficiency Modal ── */}
