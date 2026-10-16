@@ -469,6 +469,72 @@ public class YouDoCalendarPlugin extends Plugin {
         }
     }
 
+    /**
+     * Deletes one occurrence of a repeating event and keeps the rest of the series, by adding a cancelled
+     * exception for that occurrence (the same way the stock Calendar app does it). `begin` is the occurrence's
+     * own start in epoch milliseconds (UTC midnight for an all-day event). A plain, non-repeating event is
+     * simply deleted. Resolves deleted=false when the event no longer exists.
+     */
+    @PluginMethod
+    public void deleteOccurrence(PluginCall call) {
+        if (!canWrite()) {
+            call.reject("Calendar permission is not granted.", "PERMISSION_DENIED");
+            return;
+        }
+        long eventId;
+        try {
+            eventId = Long.parseLong(call.getString("id", ""));
+        } catch (NumberFormatException error) {
+            call.reject("That event id is not valid.");
+            return;
+        }
+        long begin = call.getData().optLong("begin", -1);
+        if (begin < 0) {
+            call.reject("That occurrence has no start time.");
+            return;
+        }
+        try {
+            JSObject result = new JSObject();
+            Boolean repeats = eventRepeats(eventId);
+            if (repeats == null) {
+                result.put("deleted", false);
+                call.resolve(result);
+                return;
+            }
+            if (!repeats) {
+                int rows = getContext().getContentResolver().delete(
+                    ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, eventId),
+                    null,
+                    null
+                );
+                if (rows == 0) {
+                    call.reject("Your calendar did not allow deleting that event.");
+                    return;
+                }
+                result.put("deleted", true);
+                call.resolve(result);
+                return;
+            }
+            ContentValues values = new ContentValues();
+            values.put(CalendarContract.Events.ORIGINAL_INSTANCE_TIME, begin);
+            values.put(CalendarContract.Events.STATUS, CalendarContract.Events.STATUS_CANCELED);
+            Uri created = getContext().getContentResolver().insert(
+                ContentUris.withAppendedId(CalendarContract.Events.CONTENT_EXCEPTION_URI, eventId),
+                values
+            );
+            if (created == null) {
+                call.reject("Your calendar did not allow deleting that occurrence.");
+                return;
+            }
+            result.put("deleted", true);
+            call.resolve(result);
+        } catch (SecurityException error) {
+            call.reject("Calendar permission is not granted.", "PERMISSION_DENIED");
+        } catch (Exception error) {
+            call.reject("Could not delete that occurrence from your calendar.");
+        }
+    }
+
     /** Opens this app's page in Android Settings so a permanently denied permission can be enabled. */
     @PluginMethod
     public void openAppSettings(PluginCall call) {
