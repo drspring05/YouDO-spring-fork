@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { CALENDAR_DEFAULT_VIEW_KEY, normalizeCalendarView, readCalendarDefaultView } from './calendarPrefs';
+import {
+  CALENDAR_DEFAULT_VIEW_KEY,
+  CALENDAR_HIDDEN_KEY,
+  normalizeCalendarView,
+  normalizeHiddenCalendars,
+  readCalendarDefaultView,
+  readHiddenCalendarIds,
+} from './calendarPrefs';
 
 const stubStorage = (initial: Record<string, string> = {}) => {
   const saved = new Map(Object.entries(initial));
@@ -36,5 +43,32 @@ describe('calendar default view', () => {
     expect(readCalendarDefaultView()).toBe('month');
     vi.stubGlobal('localStorage', { getItem: () => { throw new Error('blocked'); } });
     expect(readCalendarDefaultView()).toBe('month');
+  });
+});
+
+describe('hidden calendars', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('keeps only non-empty text ids, once each', () => {
+    expect(normalizeHiddenCalendars(['3', '3', '', 7, null, '12'])).toEqual(['3', '12']);
+    expect(normalizeHiddenCalendars('3')).toEqual([]);
+    expect(normalizeHiddenCalendars(undefined)).toEqual([]);
+  });
+
+  it('shows every calendar when nothing is saved', () => {
+    stubStorage();
+    expect(readHiddenCalendarIds()).toEqual([]);
+  });
+
+  it('reads the saved list', () => {
+    stubStorage({ [CALENDAR_HIDDEN_KEY]: JSON.stringify(['4', '9']) });
+    expect(readHiddenCalendarIds()).toEqual(['4', '9']);
+  });
+
+  it('survives corrupt or blocked storage', () => {
+    stubStorage({ [CALENDAR_HIDDEN_KEY]: '{not json' });
+    expect(readHiddenCalendarIds()).toEqual([]);
+    vi.stubGlobal('localStorage', { getItem: () => { throw new Error('blocked'); } });
+    expect(readHiddenCalendarIds()).toEqual([]);
   });
 });
