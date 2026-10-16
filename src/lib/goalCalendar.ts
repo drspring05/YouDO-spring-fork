@@ -3,7 +3,8 @@ import type { GoalNode } from '../types';
 
 /**
  * Goal items with dates, shown on the phone calendar as all-day events (one way: YouDo to calendar).
- * Only open items count: finishing an item, deleting it, or clearing its dates removes its event.
+ * Only open items with nothing inside them count (not goals or branches that hold other items):
+ * finishing an item, deleting it, clearing its dates, or adding items inside it removes its event.
  */
 
 const DAY_MS = 86_400_000;
@@ -52,11 +53,15 @@ export function goalEventWindow(node: Pick<GoalNode, 'startDate' | 'endDate'>): 
   return { begin: first, end: last + DAY_MS };
 }
 
-/** Every open goal item that has a date, in tree order. */
+/**
+ * Every open goal item that has a date, in tree order. Only the lowest items (the ones with nothing
+ * inside them) are listed: a goal or branch that holds other items would otherwise show up as one huge
+ * bar that covers the whole calendar. Its dates are still kept in the goal tree, just not sent to the calendar.
+ */
 export function desiredGoalEvents(goals: GoalNode[]): DesiredGoalEvent[] {
   const out: DesiredGoalEvent[] = [];
   const visit = (node: GoalNode) => {
-    if (!node.completed) {
+    if (!node.completed && node.children.length === 0) {
       const window = goalEventWindow(node);
       const title = (node.title ?? '').trim();
       if (window && title) out.push({ nodeId: node.id, title, description: (node.description ?? '').trim(), ...window });
