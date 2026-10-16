@@ -46,3 +46,33 @@ function readFlag(key: string): boolean {
 
 export const readPlannedTasksToCalendar = () => readFlag(CALENDAR_PLANNED_TASKS_KEY);
 export const readGoalItemsToCalendar = () => readFlag(CALENDAR_GOAL_ITEMS_KEY);
+
+/* ─── Which phone calendars the Calendar tab shows ────────────────────────── */
+
+/** Ids of phone calendars switched off for the Calendar tab. Everything else is shown. Saved on this device only. */
+export const CALENDAR_HIDDEN_KEY = 'youdo-calendar-hidden-v1';
+
+/** Keeps only non-empty text ids, once each; anything else in storage is dropped. */
+export function normalizeHiddenCalendars(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.filter((id): id is string => typeof id === 'string' && id.length > 0))];
+}
+
+export function readHiddenCalendarIds(): string[] {
+  try {
+    const raw = readStorageRaw(CALENDAR_HIDDEN_KEY);
+    return raw === null ? [] : normalizeHiddenCalendars(JSON.parse(raw));
+  } catch {
+    return [];
+  }
+}
+
+/** Saves the list and tells the Calendar tab straight away. */
+export function writeHiddenCalendarIds(ids: string[]): void {
+  try {
+    localStorage.setItem(CALENDAR_HIDDEN_KEY, JSON.stringify(normalizeHiddenCalendars(ids)));
+  } catch {
+    /* the choice just won't be remembered */
+  }
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(CALENDAR_PREFS_CHANGED_EVENT));
+}
