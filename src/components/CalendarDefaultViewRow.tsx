@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { CalendarDays } from 'lucide-react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import Toggle from './Toggle';
@@ -8,9 +9,16 @@ import {
   CALENDAR_PREFS_CHANGED_EVENT,
   CALENDAR_VIEW_OPTIONS,
   normalizeCalendarView,
+  readHiddenCalendarIds,
+  writeHiddenCalendarIds,
   type CalendarViewMode,
 } from '../lib/calendarPrefs';
-import { supportsDeviceCalendar } from '../lib/nativeCalendar';
+import {
+  getDeviceCalendarPermission,
+  listDeviceCalendars,
+  supportsDeviceCalendar,
+  type DeviceCalendar,
+} from '../lib/nativeCalendar';
 
 interface SwitchProps {
   storageKey: string;
@@ -36,6 +44,75 @@ function CalendarSwitch({ storageKey, title, hint }: SwitchProps) {
           window.setTimeout(() => window.dispatchEvent(new Event(CALENDAR_PREFS_CHANGED_EVENT)), 0);
         }}
       />
+    </div>
+  );
+}
+
+/** One switch per phone calendar (grouped by account): which ones the Calendar tab shows. */
+function CalendarShownList() {
+  const [calendars, setCalendars] = useState<DeviceCalendar[]>([]);
+  const [hidden, setHidden] = useState<string[]>(() => readHiddenCalendarIds());
+
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      try {
+        if ((await getDeviceCalendarPermission()) !== 'granted') return;
+        const list = await listDeviceCalendars();
+        if (live) setCalendars(list);
+      } catch {
+        /* no list to show; the Calendar tab keeps showing everything */
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  if (calendars.length === 0) return null;
+
+  const sorted = [...calendars].sort(
+    (a, b) => a.accountName.localeCompare(b.accountName) || a.name.localeCompare(b.name),
+  );
+
+  return (
+    <div className="space-y-3 pt-1">
+      <div>
+        <h4 className="text-xs font-semibold text-content-primary">Calendars shown in the Calendar tab</h4>
+        <p className="text-[10.5px] text-content-secondary font-medium">
+          Turn a calendar off to hide its events here. Your phone's Calendar app is not changed
+        </p>
+      </div>
+      {sorted.map((calendar) => {
+        const on = !hidden.includes(calendar.id);
+        return (
+          <div key={calendar.id} className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <span
+                className="w-2.5 h-2.5 rounded-full shrink-0"
+                style={{ backgroundColor: /^#[0-9a-f]{6}$/i.test(calendar.color) ? calendar.color : '#8B8B8B' }}
+                aria-hidden
+              />
+              <div className="min-w-0">
+                <h5 className="text-xs font-semibold text-content-primary truncate">{calendar.name}</h5>
+                <p className="text-[10.5px] text-content-secondary font-medium truncate">
+                  {calendar.accountName}
+                  {calendar.visible ? '' : ' · off in your phone’s Calendar app'}
+                </p>
+              </div>
+            </div>
+            <Toggle
+              checked={on}
+              label={`Show ${calendar.name} (${calendar.accountName})`}
+              onChange={() => {
+                const next = on ? [...hidden, calendar.id] : hidden.filter((id) => id !== calendar.id);
+                setHidden(next);
+                writeHiddenCalendarIds(next);
+              }}
+            />
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -87,6 +164,7 @@ export default function CalendarDefaultViewRow() {
           />
         </div>
       )}
+      {phoneCalendar && <CalendarShownList />}
     </div>
   );
 }
