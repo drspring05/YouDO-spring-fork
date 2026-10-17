@@ -376,8 +376,12 @@ function AppInner() {
     return modalCloseRef.current();
   }, []);
 
+  const goalsForNavRef = useRef(goals);
+  goalsForNavRef.current = goals;
+  const goalStillExists = useCallback((id: string) => Boolean(findGoal(goalsForNavRef.current, id)), []);
+
   const { view, goalPathIds, slideDirection, setGoalPathIds, handleNavigateTab, navigateToGoalPath } =
-    useNavigationSync(handleModalPopState);
+    useNavigationSync(handleModalPopState, goalStillExists);
 
   const tabs: View[] = useMemo(() => ['tasks', 'goals', 'calendar', 'board'], []);
 

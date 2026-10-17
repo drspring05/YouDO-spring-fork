@@ -50,7 +50,10 @@ export default function AddGoalSheet({
       setSteps(['']);
       setShowChecklist(false);
     }
-    setTimeout(() => titleRef.current?.focus(), 120);
+    // Keyboard opens automatically only when ADDING; editing an existing item waits for a tap.
+    if (editing) return;
+    const t = setTimeout(() => titleRef.current?.focus(), 120);
+    return () => clearTimeout(t);
   }, [open, parentId, editing]);
 
   if (!open) return null;

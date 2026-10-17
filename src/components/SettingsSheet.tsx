@@ -47,6 +47,7 @@ import {
 import Overlay from './Overlay';
 import Toggle from './Toggle';
 import CalendarDefaultViewRow from './CalendarDefaultViewRow';
+import GoalPositionRow from './GoalPositionRow';
 import {
   getNotificationPreferences,
   saveNotificationPreferences,
@@ -1888,6 +1889,7 @@ export default function SettingsSheet({
               </div>
               <Toggle checked={legacyStyle} onChange={() => setUiPref('legacyStyle', !legacyStyle)} label="Classic look" />
             </div>
+            <GoalPositionRow />
             <CalendarDefaultViewRow />
           </div>
         </section>

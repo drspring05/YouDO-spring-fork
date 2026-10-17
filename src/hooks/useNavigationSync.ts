@@ -4,6 +4,7 @@ import type { PluginListenerHandle } from '@capacitor/core';
 import type { View } from '../types';
 import { STORAGE_KEYS } from '../lib/storageKeys';
 import { reducedEffectsSnapshot } from './useReducedEffects';
+import { readGoalRememberPosition, trimToExistingPath } from '../lib/goalNavPrefs';
 
 const TABS: View[] = ['tasks', 'goals', 'calendar', 'board'];
 
@@ -82,7 +83,7 @@ function syncUrlAndStorage(targetView: View, targetPathIds: string[], pushHistor
   }
 }
 
-export function useNavigationSync(onPopState?: () => boolean) {
+export function useNavigationSync(onPopState?: () => boolean, goalExists?: (id: string) => boolean) {
   const initialNav = useMemo(() => parseNavigationState(), []);
   const [view, setView] = useState<View>(initialNav.initialView);
   const [goalPathIds, setGoalPathIdsState] = useState<string[]>(initialNav.initialPathIds);
@@ -99,6 +100,11 @@ export function useNavigationSync(onPopState?: () => boolean) {
 
   const onPopStateRef = useRef(onPopState);
   onPopStateRef.current = onPopState;
+  const goalExistsRef = useRef(goalExists);
+  goalExistsRef.current = goalExists;
+
+  // Where the Goals tab was when you last switched away (this session only, not saved).
+  const rememberedGoalPathRef = useRef<string[]>([]);
 
   // Sync initial URL and local storage on mount
   useEffect(() => {
@@ -248,10 +254,19 @@ export function useNavigationSync(onPopState?: () => boolean) {
     const direction = targetIdx > currentIdx ? 'right' : 'left';
     setSlideDirection(direction);
     setView(targetView);
-    // Reset goal path breadcrumbs to root level when navigating between top-level tabs
-    setGoalPathIdsState([]);
+    // Remember where the Goals tab was when leaving it.
+    if (currentView === 'goals') rememberedGoalPathRef.current = [...pathIdsRef.current];
+    // Coming back to Goals: reopen where it was (if the setting is on). Otherwise start at root level.
+    let nextPath: string[] = [];
+    if (targetView === 'goals' && readGoalRememberPosition()) {
+      const exists = goalExistsRef.current;
+      nextPath = exists
+        ? trimToExistingPath(rememberedGoalPathRef.current, exists)
+        : [...rememberedGoalPathRef.current];
+    }
+    setGoalPathIdsState(nextPath);
     if (!isNavigatingHistory.current) {
-      syncUrlAndStorage(targetView, [], true);
+      syncUrlAndStorage(targetView, nextPath, true);
     }
   }, []);
 
