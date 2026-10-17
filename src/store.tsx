@@ -88,7 +88,8 @@ import {
   sanitizeStreakMeta,
   type StreakMeta,
 } from './lib/focusTrends';
-import { todayISO } from './lib/dates';
+import { daysBetweenLocalISO, shiftLocalISO, todayISO } from './lib/dates';
+import { isIsoDay, shiftStepDates } from './lib/stepDates';
 import { defaultPacePrefs, sanitizePacePrefs, type PacePrefs } from './lib/paceBoard';
 import { syncPublicPaceRow, withdrawPublicPace } from './lib/pacePublish';
 import { reconcileBoardEvidence } from './lib/paceCloud';
@@ -204,6 +205,11 @@ interface Store {
   planBatch: (nodeIds: string[], targetDate: string) => void;
   /** Remove a planned/daily task that is linked to a goal */
   unlinkTask: (taskId: string) => void;
+  /**
+   * Move an unfinished task so it starts on another day (calendar leaflet). Its timeframe, its goal item's dates
+   * and the days chosen for its steps all move by the same number of days.
+   */
+  rescheduleTask: (taskId: string, newDate: string) => void;
   /** Toggle a step's done state directly in the goal view */
   toggleGoalStep: (nodeId: string, stepIdx: number) => void;
   /** Tick or untick one step of a planned task (calendar leaflet, Upcoming list); keeps the goal item in step. */
@@ -908,7 +914,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                   ? {
                       ...n,
                       todayTaskId: null,
-                      ...(n.children.length === 0 ? { startDate: undefined, endDate: undefined } : {}),
+                      ...(n.children.length === 0 ? { startDate: undefined, endDate: undefined, stepDates: undefined } : {}),
                     }
                   : n,
               )
@@ -917,6 +923,37 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       );
     },
     [activeSessionRef, setTasks, setGoals, releaseEvents],
+  );
+
+  const rescheduleTask = useCallback(
+    (taskId: string, newDate: string) => {
+      if (activeSessionRef.current?.taskId === taskId) return;
+      const task = tasksRef.current.find((t) => t.id === taskId);
+      if (!task || !task.targetDate || !isIsoDay(newDate) || newDate === task.targetDate) return;
+      if (isTaskComplete(task)) return;
+      const offset = daysBetweenLocalISO(task.targetDate, newDate);
+      const lastDay = task.endDate && task.endDate > task.targetDate ? shiftLocalISO(task.endDate, offset) : undefined;
+      const moved: Task = {
+        ...(rescheduleExistingGoalPlan(task, newDate, todayISO()) ?? { ...task, targetDate: newDate }),
+        endDate: lastDay,
+      };
+      setTasks((prev) => prev.map((t) => (t.id === taskId ? moved : t)));
+      const goalNodeId = task.goalNodeId;
+      if (goalNodeId) {
+        // The goal item keeps the same timeframe as its task, so the calendar bar and the Goals tab move with it.
+        setGoals((prev) =>
+          prev.map((root) =>
+            updateNode(root, goalNodeId, (n) =>
+              n.todayTaskId === taskId
+                ? { ...n, startDate: newDate, endDate: lastDay, stepDates: shiftStepDates(n.stepDates, offset) }
+                : n,
+            ),
+          ),
+        );
+      }
+      hapticTick();
+    },
+    [activeSessionRef, setTasks, setGoals],
   );
 
   const toggleGoalStep = useCallback(
@@ -2126,7 +2163,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const dataValue = useMemo<DataStore>(
     () => ({
       tasks, goals, addTask, duplicateTask, advance, undo, removeTask, reorder,
-      addGoalRoot, addChildNode, updateGoalNode, deleteGoalNode, applyGoalTreeChange, undoGoalTreeChange,
+      addGoalRoot, addChildNode, updateGoalNode, deleteGoalNode, applyGoalTreeChange, undoGoalTreeChange, rescheduleTask,
       recentlyDeletedGoals, lastDeletedNotification, clearDeletedNotification, restoreDeletedGoal, clearTrash,
       reorderGoalNodes, moveGoalNode, moveGoalNodes: moveGoalNodesAction, copyGoalNodesToTarget: copyGoalNodesToTargetAction, toggleNodeCompletion,
       planTask, planBatch, unlinkTask, toggleGoalStep, toggleTaskStep, setTaskDone, togglePin,
@@ -2143,7 +2180,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       publishPublicPace,
     }),
     [tasks, goals, addTask, duplicateTask, advance, undo, removeTask, reorder,
-      addGoalRoot, addChildNode, updateGoalNode, deleteGoalNode, applyGoalTreeChange, undoGoalTreeChange, deleteGoalNodes,
+      addGoalRoot, addChildNode, updateGoalNode, deleteGoalNode, applyGoalTreeChange, undoGoalTreeChange, rescheduleTask, deleteGoalNodes,
       recentlyDeletedGoals, lastDeletedNotification, clearDeletedNotification, restoreDeletedGoal, clearTrash,
       reorderGoalNodes, moveGoalNode, moveGoalNodesAction, copyGoalNodesToTargetAction, toggleNodeCompletion,
       planTask, planBatch, unlinkTask, toggleGoalStep, toggleTaskStep, setTaskDone, togglePin,

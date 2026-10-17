@@ -3,6 +3,7 @@ import type { Task } from '../types';
 import { eventTimeLabel, type DeviceCalendarEvent } from '../lib/deviceCalendar';
 import { readableTextColor } from '../lib/monthLayout';
 import { taskOccurrenceOnDate } from '../lib/taskTimeline';
+import { datedStepIndicesOn } from '../lib/stepDates';
 import { WEEK_CELL_MAX_ITEMS, WEEK_NOTE_MAX_LENGTH, weekCells } from '../lib/weekView';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -14,6 +15,8 @@ interface Props {
   selectedDate: string | null;
   eventsByDay: Record<string, DeviceCalendarEvent[]>;
   tasksByDate: Record<string, Task[]>;
+  /** the day each of a task's steps is planned for (its own order); null for a step that follows the task */
+  stepDatesFor: (task: Task) => (string | null)[];
   /** this week's note text */
   note: string;
   onNoteChange: (weekStart: string, text: string) => void;
@@ -27,6 +30,7 @@ export default function WeekView({
   selectedDate,
   eventsByDay,
   tasksByDate,
+  stepDatesFor,
   note,
   onNoteChange,
   onSelect,
@@ -118,6 +122,8 @@ export default function WeekView({
                 }
                 const { task } = item;
                 const resolved = taskOccurrenceOnDate(task, date)?.resolved;
+                // Steps planned for this exact day show next to their task's title.
+                const stepNames = datedStepIndicesOn(stepDatesFor(task), date).map((i) => task.steps[i]).filter(Boolean);
                 return (
                   <span key={task.id} className="flex items-center gap-1 min-w-0 text-[10.5px] leading-[15px]">
                     <span
@@ -128,6 +134,7 @@ export default function WeekView({
                       className={`truncate ${resolved ? 'line-through text-content-muted' : 'text-content-primary'}`}
                     >
                       {task.title}
+                      {stepNames.length > 0 && <span className="text-content-muted"> · {stepNames.join(', ')}</span>}
                     </span>
                   </span>
                 );

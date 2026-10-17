@@ -79,6 +79,11 @@ export interface GoalNode {
   steps?: string[];
   /** per-step completion state (parallel to steps); source of truth for end-item progress */
   stepDone?: boolean[];
+  /**
+   * Optional day for each step (parallel to steps), "YYYY-MM-DD" inside the item's timeframe, chosen with the
+   * Plan sheet's month and day wheels. null or missing means the step has no day of its own and follows the task.
+   */
+  stepDates?: (string | null)[];
   /** true when every step is done (or for stepless leaves, manually toggled) */
   completed?: boolean;
   /** id of the linked daily task, if currently pushed to Today */

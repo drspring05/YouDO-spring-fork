@@ -2,6 +2,7 @@ import type { GoalNode } from '../types';
 import { findGoal, hasGoalExecutionState, isGoalEndpoint, updateNode } from './goalTree';
 import { findBlueprintPath, flattenBlueprint, isValidISODate, removeBlueprintNodes } from './blueprintStudio';
 import { uid } from './ids';
+import { nodeStepDates } from './stepDates';
 
 export { findBlueprintPath } from './blueprintStudio';
 
@@ -158,14 +159,17 @@ export function editStudioSteps(goals: GoalNode[], edits: StudioStepEdit[]): Goa
     if (!changes || !isGoalEndpoint(node)) return { ...node, children };
     const steps: string[] = [];
     const stepDone: boolean[] = [];
+    const stepDates: (string | null)[] = [];
+    const oldDates = nodeStepDates(node);
     (node.steps ?? []).forEach((title, index) => {
       const change = changes.get(index);
       const done = Boolean(node.stepDone?.[index]);
       if (change === null && !done && !node.todayTaskId) return;
       steps.push(typeof change === 'string' && change.trim() ? change.trim() : title);
       stepDone.push(done);
+      stepDates.push(oldDates[index]);
     });
-    return { ...node, children, steps, stepDone, completed: steps.length > 0 ? stepDone.every(Boolean) : false };
+    return { ...node, children, steps, stepDone, stepDates: stepDates.some(Boolean) ? stepDates : undefined, completed: steps.length > 0 ? stepDone.every(Boolean) : false };
   };
   return goals.map(visit);
 }

@@ -27,6 +27,21 @@ export function readCalendarDefaultView(): CalendarViewMode {
   }
 }
 
+/** When on, the date dial above the calendar views is hidden. Off by default (the dial shows). */
+export const CALENDAR_HIDE_DIAL_KEY = 'youdo-calendar-hide-dial-v1';
+/** Fired when that switch changes, so an open Calendar tab shows or hides the dial straight away. */
+export const CALENDAR_DIAL_CHANGED_EVENT = 'youdo-calendar-dial-changed';
+
+/** Anything missing or unreadable means the dial stays visible. */
+export function readHideCalendarDial(): boolean {
+  try {
+    const raw = readStorageRaw(CALENDAR_HIDE_DIAL_KEY);
+    return raw === null ? false : JSON.parse(raw) === true;
+  } catch {
+    return false;
+  }
+}
+
 /* ─── What goes onto the phone calendar ───────────────────────────────────── */
 
 /** Tasks planned from the Goals tab get a phone-calendar event. On unless switched off. */

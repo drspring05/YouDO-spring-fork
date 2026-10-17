@@ -1,4 +1,5 @@
 import type { GoalKind, GoalNode, Task } from '../types';
+import { normalizeStepDates } from './stepDates';
 import { uid } from './ids';
 import { isDeletionLedger } from './deletionLedger';
 
@@ -100,6 +101,7 @@ export function normalizeImportedGoal(raw: unknown): GoalNode | null {
     children.push(norm);
   }
 
+  const importedSteps = Array.isArray(g.steps) ? g.steps.map(String) : Array.isArray(g.s) ? g.s.map(String) : undefined;
   return {
     id: asString(g.id || g.i, uid('n')),
     title,
@@ -108,8 +110,10 @@ export function normalizeImportedGoal(raw: unknown): GoalNode | null {
     startDate: g.startDate ? String(g.startDate) : undefined,
     endDate: g.endDate ? String(g.endDate) : undefined,
     children,
-    steps: Array.isArray(g.steps) ? g.steps.map(String) : Array.isArray(g.s) ? g.s.map(String) : undefined,
+    steps: importedSteps,
     stepDone: Array.isArray(g.stepDone) ? g.stepDone.map(Boolean) : undefined,
+    // Per-step days: older backups have none; anything that is not a real day is dropped.
+    stepDates: normalizeStepDates(g.stepDates, importedSteps?.length ?? 0),
     completed: Boolean(g.completed),
     todayTaskId: g.todayTaskId ? String(g.todayTaskId) : undefined,
     pinned: Boolean(g.pinned),

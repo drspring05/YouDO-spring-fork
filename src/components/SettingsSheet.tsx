@@ -47,6 +47,7 @@ import {
 import Overlay from './Overlay';
 import Toggle from './Toggle';
 import CalendarDefaultViewRow from './CalendarDefaultViewRow';
+import CalendarDialRow from './CalendarDialRow';
 import GoalPositionRow from './GoalPositionRow';
 import {
   getNotificationPreferences,
@@ -1891,6 +1892,7 @@ export default function SettingsSheet({
             </div>
             <GoalPositionRow />
             <CalendarDefaultViewRow />
+            <CalendarDialRow />
           </div>
         </section>
 

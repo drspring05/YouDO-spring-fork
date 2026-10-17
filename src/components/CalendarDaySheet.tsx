@@ -5,6 +5,7 @@ import OriginChip from './OriginChip';
 import type { Task, TaskSession } from '../types';
 import { eventTimeLabel, type DeviceCalendarEvent } from '../lib/deviceCalendar';
 import { daysBetweenLocalISO } from '../lib/dates';
+import { stepIndicesForDay } from '../lib/stepDates';
 import { taskCompletionModeOnDate, taskOccurrenceOnDate } from '../lib/taskTimeline';
 import type { DeviceCalendarAccess } from '../hooks/useDeviceCalendar';
 
@@ -32,6 +33,10 @@ interface Props {
   onToggleStep: (taskId: string, stepIndex: number) => void;
   /** delete a quick task, or take a goal item's task off the plan */
   onDeleteTask: (task: Task) => void;
+  /** the day each of a task's steps is planned for (its own order); null for a step that follows the task */
+  stepDatesFor: (task: Task) => (string | null)[];
+  /** move a task to another day, its timeframe and step days moving with it */
+  onMoveTask: (taskId: string, date: string) => void;
   onClose: () => void;
   onAddTask: (date: string) => void;
   onAddEvent: () => void;
@@ -65,6 +70,8 @@ export default function CalendarDaySheet({
   onToggleDone,
   onToggleStep,
   onDeleteTask,
+  stepDatesFor,
+  onMoveTask,
   onClose,
   onAddTask,
   onAddEvent,
@@ -194,10 +201,26 @@ export default function CalendarDaySheet({
                             ? ({ label: 'Mixed', tone: 'primary' } as const)
                             : null;
 
+                  // A step planned for another day waits for that day; the rest (its own day and undated steps) show here.
+                  const stepDates = stepDatesFor(task);
+                  const datedAnywhere = stepDates.some(Boolean);
+                  const visibleSteps = datedAnywhere ? stepIndicesForDay(stepDates, date) : undefined;
+                  // Steps with a day of their own carry that day as a small label.
+                  const stepDayLabels: Record<number, string> = {};
+                  stepDates.forEach((stepDate, i) => {
+                    if (stepDate) {
+                      stepDayLabels[i] = new Date(stepDate + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+                    }
+                  });
+
                   return (
                     <PlannedTaskCard
                       key={task.id}
                       task={task}
+                      visibleSteps={visibleSteps}
+                      stepDayLabels={datedAnywhere ? stepDayLabels : undefined}
+                      moveFrom={task.targetDate ?? date}
+                      onMove={occurrence.kind === 'scheduled' ? (target) => onMoveTask(task.id, target) : undefined}
                       stepStates={stepStatesFor(task)}
                       originNames={originNamesFor(task)}
                       resolved={occurrence.resolved}

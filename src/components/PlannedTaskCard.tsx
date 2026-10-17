@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Check, Trash2 } from 'lucide-react';
+import { CalendarDays, Check, Trash2 } from 'lucide-react';
 import OriginChip from './OriginChip';
 import type { Task } from '../types';
 
@@ -23,6 +23,17 @@ interface Props {
   onToggleStep: (index: number) => void;
   onDelete: () => void;
   onJumpToGoal?: () => void;
+  /**
+   * Which of the task's steps to list (indices into `task.steps`). Left out means all of them. The calendar leaflet
+   * passes only the steps that belong to the day shown: ones planned for that day and ones with no day of their own.
+   */
+  visibleSteps?: number[];
+  /** Short labels such as "Oct 24" for steps that have a day of their own, by step index. */
+  stepDayLabels?: Record<number, string>;
+  /** Move the whole task to another day (the task's timeframe moves with it). Shown as a small date button when given. */
+  onMove?: (date: string) => void;
+  /** the task's current first day, where the date picker starts; the day picked becomes the task's new first day */
+  moveFrom?: string;
 }
 
 const tagClass = {
@@ -48,6 +59,10 @@ export default function PlannedTaskCard({
   onToggleStep,
   onDelete,
   onJumpToGoal,
+  visibleSteps,
+  stepDayLabels,
+  onMove,
+  moveFrom,
 }: Props) {
   const hasSteps = task.steps.length > 0;
   const total = hasSteps ? task.steps.length : 1;
@@ -113,6 +128,24 @@ export default function PlannedTaskCard({
           <span className="text-[12px] font-bold tabular-nums text-content-secondary">
             {doneCount}/{total}
           </span>
+          {onMove && !complete && !locked && (
+            // The native date picker opens straight from a tap on this button (the input sits invisibly on top of it).
+            <label
+              className="relative w-7 h-7 rounded-lg grid place-items-center text-content-muted hover:text-primary transition-colors cursor-pointer"
+              title="Move task to another day"
+            >
+              <CalendarDays size={14} />
+              <input
+                type="date"
+                aria-label={`Move ${task.title} to another day`}
+                value={moveFrom ?? task.targetDate ?? ''}
+                onChange={(event) => {
+                  if (event.target.value) onMove(event.target.value);
+                }}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              />
+            </label>
+          )}
           <button
             type="button"
             aria-label={confirming ? `Tap again to confirm: ${deleteLabel}` : deleteLabel}
@@ -141,10 +174,12 @@ export default function PlannedTaskCard({
         />
       </div>
 
-      {hasSteps && (
+      {hasSteps && (!visibleSteps || visibleSteps.length > 0) && (
         <div className="flex flex-wrap gap-1.5 mt-2">
           {task.steps.map((step, idx) => {
+            if (visibleSteps && !visibleSteps.includes(idx)) return null;
             const done = Boolean(stepStates[idx]);
+            const dayLabel = stepDayLabels?.[idx];
             return (
               <button
                 key={idx}
@@ -160,6 +195,7 @@ export default function PlannedTaskCard({
               >
                 {done ? '✓ ' : ''}
                 {step}
+                {dayLabel && <span className="ml-1.5 text-[9.5px] font-bold uppercase tracking-wide text-primary">{dayLabel}</span>}
               </button>
             );
           })}

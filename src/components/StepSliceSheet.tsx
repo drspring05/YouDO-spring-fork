@@ -1,10 +1,31 @@
 import { useEffect, useState } from 'react';
-import { Check, Zap } from 'lucide-react';
+import { Check, X, Zap } from 'lucide-react';
 import type { GoalNode } from '../types';
 import { todayISO, tomorrowISO, useStore } from '../store';
 import Overlay from './Overlay';
 import EventColorPicker from './EventColorPicker';
+import ScrollWheel from './ScrollWheel';
 import { sameColor } from '../lib/eventColors';
+import {
+  dayRange,
+  inDayRange,
+  isSingleDay,
+  nodeStepDates,
+  stepDateAfterWheel,
+  wheelPositions,
+  type DayRange,
+  type WheelMonth,
+} from '../lib/stepDates';
+
+const WHEEL_PLACEHOLDER = '—';
+
+const totalStepsExistForHint = (nodes: GoalNode[]) => nodes.some((n) => (n.steps?.length ?? 0) > 0);
+
+/** "Oct", or "Dec 26" when the timeframe runs across a new year and the year helps tell months apart. */
+function monthLabel(month: WheelMonth, months: WheelMonth[]): string {
+  const short = new Date(month.year, month.month, 1).toLocaleDateString(undefined, { month: 'short' });
+  return months.some((m) => m.year !== months[0].year) ? `${short} ${String(month.year).slice(2)}` : short;
+}
 
 export interface NodePlan {
   nodeId: string;
@@ -28,6 +49,8 @@ export default function StepSliceSheet({ open, nodes, node, onClose, onConfirm }
   /** Last day of the timeframe. Empty (or not after the start day) means a one-day task. */
   const [endDate, setEndDate] = useState('');
   const [color, setColor] = useState<string | null>(null);
+  /** Day chosen for a step with the month and day wheels: item id -> step index -> "YYYY-MM-DD". Untouched steps have none. */
+  const [stepDateMap, setStepDateMap] = useState<Record<string, Record<number, string>>>({});
 
   useEffect(() => {
     if (open && targetNodes.length > 0) {
@@ -44,6 +67,16 @@ export default function StepSliceSheet({ open, nodes, node, onClose, onConfirm }
       const targetKey = targetNodes.map((n) => n.id).join('|');
       if (!targetKey) return;
       setSelectedMap(initialMap);
+      // Replanning starts from the days already chosen for the steps.
+      const initialDates: Record<string, Record<number, string>> = {};
+      for (const n of targetNodes) {
+        const saved: Record<number, string> = {};
+        nodeStepDates(n).forEach((stepDate, i) => {
+          if (stepDate) saved[i] = stepDate;
+        });
+        initialDates[n.id] = saved;
+      }
+      setStepDateMap(initialDates);
       // Replanning an item keeps its current timeframe (moved up to today if it already started in the past).
       const only = targetNodes.length === 1 ? targetNodes[0] : null;
       const keptStart = only?.startDate && only.startDate > todayISO() ? only.startDate : todayISO();
@@ -85,6 +118,22 @@ export default function StepSliceSheet({ open, nodes, node, onClose, onConfirm }
 
   const isSingle = targetNodes.length === 1;
   const effectiveEnd = endDate && endDate >= date ? endDate : '';
+  /** The days this plan covers; a step's own day has to sit inside it. */
+  const range: DayRange = dayRange(date, effectiveEnd);
+  const canDateSteps = !isSingleDay(range);
+  /** The day chosen for a step, or null when it has none (or the timeframe moved away from it). */
+  const stepDateOf = (nodeId: string, i: number): string | null => {
+    const chosen = stepDateMap[nodeId]?.[i];
+    return chosen && inDayRange(chosen, range) ? chosen : null;
+  };
+  const setStepDate = (nodeId: string, i: number, value: string | null) => {
+    setStepDateMap((prev) => {
+      const forNode = { ...(prev[nodeId] ?? {}) };
+      if (value) forNode[i] = value;
+      else delete forNode[i];
+      return { ...prev, [nodeId]: forNode };
+    });
+  };
 
   /** Today / Tomorrow set both the start and the end to that day. */
   const pickDay = (iso: string) => {
@@ -103,10 +152,19 @@ export default function StepSliceSheet({ open, nodes, node, onClose, onConfirm }
     for (const item of targetNodes) {
       const colorChanged = isSingle && color !== null && !sameColor(color, item.color);
       const chosenColor = color;
+      // A step's own day is kept only for steps in this plan and only inside the timeframe; done steps keep theirs.
+      const itemSteps = item.steps ?? [];
+      const savedDates = nodeStepDates(item);
+      const chosenSlice = selectedMap[item.id] ?? new Set<number>();
+      const nextStepDates = itemSteps.map((_, i) => {
+        if (item.stepDone?.[i]) return savedDates[i];
+        return chosenSlice.has(i) ? stepDateOf(item.id, i) : null;
+      });
       updateGoalNode(item.id, (current) => ({
         ...current,
         startDate: date,
         endDate: effectiveEnd || undefined,
+        stepDates: nextStepDates.some(Boolean) ? nextStepDates : undefined,
         ...(colorChanged && chosenColor ? { color: chosenColor } : {}),
       }));
     }
@@ -224,6 +282,12 @@ export default function StepSliceSheet({ open, nodes, node, onClose, onConfirm }
 
         {isSingle && <EventColorPicker value={color} onChange={setColor} label="Calendar color" />}
 
+        {canDateSteps && totalStepsExistForHint(targetNodes) && (
+          <p className="text-[11px] text-content-muted leading-snug px-2 -mb-1 shrink-0">
+            Optional: scroll the month and day next to a step to plan it for its own day. A step left as — follows the task.
+          </p>
+        )}
+
         {/* Task Steps Lists */}
         <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar flex flex-col [&>*]:shrink-0 gap-3">
           {targetNodes.map((n) => {
@@ -257,38 +321,80 @@ export default function StepSliceSheet({ open, nodes, node, onClose, onConfirm }
                   {steps.map((s, i) => {
                     const alreadyDone = stepDone[i];
                     const isSel = selSet.has(i);
+                    const chosenDate = stepDateOf(n.id, i);
+                    const showWheels = canDateSteps && isSel && !alreadyDone;
+                    const { monthPos, dayPos, months, days } = wheelPositions(chosenDate, range);
+                    const monthItems = [WHEEL_PLACEHOLDER, ...months.map((m) => monthLabel(m, months))];
+                    const dayItems = [WHEEL_PLACEHOLDER, ...days.map(String)];
                     return (
-                      <button
+                      <div
                         key={i}
-                        type="button"
-                        onClick={() => !alreadyDone && toggleStep(n.id, i)}
-                        disabled={alreadyDone}
-                        className={`w-full flex items-center gap-3 px-3.5 h-11 text-left transition-colors ${
+                        className={`w-full flex items-center gap-2 pr-2.5 min-h-[44px] transition-colors ${
                           alreadyDone
-                            ? 'bg-elevated/50 cursor-not-allowed opacity-60'
+                            ? 'bg-elevated/50 opacity-60'
                             : isSel
-                              ? 'bg-primary-soft/30 hover:bg-primary-soft/50'
-                              : 'hover:bg-elevated'
+                              ? 'bg-primary-soft/30'
+                              : ''
                         }`}
                       >
-                        <div className="shrink-0">
-                          {alreadyDone ? (
-                            <div className="w-5 h-5 rounded-full bg-secondary text-on-primary flex items-center justify-center">
-                              <Check size={14} strokeWidth={3} />
+                        <button
+                          type="button"
+                          onClick={() => !alreadyDone && toggleStep(n.id, i)}
+                          disabled={alreadyDone}
+                          className={`flex-1 min-w-0 flex items-center gap-3 pl-3.5 h-11 text-left transition-colors ${
+                            alreadyDone ? 'cursor-not-allowed' : isSel ? 'hover:bg-primary-soft/50' : 'hover:bg-elevated'
+                          }`}
+                        >
+                          <div className="shrink-0">
+                            {alreadyDone ? (
+                              <div className="w-5 h-5 rounded-full bg-secondary text-on-primary flex items-center justify-center">
+                                <Check size={14} strokeWidth={3} />
+                              </div>
+                            ) : isSel ? (
+                              <div className="w-5 h-5 rounded-full bg-primary text-on-primary flex items-center justify-center">
+                                <Check size={14} strokeWidth={3} />
+                              </div>
+                            ) : (
+                              <div className="w-5 h-5 rounded-full border-[2px] border-content-muted" />
+                            )}
+                          </div>
+                          <span className={`flex-1 text-[13px] font-semibold truncate ${alreadyDone ? 'text-content-muted line-through' : 'text-content-primary'}`}>
+                            {s}
+                          </span>
+                          {alreadyDone && <span className="text-[10px] font-bold uppercase tracking-wider text-secondary shrink-0 ml-2">Done</span>}
+                        </button>
+                        {showWheels && (
+                          <div className="flex items-center gap-1 shrink-0" role="group" aria-label={`Day for step ${i + 1}`}>
+                            <div className="w-[52px]">
+                              <ScrollWheel
+                                label={`Month for step ${i + 1}`}
+                                items={monthItems}
+                                index={monthPos}
+                                muted={!chosenDate}
+                                onIndexChange={(pos) => setStepDate(n.id, i, stepDateAfterWheel(chosenDate, range, 'month', pos))}
+                              />
                             </div>
-                          ) : isSel ? (
-                            <div className="w-5 h-5 rounded-full bg-primary text-on-primary flex items-center justify-center">
-                              <Check size={14} strokeWidth={3} />
+                            <div className="w-[40px]">
+                              <ScrollWheel
+                                label={`Day for step ${i + 1}`}
+                                items={dayItems}
+                                index={dayPos}
+                                muted={!chosenDate}
+                                onIndexChange={(pos) => setStepDate(n.id, i, stepDateAfterWheel(chosenDate, range, 'day', pos))}
+                              />
                             </div>
-                          ) : (
-                            <div className="w-5 h-5 rounded-full border-[2px] border-content-muted" />
-                          )}
-                        </div>
-                        <span className={`flex-1 text-[13px] font-semibold truncate ${alreadyDone ? 'text-content-muted line-through' : 'text-content-primary'}`}>
-                          {s}
-                        </span>
-                        {alreadyDone && <span className="text-[10px] font-bold uppercase tracking-wider text-secondary shrink-0 ml-2">Done</span>}
-                      </button>
+                            <button
+                              type="button"
+                              aria-label={`Clear the day for step ${i + 1}`}
+                              disabled={!chosenDate}
+                              onClick={() => setStepDate(n.id, i, null)}
+                              className="w-6 h-6 rounded-full grid place-items-center text-content-muted hover:text-content-primary disabled:opacity-0 transition-opacity"
+                            >
+                              <X size={13} strokeWidth={2.6} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>

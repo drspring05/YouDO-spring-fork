@@ -23,7 +23,14 @@ import { innerEdges, mergedBlocksForWeek, mergedTint } from '../lib/monthMerge';
 import { yearEndDay, yearStartDay } from '../lib/yearView';
 import { readGoalLinks } from '../lib/goalCalendar';
 import YearView from './YearView';
-import { CALENDAR_VIEW_OPTIONS, readCalendarDefaultView, type CalendarViewMode } from '../lib/calendarPrefs';
+import {
+  CALENDAR_DIAL_CHANGED_EVENT,
+  CALENDAR_VIEW_OPTIONS,
+  readCalendarDefaultView,
+  readHideCalendarDial,
+  type CalendarViewMode,
+} from '../lib/calendarPrefs';
+import { taskStepDates } from '../lib/stepDates';
 import { formatDuration } from '../lib/format';
 import { buildSessionSummary, isCountableSession, sessionOverlapsLocalDate } from '../lib/sessionStats';
 import { taskOccurrenceOnDate, taskTimelineDates } from '../lib/taskTimeline';
@@ -159,7 +166,7 @@ function MonthWeekRow({ days, events, month, todayStr, selectedDate, tasksByDate
 }
 
 export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) {
-  const { goals, sessionHistory, toggleTaskStep, setTaskDone, unlinkTask, removeTask } = useStore();
+  const { goals, sessionHistory, toggleTaskStep, setTaskDone, unlinkTask, removeTask, rescheduleTask } = useStore();
   const [cursor, setCursor] = useState(() => {
     const n = new Date();
     return new Date(n.getFullYear(), n.getMonth(), 1);
@@ -169,6 +176,17 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
   const [view, setView] = useState<CalendarViewMode>(readCalendarDefaultView);
   /** The year the Year view shows. */
   const [yearCursor, setYearCursor] = useState(() => new Date().getFullYear());
+  /** Settings can hide the date dial above the views; the dial shows unless that switch is on. */
+  const [hideDial, setHideDial] = useState(readHideCalendarDial);
+  useEffect(() => {
+    const reload = () => setHideDial(readHideCalendarDial());
+    window.addEventListener(CALENDAR_DIAL_CHANGED_EVENT, reload);
+    window.addEventListener('focus', reload);
+    return () => {
+      window.removeEventListener(CALENDAR_DIAL_CHANGED_EVENT, reload);
+      window.removeEventListener('focus', reload);
+    };
+  }, []);
   /** Which phone events YouDo made for goal items (event id → goal item), for the location chip in the leaflet. */
   const [goalLinks, setGoalLinks] = useState(readGoalLinks);
   useEffect(() => {
@@ -225,6 +243,9 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
   };
   const stepStatesFor = (task: Task): boolean[] =>
     taskStepStates(task, task.goalNodeId ? findGoal(goals, task.goalNodeId) : null);
+  /** The day each of a task's steps is planned for, in the task's own order; null for a step that follows the task. */
+  const stepDatesFor = (task: Task): (string | null)[] =>
+    taskStepDates(task, task.goalNodeId ? findGoal(goals, task.goalNodeId) : null);
 
   const tasksByDate = useMemo(() => {
     const map: Record<string, Task[]> = {};
@@ -454,7 +475,7 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
 
   return (
     <div className="calendar-workspace">
-      <CalendarDateDial value={selectedDate ?? todayStr} today={todayStr} onChange={selectDay} />
+      {!hideDial && <CalendarDateDial value={selectedDate ?? todayStr} today={todayStr} onChange={selectDay} />}
       <div className="flex items-center justify-between gap-2">
         <div role="tablist" aria-label="Calendar view" className="inline-flex p-0.5 rounded-xl bg-surface border border-subtle">
           {CALENDAR_VIEW_OPTIONS.map(({ id: mode, label }) => (
@@ -542,6 +563,7 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
             selectedDate={selectedDate}
             eventsByDay={eventsByDay}
             tasksByDate={tasksWithSpans}
+            stepDatesFor={stepDatesFor}
             note={weekNotes[weekStart] ?? ''}
             onNoteChange={onNoteChange}
             onSelect={openDay}
@@ -637,6 +659,13 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
           onToggleDone={setTaskDone}
           onToggleStep={toggleTaskStep}
           onDeleteTask={(task) => (task.goalNodeId ? unlinkTask(task.id) : removeTask(task.id))}
+          stepDatesFor={stepDatesFor}
+          onMoveTask={(taskId, date) => {
+            rescheduleTask(taskId, date);
+            // The task may now sit on another day, so the leaflet follows it there.
+            selectDay(date);
+            setDaySheetDate(date);
+          }}
           onClose={() => setDaySheetDate(null)}
           onAddTask={(date) => {
             setDaySheetDate(null);

@@ -7,6 +7,7 @@ import { uid } from '../store';
 import Overlay from './Overlay';
 import StepListEditor, { MAX_STEPS } from './StepListEditor';
 import EventColorPicker from './EventColorPicker';
+import { alignStepDates } from '../lib/stepDates';
 
 interface Props {
   open: boolean;
@@ -67,6 +68,8 @@ export default function AddGoalSheet({
     if (isEditing && editing) {
       const prevStepDone = editing.stepDone ?? [];
       const newStepDone = cleanSteps.map((_, i) => prevStepDone[i] ?? false);
+      // Step days (set with the Plan sheet's wheels) stay with their step positions, like the done flags.
+      const newStepDates = alignStepDates(editing.stepDates, cleanSteps.length);
       onUpdateNode(editing.id, (n) => ({
         ...n,
         title: title.trim(),
@@ -76,6 +79,7 @@ export default function AddGoalSheet({
         endDate: isWorkItem ? n.endDate : endDate || undefined,
         steps: isWorkItem ? cleanSteps : n.steps,
         stepDone: isWorkItem ? newStepDone : n.stepDone,
+        stepDates: isWorkItem ? newStepDates : n.stepDates,
         completed: isWorkItem && cleanSteps.length > 0 ? newStepDone.every(Boolean) : n.completed,
       }));
     } else {

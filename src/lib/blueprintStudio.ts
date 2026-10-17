@@ -1,6 +1,7 @@
 import type { GoalKind, GoalNode, Task } from '../types';
 import { uid } from './ids';
 import { findGoal, hasGoalExecutionState, isGoalEndpoint, isMutableGoalPlan, mirrorGoalContentToTask, removeNodes, updateNode } from './goalTree';
+import { nodeStepDates } from './stepDates';
 
 export { sameTree } from './goalTree';
 
@@ -121,6 +122,7 @@ export function convertNodeToBranch(
       };
       delete updated.steps;
       delete updated.stepDone;
+      delete updated.stepDates;
       return updated;
     }),
   );
@@ -152,6 +154,7 @@ export function convertNodeToTask(
       kind: node.kind === 'leaf' || node.kind === 'task' ? 'node' : node.kind,
       steps,
       stepDone: steps.map(() => false),
+      stepDates: undefined,
       completed: false,
     })),
   );
@@ -268,6 +271,7 @@ export function addBlueprintChildrenBulk(
         if (isTransitioningEndpoint || (node.children.length === 0 && allChildren.length > 0)) {
           delete updated.steps;
           delete updated.stepDone;
+          delete updated.stepDates;
           if (node.kind !== 'goal') {
             updated.todayTaskId = null;
           }
@@ -409,10 +413,12 @@ export function diffBlueprintSteps(
 
     const currentSteps = node.steps ?? [];
     const currentDone = node.stepDone ?? currentSteps.map(() => false);
+    const currentDates = nodeStepDates(node);
 
     // Phase 1: Set-Difference (Removals)
     const preservedSteps: string[] = [];
     const preservedDone: boolean[] = [];
+    const preservedDates: (string | null)[] = [];
     let nodeRemoved = 0;
     let nodeProtected = 0;
 
@@ -425,6 +431,7 @@ export function diffBlueprintSteps(
         if (isDone && !forceRemoveCompleted) {
           preservedSteps.push(step);
           preservedDone.push(isDone);
+          preservedDates.push(currentDates[i]);
           nodeProtected++;
         } else {
           nodeRemoved++;
@@ -432,6 +439,7 @@ export function diffBlueprintSteps(
       } else {
         preservedSteps.push(step);
         preservedDone.push(isDone);
+        preservedDates.push(currentDates[i]);
       }
     }
 
@@ -457,6 +465,7 @@ export function diffBlueprintSteps(
 
     const finalSteps = [...preservedSteps, ...newlyAdded];
     const finalDone = [...preservedDone, ...newlyAdded.map(() => false)];
+    const finalDates = [...preservedDates, ...newlyAdded.map(() => null)];
     const finalCompleted = finalSteps.length > 0 && finalDone.every(Boolean);
 
     affectedCount++;
@@ -469,6 +478,7 @@ export function diffBlueprintSteps(
       children: nextChildren,
       steps: finalSteps,
       stepDone: finalDone,
+      stepDates: finalDates.some(Boolean) ? finalDates : undefined,
       completed: finalCompleted,
     };
   };
