@@ -1,6 +1,7 @@
 import { localISODate } from './dates';
 import type { DeviceCalendarEvent } from './deviceCalendar';
 import type { DeviceEventChanges, NewDeviceEvent } from './nativeCalendar';
+import { normalizeHex, sameColor } from './eventColors';
 import { defaultTimes } from './taskSchedule';
 
 /**
@@ -24,6 +25,8 @@ export interface EventDraft {
   startTime: string;
   /** local 24-hour "HH:mm". Only used when the event is not all-day. */
   endTime: string;
+  /** "#RRGGBB" for the event's own color, or null for the calendar's color. An existing event starts with the color it shows. */
+  color: string | null;
 }
 
 export interface EventSchedule {
@@ -50,13 +53,13 @@ const localMoment = (iso: string, time: string): number | null => {
 
 /** An empty form for a new event on `date`: all-day, with sensible times ready if the user turns that off. */
 export function newDraft(date: string, now: Date = new Date()): EventDraft {
-  return { title: '', description: '', allDay: true, startDate: date, endDate: date, ...defaultTimes(now) };
+  return { title: '', description: '', allDay: true, startDate: date, endDate: date, color: null, ...defaultTimes(now) };
 }
 
 /** The form fields for an existing event. */
 export function draftFromEvent(event: DeviceCalendarEvent): EventDraft {
   const times = defaultTimes();
-  const base = { title: event.title, description: event.description, ...times };
+  const base = { title: event.title, description: event.description, color: normalizeHex(event.color), ...times };
   if (event.allDay) {
     const lastDay = utcDay(Math.max(event.begin, event.end - DAY_MS));
     return { ...base, allDay: true, startDate: utcDay(event.begin), endDate: lastDay };
@@ -108,20 +111,31 @@ export function toNewEvent(draft: EventDraft, calendarId: string): NewDeviceEven
     title: draft.title.trim(),
     description: draft.description.trim(),
     ...schedule,
+    ...(draft.color ? { color: draft.color } : {}),
   };
 }
 
 /**
  * Only the fields that differ from the event, ready for the phone calendar. The schedule is included
  * (all three of allDay, begin and end together) only when `editSchedule` is true and it really changed.
- * Empty when nothing changed.
+ * The color is included only when `editColor` is true (the user touched it): a new color, or null to go
+ * back to the calendar's color. Empty when nothing changed.
  */
-export function toChanges(event: DeviceCalendarEvent, draft: EventDraft, editSchedule: boolean): DeviceEventChanges {
+export function toChanges(
+  event: DeviceCalendarEvent,
+  draft: EventDraft,
+  editSchedule: boolean,
+  editColor = false,
+): DeviceEventChanges {
   const changes: DeviceEventChanges = {};
   const title = draft.title.trim();
   const description = draft.description.trim();
   if (title !== event.title.trim()) changes.title = title;
   if (description !== event.description.trim()) changes.description = description;
+  if (editColor) {
+    if (draft.color === null) changes.color = null;
+    else if (!sameColor(draft.color, event.color)) changes.color = draft.color;
+  }
   if (editSchedule) {
     const schedule = draftSchedule(draft);
     if (schedule && (schedule.allDay !== event.allDay || schedule.begin !== event.begin || schedule.end !== event.end)) {

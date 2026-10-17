@@ -5,6 +5,7 @@ import android.content.ContentUris;
 import android.content.ContentValues;
 import android.content.Intent;
 import android.database.Cursor;
+import android.graphics.Color;
 import android.net.Uri;
 import android.provider.CalendarContract;
 import android.provider.Settings;
@@ -69,6 +70,18 @@ public class YouDoCalendarPlugin extends Plugin {
 
     private static String hexColor(int color) {
         return String.format("#%06X", 0xFFFFFF & color);
+    }
+
+    /** "#RRGGBB" to an opaque Android color, or null when the text is not a color. */
+    private static Integer parseColor(String value) {
+        if (value == null) return null;
+        String trimmed = value.trim();
+        if (!trimmed.matches("#[0-9a-fA-F]{6}")) return null;
+        try {
+            return Color.parseColor(trimmed);
+        } catch (IllegalArgumentException error) {
+            return null;
+        }
     }
 
     private static String text(Cursor cursor, int index) {
@@ -229,6 +242,8 @@ public class YouDoCalendarPlugin extends Plugin {
             values.put(CalendarContract.Events.DTEND, end);
             values.put(CalendarContract.Events.ALL_DAY, allDay ? 1 : 0);
             values.put(CalendarContract.Events.EVENT_TIMEZONE, allDay ? "UTC" : TimeZone.getDefault().getID());
+            Integer color = parseColor(call.getString("color"));
+            if (color != null) values.put(CalendarContract.Events.EVENT_COLOR, color);
             Uri created = getContext().getContentResolver().insert(CalendarContract.Events.CONTENT_URI, values);
             if (created == null) {
                 call.reject("Your calendar did not accept the event.");
@@ -355,7 +370,7 @@ public class YouDoCalendarPlugin extends Plugin {
 
     /**
      * Changes the fields that are sent and leaves the rest. A repeating event only takes its title,
-     * description and location, so its schedule is never shifted by accident.
+     * description, location and color, so its schedule is never shifted by accident.
      * Resolves updated=false when the event no longer exists.
      */
     @PluginMethod
@@ -391,6 +406,12 @@ public class YouDoCalendarPlugin extends Plugin {
             }
             if (data.has("description")) values.put(CalendarContract.Events.DESCRIPTION, call.getString("description", ""));
             if (data.has("location")) values.put(CalendarContract.Events.EVENT_LOCATION, call.getString("location", ""));
+            if (data.has("color")) {
+                // A color sets the event's own color; null or empty goes back to the calendar's color.
+                Integer color = data.isNull("color") ? null : parseColor(data.optString("color", ""));
+                if (color != null) values.put(CalendarContract.Events.EVENT_COLOR, color);
+                else values.putNull(CalendarContract.Events.EVENT_COLOR);
+            }
             if (!repeats && data.has("begin") && data.has("end") && data.has("allDay")) {
                 long begin = data.optLong("begin", -1);
                 long end = data.optLong("end", -1);

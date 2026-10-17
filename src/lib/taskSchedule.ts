@@ -22,11 +22,14 @@ export function defaultTimes(now: Date = new Date()): { startTime: string; endTi
   return { startTime: `${pad(startHour)}:00`, endTime: `${pad(startHour + 1)}:00` };
 }
 
-/** Plain-language problem with a timed schedule, or null when it is fine. All-day schedules are always fine. */
-export function scheduleError(draft: ScheduleDraft): string | null {
+/**
+ * Plain-language problem with a timed schedule, or null when it is fine. All-day schedules are always fine.
+ * `sameDay` is false when the schedule runs over several days, where the end time may be earlier on its own day.
+ */
+export function scheduleError(draft: ScheduleDraft, sameDay = true): string | null {
   if (draft.allDay) return null;
   if (!isClockTime(draft.startTime) || !isClockTime(draft.endTime)) return 'Pick a start and an end time.';
-  if (minutes(draft.endTime) <= minutes(draft.startTime)) return 'The end time must be after the start time.';
+  if (sameDay && minutes(draft.endTime) <= minutes(draft.startTime)) return 'The end time must be after the start time.';
   return null;
 }
 
@@ -47,17 +50,27 @@ export interface EventWindow {
   end: number;
 }
 
-/** Start and end instants for a day plus schedule, or null when the date or times are unusable. */
-export function eventWindow(date: string, draft: ScheduleDraft): EventWindow | null {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
-  if (!match || scheduleError(draft)) return null;
-  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
+const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/**
+ * Start and end instants for a day plus schedule, or null when the date or times are unusable.
+ * `endDate` is the last day of a timeframe (inclusive); missing, or not after `date`, means a single day.
+ * The start time is on `date` and the end time on the last day.
+ */
+export function eventWindow(date: string, draft: ScheduleDraft, endDate: string = date): EventWindow | null {
+  const first = DAY.exec(date);
+  const lastDate = endDate > date ? endDate : date;
+  const last = DAY.exec(lastDate);
+  if (!first || !last || scheduleError(draft, lastDate === date)) return null;
+  const [year, month, day] = [Number(first[1]), Number(first[2]), Number(first[3])];
+  const [endYear, endMonth, endDay] = [Number(last[1]), Number(last[2]), Number(last[3])];
   if (draft.allDay) {
     const begin = Date.UTC(year, month - 1, day);
-    return { allDay: true, begin, end: begin + 86_400_000 };
+    return { allDay: true, begin, end: Date.UTC(endYear, endMonth - 1, endDay) + 86_400_000 };
   }
-  const at = (time: string) => new Date(year, month - 1, day, Number(time.slice(0, 2)), Number(time.slice(3, 5))).getTime();
-  return { allDay: false, begin: at(draft.startTime), end: at(draft.endTime) };
+  const at = (y: number, m: number, d: number, time: string) =>
+    new Date(y, m - 1, d, Number(time.slice(0, 2)), Number(time.slice(3, 5))).getTime();
+  return { allDay: false, begin: at(year, month, day, draft.startTime), end: at(endYear, endMonth, endDay, draft.endTime) };
 }
 
 /** Which calendar new task events go to, remembered per phone. */

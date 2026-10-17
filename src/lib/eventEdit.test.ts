@@ -145,3 +145,28 @@ describe('canEditSchedule', () => {
     expect(canEditSchedule(event({ writable: false }))).toBe(false);
   });
 });
+
+describe('event color', () => {
+  it('starts a new event with no color and an existing one with the color it shows', () => {
+    expect(newDraft('2026-10-20').color).toBeNull();
+    expect(draftFromEvent(event({ color: '#336699' })).color).toBe('#336699');
+  });
+
+  it('sends the color to a new event only when one was chosen', () => {
+    const base = { ...newDraft('2026-10-20'), title: 'Dentist' };
+    expect(toNewEvent(base, '7')).not.toHaveProperty('color');
+    expect(toNewEvent({ ...base, color: '#AA5500' }, '7')).toMatchObject({ color: '#AA5500' });
+  });
+
+  it('leaves the color out of the changes unless it was touched', () => {
+    const e = event();
+    expect(toChanges(e, { ...draftFromEvent(e), color: '#AA5500' }, true)).toEqual({});
+    expect(toChanges(e, { ...draftFromEvent(e), color: '#AA5500' }, true, true)).toEqual({ color: '#AA5500' });
+  });
+
+  it('sends nothing when the touched color is the one already shown, and null to go back to the calendar color', () => {
+    const e = event({ color: '#336699' });
+    expect(toChanges(e, { ...draftFromEvent(e), color: '#336699' }, true, true)).toEqual({});
+    expect(toChanges(e, { ...draftFromEvent(e), color: null }, true, true)).toEqual({ color: null });
+  });
+});

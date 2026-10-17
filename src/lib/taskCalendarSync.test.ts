@@ -104,7 +104,7 @@ describe('taskCalendarSync', () => {
     expect(r.taskPatch.title).toBe('Renamed in Calendar');
   });
 
-  it('leaves the schedule alone for repeating and multi-day events', () => {
+  it('leaves the schedule alone for repeating events', () => {
     const t = task();
     const snap = agreed(t);
     const recurring = eventFor(t, { recurring: true, begin: 0, end: 1 });
@@ -112,8 +112,19 @@ describe('taskCalendarSync', () => {
     const r = reconcile(t, recurring, snap);
     expect(hasChanges(r.taskPatch)).toBe(false);
     expect(hasChanges(r.eventChanges)).toBe(false);
-    const overnight = eventFor(t, { end: eventFor(t).begin + 20 * 3_600_000 });
-    expect(eventWhen(overnight)).toBeNull();
+  });
+
+  it('reads multi-day events as a timeframe', () => {
+    const allDay = task({ allDay: true, startTime: undefined, endTime: undefined });
+    const begin = Date.UTC(2026, 9, 20);
+    expect(eventWhen(eventFor(allDay, { begin, end: begin + 3 * 86_400_000 }))).toMatchObject({
+      date: '2026-10-20',
+      endDate: '2026-10-22',
+    });
+    const overnight = eventFor(task(), { end: eventFor(task()).begin + 20 * 3_600_000 });
+    expect(eventWhen(overnight)).toMatchObject({ date: '2026-10-20', endDate: '2026-10-21' });
+    // An all-day event that is not a whole number of days is not something a task can hold.
+    expect(eventWhen(eventFor(allDay, { begin, end: begin + 86_400_000 + 3_600_000 }))).toBeNull();
   });
 
   it('never pushes into a read-only calendar and reverts the task edit', () => {
@@ -144,7 +155,15 @@ describe('taskCalendarSync', () => {
   });
 
   it('round-trips schedule fields', () => {
-    expect(whenToTaskFields({ date: '2026-10-20', allDay: true, begin: 0, end: 86_400_000 })).toMatchObject({ allDay: true, startTime: undefined });
+    expect(whenToTaskFields({ date: '2026-10-20', endDate: '2026-10-20', allDay: true, begin: 0, end: 86_400_000 })).toMatchObject({
+      allDay: true,
+      startTime: undefined,
+      endDate: undefined,
+    });
+    expect(whenToTaskFields({ date: '2026-10-20', endDate: '2026-10-22', allDay: true, begin: 0, end: 3 * 86_400_000 })).toMatchObject({
+      targetDate: '2026-10-20',
+      endDate: '2026-10-22',
+    });
   });
 
   it('only syncs links made on this phone', () => {
@@ -152,5 +171,64 @@ describe('taskCalendarSync', () => {
     expect(isLinkedHere(task({ calendarDeviceId: 'b' }), 'a')).toBe(false);
     expect(isLinkedHere(task({ calendarDeviceId: undefined }), 'a')).toBe(true);
     expect(isLinkedHere(task({ calendarEventId: undefined }), 'a')).toBe(false);
+  });
+});
+
+describe('task timeframes', () => {
+  const allDayTask = (over: Partial<Task> = {}) => task({ allDay: true, startTime: undefined, endTime: undefined, ...over });
+
+  it('turns a task timeframe into a multi-day window', () => {
+    const when = taskWhen(allDayTask({ endDate: '2026-10-22' }))!;
+    expect(when.endDate).toBe('2026-10-22');
+    expect(when.end - when.begin).toBe(3 * 86_400_000);
+  });
+
+  it('treats an end date that is not after the first day as one day', () => {
+    expect(taskWhen(allDayTask({ endDate: '2026-10-20' }))!.endDate).toBe('2026-10-20');
+    expect(taskWhen(allDayTask({ endDate: '2026-10-18' }))!.endDate).toBe('2026-10-20');
+  });
+
+  it('puts the end time of a timed timeframe on the last day', () => {
+    const when = taskWhen(task({ endDate: '2026-10-21', startTime: '22:00', endTime: '06:00' }))!;
+    expect(when.begin).toBe(new Date(2026, 9, 20, 22, 0).getTime());
+    expect(when.end).toBe(new Date(2026, 9, 21, 6, 0).getTime());
+  });
+
+  it('pushes a task timeframe to the event', () => {
+    const t = allDayTask();
+    const snap = agreed(t);
+    const r = reconcile({ ...t, endDate: '2026-10-23' }, eventFor(t), snap);
+    expect(r.eventChanges.allDay).toBe(true);
+    expect(r.eventChanges.end! - r.eventChanges.begin!).toBe(4 * 86_400_000);
+    expect(hasChanges(r.taskPatch)).toBe(false);
+  });
+
+  it('copies a calendar timeframe back onto the task', () => {
+    const t = allDayTask();
+    const snap = agreed(t);
+    const r = reconcile(t, eventFor(allDayTask({ endDate: '2026-10-22' })), snap);
+    expect(r.taskPatch.endDate).toBe('2026-10-22');
+    expect(hasChanges(r.eventChanges)).toBe(false);
+  });
+});
+
+describe('task color', () => {
+  it('pushes the task color to an event that shows another one', () => {
+    const t = task({ color: '#FF0000' });
+    const r = reconcile(t, eventFor(t), agreed(t));
+    expect(r.eventChanges.color).toBe('#FF0000');
+  });
+
+  it('does nothing when the event already has that color, in any letter case', () => {
+    const t = task({ color: '#aabbcc' });
+    const r = reconcile(t, eventFor(t, { color: '#AABBCC' }), agreed(t));
+    expect(hasChanges(r.eventChanges)).toBe(false);
+  });
+
+  it('leaves the event color alone for a task without one, and for a read-only calendar', () => {
+    const t = task();
+    expect(hasChanges(reconcile(t, eventFor(t), agreed(t)).eventChanges)).toBe(false);
+    const colored = task({ color: '#FF0000' });
+    expect(reconcile(colored, eventFor(colored), agreed(colored), false).eventChanges.color).toBeUndefined();
   });
 });

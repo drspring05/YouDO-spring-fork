@@ -46,7 +46,7 @@ const syncSignature = (tasks: Task[]) =>
   tasks
     .filter((task) => task.calendarEventId)
     .map((task) =>
-      [task.id, task.title, task.description, task.targetDate, task.allDay, task.startTime, task.endTime, task.calendarEventId, task.calendarId].join('\u0001'),
+      [task.id, task.title, task.description, task.targetDate, task.endDate, task.allDay, task.startTime, task.endTime, task.color, task.calendarEventId, task.calendarId].join('\u0001'),
     )
     .join('\u0002');
 
@@ -252,6 +252,7 @@ export function useTaskCalendarSync(
             allDay: true,
             begin: when.begin,
             end: when.end,
+            ...(task.color ? { color: task.color } : {}),
           });
           if (!tasksRef.current.some((item) => item.id === task.id)) {
             // The task was removed while its event was being made; don't leave the event behind.

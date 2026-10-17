@@ -38,6 +38,8 @@ export interface NewDeviceEvent {
   allDay: boolean;
   begin: number;
   end: number;
+  /** "#RRGGBB" for the event's own color. Left out, the event takes its calendar's color. */
+  color?: string;
 }
 
 /** Fields of an existing event that can be changed. Anything left out stays as it is. */
@@ -45,6 +47,8 @@ export interface DeviceEventChanges {
   title?: string;
   description?: string;
   location?: string;
+  /** "#RRGGBB" sets the event's own color; null goes back to the calendar's color. */
+  color?: string | null;
   allDay?: boolean;
   /** epoch ms, same rules as `RawDeviceEvent`. Send `allDay`, `begin` and `end` together. */
   begin?: number;

@@ -1,3 +1,4 @@
+import { normalizeHex } from './eventColors';
 import { readStorageRaw } from './storageKeys';
 import type { GoalNode } from '../types';
 
@@ -18,6 +19,8 @@ export interface DesiredGoalEvent {
   /** all-day, UTC midnights with an exclusive end, like every all-day event here */
   begin: number;
   end: number;
+  /** "#RRGGBB" chosen for the item. Missing means the calendar's own color. */
+  color?: string;
 }
 
 /** What YouDo last put on the calendar for one goal item. */
@@ -28,6 +31,7 @@ export interface GoalEventLink {
   description: string;
   begin: number;
   end: number;
+  color?: string;
   /** The event was deleted on the phone. It stays deleted until the item's dates or text change. */
   removed?: boolean;
 }
@@ -64,7 +68,10 @@ export function desiredGoalEvents(goals: GoalNode[]): DesiredGoalEvent[] {
     if (!node.completed && node.children.length === 0) {
       const window = goalEventWindow(node);
       const title = (node.title ?? '').trim();
-      if (window && title) out.push({ nodeId: node.id, title, description: (node.description ?? '').trim(), ...window });
+      const color = normalizeHex(node.color);
+      if (window && title) {
+        out.push({ nodeId: node.id, title, description: (node.description ?? '').trim(), ...window, ...(color ? { color } : {}) });
+      }
     }
     node.children.forEach(visit);
   };
@@ -83,7 +90,11 @@ export interface GoalSyncPlan {
 }
 
 const sameAsLink = (want: DesiredGoalEvent, link: GoalEventLink) =>
-  want.title === link.title && want.description === link.description && want.begin === link.begin && want.end === link.end;
+  want.title === link.title &&
+  want.description === link.description &&
+  want.begin === link.begin &&
+  want.end === link.end &&
+  (want.color ?? '') === (link.color ?? '');
 
 /**
  * Compares what the goal tree wants with what was written last time. `existing` is the set of event ids

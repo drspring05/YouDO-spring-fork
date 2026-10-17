@@ -1,5 +1,6 @@
 import { localISODate } from './dates';
 import { readStorageRaw } from './storageKeys';
+import { sameColor } from './eventColors';
 import { eventWindow, type ScheduleDraft } from './taskSchedule';
 import { TITLE_MAX } from './titleLimit';
 import type { DeviceEventChanges, RawDeviceEvent } from './nativeCalendar';
@@ -22,8 +23,10 @@ export interface Content {
 }
 
 export interface When {
-  /** local day, YYYY-MM-DD */
+  /** first local day, YYYY-MM-DD */
   date: string;
+  /** last local day, YYYY-MM-DD, inclusive. Same as `date` for a one-day schedule. */
+  endDate: string;
   allDay: boolean;
   /** epoch ms, same rules as a calendar event (all-day = UTC midnights, exclusive end) */
   begin: number;
@@ -44,7 +47,8 @@ const contentOf = (title: string, description: string): Content => ({
 });
 
 const sameContent = (a: Content, b: Content) => a.title === b.title && a.description === b.description;
-const sameWhen = (a: When, b: When) => a.allDay === b.allDay && a.begin === b.begin && a.end === b.end;
+const sameWhen = (a: When, b: When) =>
+  a.allDay === b.allDay && a.begin === b.begin && a.end === b.end && a.date === b.date && a.endDate === b.endDate;
 
 /** The task's schedule as an event window, or null when it has no date. */
 export function taskWhen(task: Task): When | null {
@@ -53,8 +57,9 @@ export function taskWhen(task: Task): When | null {
   const draft: ScheduleDraft = timed
     ? { allDay: false, startTime: task.startTime as string, endTime: task.endTime as string }
     : { allDay: true, startTime: '', endTime: '' };
-  const slot = eventWindow(task.targetDate, draft);
-  return slot ? { date: task.targetDate, ...slot } : null;
+  const endDate = task.endDate && task.endDate > task.targetDate ? task.endDate : task.targetDate;
+  const slot = eventWindow(task.targetDate, draft, endDate);
+  return slot ? { date: task.targetDate, endDate, ...slot } : null;
 }
 
 const utcDay = (ms: number) => new Date(ms).toISOString().slice(0, 10);
@@ -64,25 +69,27 @@ const clockOf = (ms: number) => {
 };
 
 /**
- * The event's schedule as one task day. Null when a task can't hold it: a repeating event (the task is a
- * single day), or an event that runs past midnight or covers several days.
+ * The event's schedule as a task timeframe (one day or several). Null when a task can't hold it: a
+ * repeating event, or an all-day event whose length is not a whole number of days.
  */
 export function eventWhen(event: RawDeviceEvent): When | null {
   if (event.recurring) return null;
   if (!Number.isFinite(event.begin) || !Number.isFinite(event.end) || event.end <= event.begin) return null;
   if (event.allDay) {
-    if (event.end - event.begin !== DAY_MS) return null;
-    return { date: utcDay(event.begin), allDay: true, begin: event.begin, end: event.end };
+    const span = event.end - event.begin;
+    if (span < DAY_MS || span % DAY_MS !== 0) return null;
+    return { date: utcDay(event.begin), endDate: utcDay(event.end - DAY_MS), allDay: true, begin: event.begin, end: event.end };
   }
   const date = localISODate(new Date(event.begin));
-  if (localISODate(new Date(event.end - 1)) !== date) return null;
-  return { date, allDay: false, begin: event.begin, end: event.end };
+  const endDate = localISODate(new Date(event.end - 1));
+  return { date, endDate, allDay: false, begin: event.begin, end: event.end };
 }
 
 /** Task fields that describe a schedule taken from the calendar. */
-export function whenToTaskFields(when: When): Pick<Task, 'targetDate' | 'allDay' | 'startTime' | 'endTime'> {
-  if (when.allDay) return { targetDate: when.date, allDay: true, startTime: undefined, endTime: undefined };
-  return { targetDate: when.date, allDay: false, startTime: clockOf(when.begin), endTime: clockOf(when.end) };
+export function whenToTaskFields(when: When): Pick<Task, 'targetDate' | 'endDate' | 'allDay' | 'startTime' | 'endTime'> {
+  const endDate = when.endDate > when.date ? when.endDate : undefined;
+  if (when.allDay) return { targetDate: when.date, endDate, allDay: true, startTime: undefined, endTime: undefined };
+  return { targetDate: when.date, endDate, allDay: false, startTime: clockOf(when.begin), endTime: clockOf(when.end) };
 }
 
 export interface Reconciled {
@@ -127,7 +134,10 @@ export function reconcile(task: Task, event: RawDeviceEvent, snapshot: Snapshot 
     eventChanges.description = agreedContent.description;
   }
 
-  // Date and time. Only when the event is a plain one-day event and the task has a date.
+  // Color: the task's own color is pushed to the event. A task without one leaves the event's color alone.
+  if (canWrite && task.color && !sameColor(task.color, event.color)) eventChanges.color = task.color;
+
+  // Date and time. Only when the event is not a repeating one and the task has a date.
   let agreedWhen: When | null = eventSchedule;
   if (eventSchedule && taskSchedule) {
     const base = snapshot?.when ?? null;

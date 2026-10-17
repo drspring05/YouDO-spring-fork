@@ -39,6 +39,13 @@ export interface Task {
    * this field existed; the first sync on the phone claims those.
    */
   calendarDeviceId?: string;
+  /**
+   * Last day of a timeframe, inclusive ("YYYY-MM-DD"). `targetDate` is the first day. Missing means a single day.
+   * On a timed task the end time is on this day.
+   */
+  endDate?: string;
+  /** Color for the task's phone-calendar event, "#RRGGBB". Missing means the calendar's own color. */
+  color?: string;
 }
 
 export interface SessionStopOutcome {
@@ -73,6 +80,8 @@ export interface GoalNode {
   todayTaskId?: string | null;
   /** pinned/favorited for quick access */
   pinned?: boolean;
+  /** Color for this item's bar on the phone calendar, "#RRGGBB". Missing means the calendar's own color. */
+  color?: string;
   createdAt: number;
 }
 

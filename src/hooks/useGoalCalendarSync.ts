@@ -27,7 +27,7 @@ const DEBOUNCE_MS = 900;
 function goalSignature(goals: GoalNode[]): string {
   const parts: string[] = [];
   const visit = (node: GoalNode) => {
-    parts.push([node.id, node.title, node.description ?? '', node.startDate ?? '', node.endDate ?? '', node.completed ? 1 : 0, node.children.length > 0 ? 1 : 0].join('\u0001'));
+    parts.push([node.id, node.title, node.description ?? '', node.startDate ?? '', node.endDate ?? '', node.color ?? '', node.completed ? 1 : 0, node.children.length > 0 ? 1 : 0].join('\u0001'));
     node.children.forEach(visit);
   };
   goals.forEach(visit);
@@ -147,8 +147,9 @@ async function syncPass(goals: GoalNode[]) {
         allDay: true,
         begin: want.begin,
         end: want.end,
+        ...(want.color ? { color: want.color } : {}),
       });
-      next[want.nodeId] = { ...link, title: want.title, description: want.description, begin: want.begin, end: want.end, removed: updated ? undefined : true };
+      next[want.nodeId] = { ...link, title: want.title, description: want.description, begin: want.begin, end: want.end, color: want.color, removed: updated ? undefined : true };
       changed = changed || updated;
     } catch {
       // Left as it was; tried again next time.
@@ -172,8 +173,9 @@ async function syncPass(goals: GoalNode[]) {
             allDay: true,
             begin: want.begin,
             end: want.end,
+            ...(want.color ? { color: want.color } : {}),
           });
-          next[want.nodeId] = { eventId, calendarId, title: want.title, description: want.description, begin: want.begin, end: want.end };
+          next[want.nodeId] = { eventId, calendarId, title: want.title, description: want.description, begin: want.begin, end: want.end, color: want.color };
           changed = true;
         } catch {
           break; // Most likely the permission or calendar went away; try again next time.

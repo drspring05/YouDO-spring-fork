@@ -96,3 +96,34 @@ describe('chooseTaskCalendar', () => {
     expect(chooseTaskCalendar([], null)).toBeNull();
   });
 });
+
+describe('timeframes over several days', () => {
+  it('lets the end time be earlier than the start time when the end is on a later day', () => {
+    expect(scheduleError(timed('22:00', '06:00'), false)).toBeNull();
+    expect(scheduleError(timed('22:00', '06:00'))).not.toBeNull();
+    expect(scheduleError(timed('', '06:00'), false)).not.toBeNull();
+  });
+
+  it('makes an all-day window from the first day to the end of the last day', () => {
+    expect(eventWindow('2026-10-20', { allDay: true, startTime: '', endTime: '' }, '2026-10-22')).toEqual({
+      allDay: true,
+      begin: Date.UTC(2026, 9, 20),
+      end: Date.UTC(2026, 9, 23),
+    });
+  });
+
+  it('starts a timed window on the first day and ends it on the last', () => {
+    expect(eventWindow('2026-10-20', timed('22:00', '06:00'), '2026-10-21')).toEqual({
+      allDay: false,
+      begin: new Date(2026, 9, 20, 22, 0).getTime(),
+      end: new Date(2026, 9, 21, 6, 0).getTime(),
+    });
+  });
+
+  it('treats an end that is not after the first day as one day', () => {
+    const allDay = { allDay: true, startTime: '', endTime: '' };
+    expect(eventWindow('2026-10-20', allDay, '2026-10-20')).toEqual(eventWindow('2026-10-20', allDay));
+    expect(eventWindow('2026-10-20', allDay, '2026-10-19')).toEqual(eventWindow('2026-10-20', allDay));
+    expect(eventWindow('2026-10-20', timed('10:00', '09:00'), '2026-10-19')).toBeNull();
+  });
+});

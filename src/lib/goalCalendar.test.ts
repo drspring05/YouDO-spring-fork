@@ -75,3 +75,21 @@ describe('planGoalSync', () => {
     expect(planGoalSync([{ ...want, end: want.end + DAY }], { a: link({ removed: true }) }, new Set()).create).toHaveLength(1);
   });
 });
+
+describe('goal item color', () => {
+  it('carries a valid color to the calendar event and ignores a bad one', () => {
+    const withColor = desiredGoalEvents([node('a', { startDate: '2026-10-20', color: '#aa5500' })])[0];
+    expect(withColor.color).toBe('#AA5500');
+    expect(desiredGoalEvents([node('b', { startDate: '2026-10-20', color: 'red' })])[0].color).toBeUndefined();
+    expect(desiredGoalEvents([node('c', { startDate: '2026-10-20' })])[0].color).toBeUndefined();
+  });
+
+  it('rewrites the event when only the color changed, and leaves older links without a color alone', () => {
+    const plain = desiredGoalEvents([node('a', { startDate: '2026-10-20' })])[0];
+    const link: GoalEventLink = {
+      eventId: '9', calendarId: '1', title: plain.title, description: plain.description, begin: plain.begin, end: plain.end,
+    };
+    expect(planGoalSync([plain], { a: link }, new Set(['9'])).update).toHaveLength(0);
+    expect(planGoalSync([{ ...plain, color: '#AA5500' }], { a: link }, new Set(['9'])).update).toHaveLength(1);
+  });
+});

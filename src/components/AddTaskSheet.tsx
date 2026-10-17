@@ -7,6 +7,7 @@ import { todayISO, tomorrowISO } from '../store';
 import Overlay from './Overlay';
 import StepListEditor, { MAX_STEPS } from './StepListEditor';
 import Toggle from './Toggle';
+import EventColorPicker from './EventColorPicker';
 import {
   createDeviceEvent,
   getDeviceCalendarPermission,
@@ -50,6 +51,11 @@ export default function AddTaskSheet({ open, onClose, onAdd, initialDate }: Prop
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<Priority>('medium');
   const [targetDate, setTargetDate] = useState('');
+  /** Last day of a timeframe. Empty (or not after the first day) means a single day. */
+  const [endDate, setEndDate] = useState('');
+  /** Show the date box even when the day is today or tomorrow, after the calendar chip is tapped. */
+  const [customDate, setCustomDate] = useState(false);
+  const [color, setColor] = useState<string | null>(null);
   const [deadline, setDeadline] = useState('');
   const [steps, setSteps] = useState<string[]>(['']);
   const [allDay, setAllDay] = useState(true);
@@ -69,7 +75,11 @@ export default function AddTaskSheet({ open, onClose, onAdd, initialDate }: Prop
       setTitle('');
       setDescription('');
       setPriority('medium');
-      setTargetDate(initialDate ?? todayISO());
+      const first = initialDate ?? todayISO();
+      setTargetDate(first);
+      setEndDate('');
+      setCustomDate(first !== todayISO() && first !== tomorrowISO());
+      setColor(null);
       setDeadline('');
       setSteps(['']);
       setAllDay(true);
@@ -106,7 +116,9 @@ export default function AddTaskSheet({ open, onClose, onAdd, initialDate }: Prop
   if (!open) return null;
 
   const draft: ScheduleDraft = { allDay, startTime, endTime };
-  const timeError = targetDate && !allDay ? scheduleError(draft) : null;
+  const effectiveEnd = targetDate && endDate > targetDate ? endDate : '';
+  const timeError = targetDate && !allDay ? scheduleError(draft, !effectiveEnd) : null;
+  const showCustomDate = customDate || (targetDate !== todayISO() && targetDate !== tomorrowISO());
   const wantsCalendar = calendarSupported && addToCalendar && Boolean(targetDate);
   const editableCalendars = writableCalendars(calendars);
   const canSubmit = Boolean(title.trim()) && !isTitleTooLong(title) && !timeError && !busy;
@@ -124,13 +136,14 @@ export default function AddTaskSheet({ open, onClose, onAdd, initialDate }: Prop
       list.find((calendar) => calendar.id === calendarId && calendar.writable) ??
       chooseTaskCalendar(list, readTaskCalendarId());
     if (!target) throw new Error('None of the calendars on this phone can be edited.');
-    const slot = eventWindow(date, draft);
+    const slot = eventWindow(date, draft, effectiveEnd || date);
     if (!slot) throw new Error('Check the date and times.');
     const id = await createDeviceEvent({
       calendarId: target.id,
       title: title.trim(),
       description: description.trim(),
       ...slot,
+      ...(color ? { color } : {}),
     });
     writeTaskCalendarId(target.id);
     return { calendarEventId: id, calendarId: target.id, calendarDeviceId: getCalendarDeviceId() };
@@ -167,6 +180,8 @@ export default function AddTaskSheet({ open, onClose, onAdd, initialDate }: Prop
       createdAt: Date.now(),
       order: Date.now(),
       ...scheduleFields(date, draft),
+      ...(date && effectiveEnd ? { endDate: effectiveEnd } : {}),
+      ...(color ? { color } : {}),
       ...link,
     });
     onClose();
@@ -229,14 +244,17 @@ export default function AddTaskSheet({ open, onClose, onAdd, initialDate }: Prop
           {/* Dates Card */}
           <div className="bg-surface border border-subtle rounded-2xl overflow-hidden shadow-sm">
             <div className="px-3.5 pt-3 pb-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider text-content-muted">Target Date</label>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-content-muted">From</label>
             </div>
             <div className="p-2 pt-0 grid grid-cols-3 gap-2 border-b border-subtle">
               <button
                 type="button"
-                onClick={() => setTargetDate(todayISO())}
+                onClick={() => {
+                  setTargetDate(todayISO());
+                  setCustomDate(false);
+                }}
                 className={`py-2 rounded-xl text-[12px] font-bold transition-all ${
-                  targetDate === todayISO()
+                  !showCustomDate && targetDate === todayISO()
                     ? 'bg-primary text-on-primary shadow-sm'
                     : 'bg-elevated text-content-secondary hover:text-content-primary border border-subtle'
                 }`}
@@ -245,9 +263,12 @@ export default function AddTaskSheet({ open, onClose, onAdd, initialDate }: Prop
               </button>
               <button
                 type="button"
-                onClick={() => setTargetDate(tomorrowISO())}
+                onClick={() => {
+                  setTargetDate(tomorrowISO());
+                  setCustomDate(false);
+                }}
                 className={`py-2 rounded-xl text-[12px] font-bold transition-all ${
-                  targetDate === tomorrowISO()
+                  !showCustomDate && targetDate === tomorrowISO()
                     ? 'bg-primary text-on-primary shadow-sm'
                     : 'bg-elevated text-content-secondary hover:text-content-primary border border-subtle'
                 }`}
@@ -256,9 +277,9 @@ export default function AddTaskSheet({ open, onClose, onAdd, initialDate }: Prop
               </button>
               <button
                 type="button"
-                onClick={() => setTargetDate('')}
+                onClick={() => setCustomDate(true)}
                 className={`py-2 flex items-center justify-center rounded-xl text-[12px] font-bold transition-all ${
-                  targetDate !== todayISO() && targetDate !== tomorrowISO()
+                  showCustomDate
                     ? 'bg-primary text-on-primary shadow-sm'
                     : 'bg-elevated text-content-secondary hover:text-content-primary border border-subtle'
                 }`}
@@ -267,19 +288,52 @@ export default function AddTaskSheet({ open, onClose, onAdd, initialDate }: Prop
                 <Calendar size={14} />
               </button>
             </div>
-            {targetDate !== todayISO() && targetDate !== tomorrowISO() && (
-              <div className="p-2 border-b border-subtle bg-elevated/30">
-                 <input
+            {showCustomDate && (
+              <div className="p-2 border-b border-subtle bg-elevated/30 flex items-center gap-2">
+                <input
                   type="date"
                   value={targetDate}
                   onChange={(e) => setTargetDate(e.target.value)}
-                  className="w-full h-10 px-3 bg-surface border border-subtle rounded-xl text-[13px] font-medium text-content-primary outline-none focus:border-primary transition-colors"
+                  aria-label="Start date"
+                  className="flex-1 min-w-0 h-10 px-3 bg-surface border border-subtle rounded-xl text-[13px] font-medium text-content-primary outline-none focus:border-primary transition-colors"
                 />
+                {targetDate && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTargetDate('');
+                      setEndDate('');
+                    }}
+                    className="shrink-0 px-2 text-[11px] font-bold text-content-secondary"
+                  >
+                    No date
+                  </button>
+                )}
               </div>
             )}
             
             {targetDate && (
               <div className="px-3.5 py-3 border-b border-subtle">
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <label htmlFor="task-until" className="text-[10px] font-bold uppercase tracking-wider text-content-muted">
+                    Until (optional)
+                  </label>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <input
+                      id="task-until"
+                      type="date"
+                      min={targetDate}
+                      value={effectiveEnd}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="h-9 px-2.5 bg-elevated border border-subtle rounded-xl text-[12.5px] font-medium text-content-primary outline-none focus:border-primary transition-colors"
+                    />
+                    {effectiveEnd && (
+                      <button type="button" onClick={() => setEndDate('')} className="text-[11px] font-bold text-content-secondary">
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
                 <div className="flex items-center justify-between gap-3">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-content-muted">All day</span>
                   <Toggle checked={allDay} onChange={() => setAllDay((value) => !value)} label="All day" />
@@ -340,6 +394,12 @@ export default function AddTaskSheet({ open, onClose, onAdd, initialDate }: Prop
                   </select>
                 )}
                 {calendarError && <p className="mt-2 text-[12px] font-medium text-error">{calendarError}</p>}
+              </div>
+            )}
+
+            {wantsCalendar && (
+              <div className="p-2 border-b border-subtle">
+                <EventColorPicker value={color} onChange={setColor} label="Calendar color" />
               </div>
             )}
 

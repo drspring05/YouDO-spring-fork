@@ -22,6 +22,11 @@ function parseCreatedAt(value: unknown): number {
   return Date.now();
 }
 
+/** "#RRGGBB" in upper case, or undefined for anything else. */
+function normalizeImportedColor(value: unknown): string | undefined {
+  return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value) ? value.toUpperCase() : undefined;
+}
+
 /** Keeps a task's calendar time only when it is well formed, so a bad backup can't break scheduling. */
 function normalizeImportedSchedule(t: Record<string, unknown>): Partial<Task> {
   const out: Partial<Task> = {};
@@ -37,6 +42,9 @@ function normalizeImportedSchedule(t: Record<string, unknown>): Partial<Task> {
     out.calendarId = t.calendarId;
     if (typeof t.calendarDeviceId === 'string' && t.calendarDeviceId) out.calendarDeviceId = t.calendarDeviceId;
   }
+  if (typeof t.endDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(t.endDate)) out.endDate = t.endDate;
+  const color = normalizeImportedColor(t.color);
+  if (color) out.color = color;
   return out;
 }
 
@@ -105,6 +113,7 @@ export function normalizeImportedGoal(raw: unknown): GoalNode | null {
     completed: Boolean(g.completed),
     todayTaskId: g.todayTaskId ? String(g.todayTaskId) : undefined,
     pinned: Boolean(g.pinned),
+    color: normalizeImportedColor(g.color),
     createdAt: parseCreatedAt(g.createdAt),
   };
 }

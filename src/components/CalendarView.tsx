@@ -4,14 +4,14 @@ import { useLocalDay } from '../hooks/useLocalDay';
 import CalendarDateDial from './CalendarDateDial';
 import { calendarFocusSummary } from '../lib/calendarSummary';
 import { hapticTick } from '../lib/haptics';
-import { ChevronLeft, ChevronRight, MapPin, Plus, BarChart2, X, Info, ChevronDown, ChevronUp } from 'lucide-react';
-import OriginChip from './OriginChip';
+import { ChevronLeft, ChevronRight, BarChart2, X, Info, ChevronDown, ChevronUp } from 'lucide-react';
 import type { Task } from '../types';
 import { localISODate, pathTitles, useStore, isOpenBacklogTask } from '../store';
 import { useDeviceCalendar } from '../hooks/useDeviceCalendar';
 import { notifyCalendarChanged } from '../hooks/useTaskCalendarSync';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import CalendarEventSheet from './CalendarEventSheet';
+import CalendarDaySheet from './CalendarDaySheet';
 import WeekView from './WeekView';
 import { shiftLocalISO } from '../lib/dates';
 import { WEEK_NOTES_KEY, normalizeWeekNotes, weekDaysOf, weekRangeLabel, weekStartOf, withWeekNote } from '../lib/weekView';
@@ -20,7 +20,7 @@ import { chunkWeeks, layoutWeek, MAX_BAR_LANES, monthGridDays, readableTextColor
 import { CALENDAR_VIEW_OPTIONS, readCalendarDefaultView, type CalendarViewMode } from '../lib/calendarPrefs';
 import { formatDuration } from '../lib/format';
 import { buildSessionSummary, isCountableSession, sessionOverlapsLocalDate } from '../lib/sessionStats';
-import { taskCompletionModeOnDate, taskOccurrenceOnDate, taskTimelineDates } from '../lib/taskTimeline';
+import { taskOccurrenceOnDate, taskTimelineDates } from '../lib/taskTimeline';
 
 interface Props {
   tasks: Task[];
@@ -156,6 +156,8 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
   const [openSessionSummaryId, setOpenSessionSummaryId] = useState<string | null>(null);
   /** The phone-calendar event being edited, or `{ event: null }` while a new one is being made. */
   const [eventSheet, setEventSheet] = useState<{ event: DeviceCalendarEvent | null } | null>(null);
+  /** The day whose leaflet is open (opened by tapping a day in the Month or Week view). */
+  const [daySheetDate, setDaySheetDate] = useState<string | null>(null);
 
   useEffect(() => {
     setOpenSessionSummaryId(null);
@@ -183,6 +185,25 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
     }
     return map;
   }, [tasks]);
+
+  // A task with a timeframe also belongs to the days after its first day, up to its last day.
+  const spanByDate = useMemo(() => {
+    const map: Record<string, Task[]> = {};
+    for (const t of tasks) {
+      if (!t.targetDate || !t.endDate || t.endDate <= t.targetDate) continue;
+      let day = shiftLocalISO(t.targetDate, 1);
+      for (let i = 0; i < 62 && day <= t.endDate; i++) {
+        (map[day] ??= []).push(t);
+        day = shiftLocalISO(day, 1);
+      }
+    }
+    return map;
+  }, [tasks]);
+  const tasksWithSpans = useMemo(() => {
+    const merged: Record<string, Task[]> = { ...tasksByDate };
+    for (const [day, list] of Object.entries(spanByDate)) merged[day] = [...(merged[day] ?? []), ...list];
+    return merged;
+  }, [tasksByDate, spanByDate]);
 
   const year = cursor.getFullYear();
   const month = cursor.getMonth();
@@ -213,7 +234,6 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
     setStoredWeekNotes((current) => withWeekNote(normalizeWeekNotes(current), start, text));
 
   const selectedTasks = selectedDate ? (tasksByDate[selectedDate] ?? []) : [];
-  const selectedEvents = selectedDate ? (eventsByDay[selectedDate] ?? []) : [];
   const selectedDone = selectedDate
     ? selectedTasks.filter((task) => taskOccurrenceOnDate(task, selectedDate)?.completedOnDate).length
     : 0;
@@ -226,6 +246,11 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
     setCursor(new Date(parsed.getFullYear(), parsed.getMonth(), 1));
   };
   const showTodayButton = selectedDate !== todayStr || monthKey !== todayStr.slice(0, 7);
+  /** Tapping a day in the Month or Week view selects it and opens its leaflet. */
+  const openDay = (date: string) => {
+    selectDay(date);
+    setDaySheetDate(date);
+  };
 
   // Swipe the grid sideways to change month (or week); mostly-vertical drags are left to normal scrolling,
   // and a drag that starts in the notes box is a text selection, not a swipe.
@@ -403,7 +428,7 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
               todayStr={todayStr}
               selectedDate={selectedDate}
               tasksByDate={tasksByDate}
-              onSelect={selectDay}
+              onSelect={openDay}
             />
           ))}
         </div>
@@ -414,10 +439,10 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
             todayStr={todayStr}
             selectedDate={selectedDate}
             eventsByDay={eventsByDay}
-            tasksByDate={tasksByDate}
+            tasksByDate={tasksWithSpans}
             note={weekNotes[weekStart] ?? ''}
             onNoteChange={onNoteChange}
-            onSelect={selectDay}
+            onSelect={openDay}
           />
         </div>
       ) : (
@@ -493,215 +518,37 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
         </div>
       </section>
 
-      {/* Selected date tasks */}
-      <div className="calendar-planned">
-        <div className="calendar-planned-heading flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-[14px] font-bold text-content-primary">
-                Planned work
-              </h3>
-
-            </div>
-          </div>
-          {selectedDate && (
-            <button
-              onClick={() => onAddTask(selectedDate)}
-              className="calendar-add-task flex items-center gap-1.5 bg-primary text-on-primary text-xs font-semibold"
-            >
-              <Plus size={14} /> Add task
-            </button>
-          )}
-        </div>
-
-        {selectedTasks.length === 0 ? (
-          <div className="bg-surface border border-subtle rounded-2xl shadow-card p-6 text-center text-content-secondary text-xs">
-            No tasks planned for this date.
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {selectedTasks.map((t) => {
-              const occurrence = taskOccurrenceOnDate(t, selectedDate!);
-              if (!occurrence) return null;
-              const resolved = occurrence.resolved;
-              const hasSteps = t.steps.length > 0;
-              const originPath = getOriginPath(t.goalNodeId);
-              const completionMode = taskCompletionModeOnDate(t, selectedDate!, sessionHistory[t.id] ?? []);
-
-              return (
-                <div
-                  key={t.id}
-                  className={`bg-surface border border-subtle rounded-2xl shadow-card p-4 transition-all select-none ${
-                    resolved ? 'opacity-60 bg-surface/50' : ''
-                  }`}
-                >
-                  <div className="flex flex-col gap-1.5 mb-2">
-                    {/* Eyebrow: Path */}
-                    {originPath && (
-                      <OriginChip
-                        names={originPath.split('/').slice(0, 2).map((part) => part.trim())}
-                        onClick={() => onJumpToGoal(t.goalNodeId)}
-                      />
-                    )}
-
-                    {/* Title Row */}
-                    <div className="flex items-start justify-between gap-3 pr-1">
-                      <div className="flex items-start gap-2 flex-1">
-                        <span className={`mt-[6px] w-1.5 h-1.5 rounded-full shrink-0 ${resolved ? 'bg-secondary/30' : 'bg-primary'} shadow-sm`} />
-                        <div className="flex flex-col gap-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className={`text-[14.5px] font-bold leading-snug tracking-tight ${resolved ? 'line-through text-content-muted' : 'text-content-primary'}`}>
-                              {t.title}
-                            </h3>
-                            {occurrence.kind === 'failed' && (
-                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-error-soft text-error border border-error/20">
-                                FAILED
-                              </span>
-                            )}
-                            {occurrence.kind === 'backlog-completed' && (
-                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-error-soft text-error border border-error/20">
-                                BACKLOG
-                              </span>
-                            )}
-                            {completionMode === 'manual' && (
-                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-surface text-content-muted border border-subtle">
-                                MANUAL
-                              </span>
-                            )}
-                            {completionMode === 'mixed' && (
-                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-primary-soft text-primary border border-primary/20">
-                                MIXED
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Subtitle context (remaining path) */}
-                          {originPath && originPath.split('/').length > 3 && (
-                            <div className="text-[11px] font-normal text-content-muted line-clamp-1">
-                              {originPath.split('/').slice(2, -1).map(p => p.trim()).join(' / ')}
-                            </div>
-                          )}
-
-                          {t.description && (
-                            <p className="text-[11.5px] text-content-secondary/80 line-clamp-2 mt-1">
-                              {t.description}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <span className={`text-[12px] font-bold shrink-0 mt-0.5 ${occurrence.kind === 'failed' ? 'text-error' : 'tabular-nums text-content-secondary'}`}>
-                        {occurrence.kind === 'failed' ? 'Missed' : `${t.progress}/${hasSteps ? t.steps.length : 1}`}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Progress bar */}
-                  {occurrence.kind !== 'failed' && (
-                    <div className="mt-1 h-1.5 rounded-full bg-border-subtle overflow-hidden mb-2.5">
-                      <div
-                        className="h-full bg-secondary progress-bar-fill rounded-full"
-                        style={{ width: `${(t.progress / (hasSteps ? t.steps.length : 1)) * 100}%` }}
-                      />
-                    </div>
-                  )}
-
-                  {/* Step chips */}
-                  {hasSteps && occurrence.kind !== 'failed' && (
-                    <div className="flex flex-wrap gap-1.5 mt-1">
-                      {t.steps.map((s, idx) => {
-                        const stepDone = idx < t.progress;
-                        return (
-                          <span
-                            key={idx}
-                            className={`text-[10px] px-2 py-0.5 rounded-md font-medium transition-all ${
-                              stepDone
-                                ? 'bg-secondary/10 text-secondary border border-secondary/20 line-through'
-                                : 'bg-surface text-content-secondary border border-subtle'
-                            }`}
-                          >
-                            {stepDone ? '✓ ' : ''}{s}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Phone calendar events (Android only) */}
-      {deviceCalendar.supported && deviceCalendar.access !== 'checking' && (
-        <section className="mt-5" aria-label="Phone calendar events">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-[14px] font-bold text-content-primary">Calendar events</h3>
-            {deviceCalendar.access === 'granted' && selectedDate && (
-              <button
-                type="button"
-                onClick={() => setEventSheet({ event: null })}
-                className="calendar-add-task flex items-center gap-1.5 bg-primary text-on-primary text-xs font-semibold"
-              >
-                <Plus size={14} /> Add event
-              </button>
-            )}
-          </div>
-          {deviceCalendar.access === 'granted' ? (
-            selectedEvents.length === 0 ? (
-              <div className="bg-surface border border-subtle rounded-2xl shadow-card p-6 text-center text-content-secondary text-xs">
-                Nothing on your calendar for this date.
-              </div>
-            ) : (
-              <ul className="space-y-2">
-                {selectedEvents.map((ev) => (
-                  <li key={ev.key}>
-                    <button
-                      type="button"
-                      onClick={() => setEventSheet({ event: ev })}
-                      aria-label={`${ev.title || '(No title)'}, ${eventTimeLabel(ev, selectedDate!)}. Tap to ${ev.writable ? 'edit' : 'view'}`}
-                      className="w-full text-left flex gap-3 bg-surface border border-subtle rounded-2xl shadow-card p-3.5"
-                    >
-                      <span className="w-1 self-stretch rounded-full shrink-0" style={{ backgroundColor: ev.color }} aria-hidden />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[14px] font-bold text-content-primary leading-snug">{ev.title || '(No title)'}</p>
-                        <p className="text-[11.5px] text-content-secondary mt-0.5 tabular-nums">{eventTimeLabel(ev, selectedDate!)}</p>
-                        {ev.location && (
-                          <p className="flex items-center gap-1 text-[11px] text-content-muted mt-1 min-w-0">
-                            <MapPin size={11} className="shrink-0" />
-                            <span className="truncate">{ev.location}</span>
-                          </p>
-                        )}
-                      </div>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )
-          ) : (
-            <div className="bg-surface border border-subtle rounded-2xl shadow-card p-4 space-y-3">
-              <p className="text-[12px] text-content-secondary leading-relaxed">
-                {deviceCalendar.access === 'denied'
-                  ? 'Calendar access is turned off for YouDO. Turn it on in Android settings to see and edit your events here.'
-                  : 'Show the events from your phone’s calendar here, including your Google calendars.'}
-              </p>
-              <button
-                type="button"
-                onClick={() => void (deviceCalendar.access === 'denied' ? deviceCalendar.openSettings() : deviceCalendar.requestAccess())}
-                className="bg-primary text-on-primary text-xs font-semibold rounded-xl px-3.5 py-2"
-              >
-                {deviceCalendar.access === 'denied' ? 'Open settings' : 'Allow calendar access'}
-              </button>
-            </div>
-          )}
-          {deviceCalendar.error && <p className="text-[11px] text-error mt-2">{deviceCalendar.error}</p>}
-        </section>
+      {/* The day leaflet steps aside while an event is being edited, and comes back when that is done. */}
+      {daySheetDate && !eventSheet && (
+        <CalendarDaySheet
+          date={daySheetDate}
+          todayStr={todayStr}
+          events={eventsByDay[daySheetDate] ?? []}
+          tasks={tasksWithSpans[daySheetDate] ?? []}
+          calendarSupported={deviceCalendar.supported}
+          access={deviceCalendar.access}
+          sessionHistory={sessionHistory}
+          getOriginPath={getOriginPath}
+          onClose={() => setDaySheetDate(null)}
+          onAddTask={(date) => {
+            setDaySheetDate(null);
+            onAddTask(date);
+          }}
+          onAddEvent={() => setEventSheet({ event: null })}
+          onEditEvent={(event) => setEventSheet({ event })}
+          onJumpToGoal={(goalNodeId) => {
+            setDaySheetDate(null);
+            onJumpToGoal(goalNodeId);
+          }}
+          onRequestAccess={() => void deviceCalendar.requestAccess()}
+          onOpenSettings={() => void deviceCalendar.openSettings()}
+        />
       )}
 
       {eventSheet && (
         <CalendarEventSheet
           event={eventSheet.event}
-          date={selectedDate ?? todayStr}
+          date={daySheetDate ?? selectedDate ?? todayStr}
           onClose={() => setEventSheet(null)}
           onChanged={notifyCalendarChanged}
         />

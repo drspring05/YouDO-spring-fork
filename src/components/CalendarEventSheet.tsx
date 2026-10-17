@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { MapPin } from 'lucide-react';
 import Overlay from './Overlay';
 import Toggle from './Toggle';
+import EventColorPicker from './EventColorPicker';
 import { eventTimeLabel, type DeviceCalendarEvent } from '../lib/deviceCalendar';
 import {
   canEditSchedule,
@@ -54,6 +55,7 @@ export default function CalendarEventSheet({ event, date, onClose, onChanged }: 
 
   const [draft, setDraft] = useState<EventDraft>(() => (event ? draftFromEvent(event) : newDraft(date)));
   const [scheduleTouched, setScheduleTouched] = useState(false);
+  const [colorTouched, setColorTouched] = useState(false);
   const [calendars, setCalendars] = useState<DeviceCalendar[]>([]);
   const [calendarId, setCalendarId] = useState('');
   const [step, setStep] = useState<Step>('form');
@@ -123,7 +125,7 @@ export default function CalendarEventSheet({ event, date, onClose, onChanged }: 
       }, 'Could not add the event.');
       return;
     }
-    const changes = toChanges(event, draft, !scheduleLocked && scheduleTouched);
+    const changes = toChanges(event, draft, !scheduleLocked && scheduleTouched, colorTouched);
     if (Object.keys(changes).length === 0) {
       onClose();
       return;
@@ -285,6 +287,14 @@ export default function CalendarEventSheet({ event, date, onClose, onChanged }: 
                   </select>
                 </div>
               )}
+
+              <EventColorPicker
+                value={draft.color}
+                onChange={(color) => {
+                  change({ color });
+                  setColorTouched(true);
+                }}
+              />
 
               {fromGoal && (
                 <p className="px-1 text-[11.5px] text-content-secondary leading-relaxed">

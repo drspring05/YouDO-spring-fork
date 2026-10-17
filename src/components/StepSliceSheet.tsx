@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Check, Zap, Calendar } from 'lucide-react';
 import type { GoalNode } from '../types';
-import { todayISO, tomorrowISO } from '../store';
+import { todayISO, tomorrowISO, useStore } from '../store';
 import Overlay from './Overlay';
+import EventColorPicker from './EventColorPicker';
+import { sameColor } from '../lib/eventColors';
+import { formatDDMMYYYY } from '../lib/dates';
 
 export interface NodePlan {
   nodeId: string;
@@ -18,10 +21,14 @@ interface Props {
 }
 
 export default function StepSliceSheet({ open, nodes, node, onClose, onConfirm }: Props) {
+  const { updateGoalNode } = useStore();
   const targetNodes = nodes && nodes.length > 0 ? nodes : node ? [node] : [];
   // Map of nodeId -> Set of selected step indices
   const [selectedMap, setSelectedMap] = useState<Record<string, Set<number>>>({});
   const [date, setDate] = useState(todayISO());
+  /** Last day of a timeframe for a single item. Empty (or not after the plan day) leaves the item's dates alone. */
+  const [endDate, setEndDate] = useState('');
+  const [color, setColor] = useState<string | null>(null);
 
   useEffect(() => {
     if (open && targetNodes.length > 0) {
@@ -39,6 +46,8 @@ export default function StepSliceSheet({ open, nodes, node, onClose, onConfirm }
       if (!targetKey) return;
       setSelectedMap(initialMap);
       setDate(todayISO());
+      setEndDate('');
+      setColor(targetNodes.length === 1 ? (targetNodes[0].color ?? null) : null);
     }
     // Open + node identity is enough; targetNodes is derived from nodes/node.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -72,8 +81,24 @@ export default function StepSliceSheet({ open, nodes, node, onClose, onConfirm }
     }));
   };
 
+  const isSingle = targetNodes.length === 1;
+  const effectiveEnd = isSingle && endDate > date ? endDate : '';
+
   const confirm = () => {
     if (targetNodes.some((n) => n.steps?.length && !selectedMap[n.id]?.size)) return;
+    if (isSingle) {
+      // The timeframe and color are saved on the item itself, the same place the pencil edits them.
+      const item = targetNodes[0];
+      const colorChanged = color !== null && !sameColor(color, item.color);
+      if (effectiveEnd || colorChanged) {
+        const chosenColor = color;
+        updateGoalNode(item.id, (current) => ({
+          ...current,
+          ...(effectiveEnd ? { startDate: date, endDate: effectiveEnd } : {}),
+          ...(colorChanged && chosenColor ? { color: chosenColor } : {}),
+        }));
+      }
+    }
     const plans: NodePlan[] = targetNodes.map((n) => {
       const steps = n.steps ?? [];
       if (steps.length > 0) {
@@ -175,7 +200,41 @@ export default function StepSliceSheet({ open, nodes, node, onClose, onConfirm }
               })()}
             </div>
           )}
+
+          {isSingle && (
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between gap-3">
+                <label htmlFor="plan-until" className="text-[10px] font-bold uppercase tracking-wider text-content-muted">
+                  Until (optional)
+                </label>
+                <div className="flex items-center gap-2 min-w-0">
+                  <input
+                    id="plan-until"
+                    type="date"
+                    min={date}
+                    value={effectiveEnd}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="h-9 px-2.5 bg-elevated border border-subtle rounded-xl text-[12.5px] font-medium text-content-primary outline-none focus:border-primary transition-colors"
+                  />
+                  {effectiveEnd && (
+                    <button type="button" onClick={() => setEndDate('')} className="text-[11px] font-bold text-content-secondary">
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+              {(targetNodes[0].startDate || targetNodes[0].endDate) && (
+                <p className="text-[11px] text-content-muted leading-snug">
+                  Now set to {formatDDMMYYYY(targetNodes[0].startDate ?? targetNodes[0].endDate)}
+                  {targetNodes[0].startDate && targetNodes[0].endDate ? ` – ${formatDDMMYYYY(targetNodes[0].endDate)}` : ''}.
+                  Choosing an end date here replaces it.
+                </p>
+              )}
+            </div>
+          )}
         </div>
+
+        {isSingle && <EventColorPicker value={color} onChange={setColor} label="Calendar color" />}
 
         {/* Task Steps Lists */}
         <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar flex flex-col [&>*]:shrink-0 gap-3">
