@@ -327,6 +327,7 @@ export function duplicateTaskAsFresh(
     calendarEventId: undefined,
     calendarId: undefined,
     calendarDeviceId: undefined,
+    calendarFinished: undefined,
   };
 }
 

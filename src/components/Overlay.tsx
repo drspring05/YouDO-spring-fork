@@ -106,8 +106,10 @@ export default function Overlay({
 
   if (!open) return null;
 
+  // `no-swipe`: dragging inside a sheet or dialog must never be read as the tab-to-tab swipe.
   const rootClass = [
     'overlay-layer',
+    'no-swipe',
     align === 'bottom' ? 'overlay-layer-bottom' : align === 'full' ? 'overlay-layer-full' : 'overlay-layer-center',
     scrim ? 'overlay-layer-scrim' : '',
     align === 'full' && fullWidth !== 'column' ? `overlay-full-${fullWidth}` : '',

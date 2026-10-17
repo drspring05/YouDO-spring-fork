@@ -11,6 +11,9 @@ import {
   type RawDeviceEvent,
 } from '../lib/nativeCalendar';
 import { readPlannedTasksToCalendar } from '../lib/calendarPrefs';
+import { todayISO } from '../lib/dates';
+import { isTaskComplete } from '../lib/goalTree';
+import { shouldRelinkAfterUnfinish, shouldReleaseOnFinish } from '../lib/plannedWork';
 import { chooseTaskCalendar, readTaskCalendarId } from '../lib/taskSchedule';
 import {
   getCalendarDeviceId,
@@ -44,9 +47,9 @@ export const withoutCalendarLink = (task: Task): Task => {
 /** Only the fields that sync cares about, so unrelated task changes (progress, order) don't trigger a pass. */
 const syncSignature = (tasks: Task[]) =>
   tasks
-    .filter((task) => task.calendarEventId)
+    .filter((task) => task.calendarEventId || task.calendarFinished)
     .map((task) =>
-      [task.id, task.title, task.description, task.targetDate, task.endDate, task.allDay, task.startTime, task.endTime, task.color, task.calendarEventId, task.calendarId].join('\u0001'),
+      [task.id, task.title, task.description, task.targetDate, task.endDate, task.allDay, task.startTime, task.endTime, task.color, task.calendarEventId, task.calendarId, isTaskComplete(task), task.calendarFinished].join('\u0001'),
     )
     .join('\u0002');
 
@@ -95,7 +98,10 @@ export function useTaskCalendarSync(
       let changedPhone = await retryPendingDeletes();
 
       const deviceId = getCalendarDeviceId();
-      const linked = tasksRef.current.filter((task) => isLinkedHere(task, deviceId));
+      const finishedIds = await releaseFinishedTasks(deviceId);
+      if (finishedIds.size) changedPhone = true;
+      if (await relinkUnfinishedTasks(deviceId)) changedPhone = true;
+      const linked = tasksRef.current.filter((task) => isLinkedHere(task, deviceId) && !finishedIds.has(task.id));
       const snapshots = readSnapshots();
       const linkedIds = new Set(linked.map((task) => task.id));
       let snapshotsChanged = false;
@@ -170,6 +176,79 @@ export function useTaskCalendarSync(
         return same ? current : missing;
       });
       if (changedPhone) notifyCalendarChanged();
+    }
+    /**
+     * A finished task comes off the phone calendar (the task itself stays in YouDO, shown as done).
+     * Returns the ids of the tasks handled so the rest of the pass leaves them alone.
+     */
+    async function releaseFinishedTasks(deviceId: string): Promise<Set<string>> {
+      const today = todayISO();
+      const finished = tasksRef.current.filter(
+        (task) => isLinkedHere(task, deviceId) && shouldReleaseOnFinish(task, today),
+      );
+      const handled = new Set<string>();
+      if (!finished.length) return handled;
+      const snapshots = readSnapshots();
+      const failed = [...readPendingDeletes()];
+      for (const task of finished) {
+        delete snapshots[task.id];
+        try {
+          await deleteDeviceEvent(task.calendarEventId as string);
+        } catch {
+          // Tried again on a later pass, like any other delete that could not go through.
+          failed.push({ eventId: task.calendarEventId as string, calendarId: task.calendarId ?? '' });
+        }
+        handled.add(task.id);
+      }
+      writeSnapshots(snapshots);
+      writePendingDeletes(failed);
+      setTasks((prev) =>
+        prev.map((task) =>
+          handled.has(task.id) && isTaskComplete(task)
+            ? { ...withoutCalendarLink(task), calendarFinished: true }
+            : task,
+        ),
+      );
+      return handled;
+    }
+
+    /** A task that was finished and is open again gets its event back, on the day it is planned for. */
+    async function relinkUnfinishedTasks(deviceId: string): Promise<boolean> {
+      const candidates = tasksRef.current.filter(shouldRelinkAfterUnfinish);
+      if (!candidates.length) return false;
+      try {
+        const target = chooseTaskCalendar(await listDeviceCalendars(), readTaskCalendarId());
+        if (!target) return false;
+        const links = new Map<string, Pick<Task, 'calendarEventId' | 'calendarId' | 'calendarDeviceId'>>();
+        for (const task of candidates) {
+          const when = taskWhen(task);
+          if (!when) continue;
+          const eventId = await createDeviceEvent({
+            calendarId: target.id,
+            title: task.title,
+            description: task.description,
+            allDay: when.allDay,
+            begin: when.begin,
+            end: when.end,
+            ...(task.color ? { color: task.color } : {}),
+          });
+          if (!tasksRef.current.some((item) => item.id === task.id)) {
+            void deleteDeviceEvent(eventId).catch(() => undefined);
+            continue;
+          }
+          links.set(task.id, { calendarEventId: eventId, calendarId: target.id, calendarDeviceId: deviceId });
+        }
+        if (!links.size) return false;
+        setTasks((prev) =>
+          prev.map((task) => {
+            const link = links.get(task.id);
+            return link && !task.calendarEventId ? { ...task, ...link, calendarFinished: undefined } : task;
+          }),
+        );
+        return true;
+      } catch {
+        return false;
+      }
     }
   }, [supported, tasksRef, setTasks]);
 

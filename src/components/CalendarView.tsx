@@ -6,7 +6,9 @@ import { calendarFocusSummary } from '../lib/calendarSummary';
 import { hapticTick } from '../lib/haptics';
 import { ChevronLeft, ChevronRight, BarChart2, X, Info, ChevronDown, ChevronUp } from 'lucide-react';
 import type { Task } from '../types';
-import { localISODate, pathTitles, useStore, isOpenBacklogTask } from '../store';
+import { findGoal, localISODate, pathTitles, useStore, isOpenBacklogTask } from '../store';
+import { taskStepStates } from '../lib/goalTree';
+import { originChipNames } from '../lib/plannedWork';
 import { useDeviceCalendar } from '../hooks/useDeviceCalendar';
 import { notifyCalendarChanged } from '../hooks/useTaskCalendarSync';
 import { useLocalStorage } from '../hooks/useLocalStorage';
@@ -130,7 +132,7 @@ function MonthWeekRow({ days, events, month, todayStr, selectedDate, tasksByDate
 }
 
 export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) {
-  const { goals, sessionHistory } = useStore();
+  const { goals, sessionHistory, toggleTaskStep, setTaskDone, unlinkTask, removeTask } = useStore();
   const [cursor, setCursor] = useState(() => {
     const n = new Date();
     return new Date(n.getFullYear(), n.getMonth(), 1);
@@ -171,6 +173,18 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
     }
     return null;
   };
+
+  /** Goal name plus the last two branches the task sits in (not the first two); empty for a quick task. */
+  const originNamesFor = (task: Task): string[] => {
+    if (!task.goalNodeId) return [];
+    for (const root of goals) {
+      const titles = pathTitles(root, task.goalNodeId);
+      if (titles.length) return originChipNames(titles.slice(0, -1));
+    }
+    return [];
+  };
+  const stepStatesFor = (task: Task): boolean[] =>
+    taskStepStates(task, task.goalNodeId ? findGoal(goals, task.goalNodeId) : null);
 
   const tasksByDate = useMemo(() => {
     const map: Record<string, Task[]> = {};
@@ -410,7 +424,7 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
 
       {view === 'month' ? (
         <div
-          className="bg-surface border border-subtle rounded-2xl shadow-card overflow-hidden"
+          className="no-swipe bg-surface border border-subtle rounded-2xl shadow-card overflow-hidden"
           onTouchStart={onGridTouchStart}
           onTouchEnd={onGridTouchEnd}
         >
@@ -433,7 +447,7 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
           ))}
         </div>
       ) : view === 'week' ? (
-        <div onTouchStart={onGridTouchStart} onTouchEnd={onGridTouchEnd}>
+        <div className="no-swipe" onTouchStart={onGridTouchStart} onTouchEnd={onGridTouchEnd}>
           <WeekView
             anchorDate={weekAnchor}
             todayStr={todayStr}
@@ -528,7 +542,11 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
           calendarSupported={deviceCalendar.supported}
           access={deviceCalendar.access}
           sessionHistory={sessionHistory}
-          getOriginPath={getOriginPath}
+          stepStatesFor={stepStatesFor}
+          originNamesFor={originNamesFor}
+          onToggleDone={setTaskDone}
+          onToggleStep={toggleTaskStep}
+          onDeleteTask={(task) => (task.goalNodeId ? unlinkTask(task.id) : removeTask(task.id))}
           onClose={() => setDaySheetDate(null)}
           onAddTask={(date) => {
             setDaySheetDate(null);

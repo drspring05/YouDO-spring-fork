@@ -16,9 +16,11 @@ import {
   Pin,
   PinOff,
   Plus,
+  Search,
   Star,
   Target,
   Wand2,
+  X,
 } from 'lucide-react';
 import type { GoalNode } from '../types';
 import {
@@ -39,6 +41,7 @@ import {
 import Overlay from './Overlay';
 import { goalBranchContainsTask, nextOpenItem } from '../lib/goalTree';
 import { daysBetweenLocalISO, deadlineDaysLabel, goalTimingLabel, todayISO } from '../lib/dates';
+import { daysAllotted, searchGoals } from '../lib/plannedWork';
 import ActivityRing from './ActivityRing';
 import ClampedTitle from './ClampedTitle';
 import OriginChip from './OriginChip';
@@ -130,6 +133,8 @@ interface Props {
   onNavigateToPath?: (pathIds: string[]) => void;
   onOpenStudio: () => void;
   onOpenDescription?: (title: string, description: string, steps?: { label: string; done: boolean }[]) => void;
+  /** Opens a goal, branch or task found by search (a task opens in its branch and is highlighted). */
+  onJumpToNode: (nodeId: string) => void;
 }
 
 function nodeMeta(node: GoalNode): { icon: typeof Target; tint: string; label: string } {
@@ -139,7 +144,7 @@ function nodeMeta(node: GoalNode): { icon: typeof Target; tint: string; label: s
   return { icon: CircleDot, tint: 'var(--text-muted)', label: role };
 }
 
-export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddChild, onEditNode, onPushNode, onUnplan, onCopy, onSelectionChange, clearSelectionRef, onNavigateToPath, onOpenStudio, onOpenDescription }: Props) {
+export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddChild, onEditNode, onPushNode, onUnplan, onCopy, onSelectionChange, clearSelectionRef, onNavigateToPath, onOpenStudio, onOpenDescription, onJumpToNode }: Props) {
   const { goals, tasks, toggleGoalStep, togglePin, reorderGoalNodes, toggleNodeCompletion } = useStore();
   const [{ legacyStyle }] = useUiPrefs();
   const { activeSession } = useSessionStore();
@@ -150,6 +155,8 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
   const [overId, setOverId] = useState<string | null>(null);
   const [pathMapOpen, setPathMapOpen] = useState(false);
   const [parentDescriptionExpanded, setParentDescriptionExpanded] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState('');
   const siblingStripRef = useRef<HTMLDivElement>(null);
   const pendingSiblingScrollRef = useRef<number | null>(null);
 
@@ -251,6 +258,13 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
   }, [goals]);
 
   const children = current ? current.children : goals;
+
+  const searching = searchOpen && query.trim().length > 0;
+  const searchHits = useMemo(() => (searching ? searchGoals(goals, query) : []), [goals, query, searching]);
+  const closeSearch = () => {
+    setSearchOpen(false);
+    setQuery('');
+  };
 
   const siblings = useMemo(() => {
     if (pathIds.length === 0) return [];
@@ -439,6 +453,18 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
           )}
           <button
             type="button"
+            onClick={() => (searchOpen ? closeSearch() : setSearchOpen(true))}
+            aria-pressed={searchOpen}
+            className={`shrink-0 w-9 h-9 grid place-items-center rounded-lg hover:opacity-90 ${
+              searchOpen ? 'text-on-primary bg-primary' : 'text-primary bg-primary-soft'
+            }`}
+            aria-label="Search goals"
+            title="Search goals, branches and tasks"
+          >
+            <Search size={15} strokeWidth={2.25} />
+          </button>
+          <button
+            type="button"
             onClick={onOpenStudio}
             className="shrink-0 w-9 h-9 grid place-items-center rounded-lg text-primary bg-primary-soft hover:opacity-90"
             aria-label="Open Blueprint Studio"
@@ -448,7 +474,27 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
           </button>
         </nav>
 
-        {siblings.length > 1 && current && (
+        {searchOpen && (
+          <div className="flex items-center gap-2 rounded-[12px] border border-subtle bg-surface px-3 h-10">
+            <Search size={15} className="text-content-muted shrink-0" />
+            <input
+              type="search"
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search goals, branches and tasks"
+              aria-label="Search goals, branches and tasks"
+              className="flex-1 min-w-0 bg-transparent outline-none text-[14px] text-content-primary placeholder:text-content-muted"
+            />
+            {query && (
+              <button type="button" onClick={() => setQuery('')} aria-label="Clear search" className="text-content-muted">
+                <X size={15} />
+              </button>
+            )}
+          </div>
+        )}
+
+        {siblings.length > 1 && current && !searchOpen && (
           <div className="rounded-[14px] border border-subtle bg-surface shadow-card px-2 py-2">
             <div ref={siblingStripRef} className="flex items-center gap-2 overflow-x-auto no-scrollbar" aria-label="Sibling branches">
               <span className="shrink-0 pl-1 text-[9px] font-bold uppercase tracking-[0.14em] text-content-muted">Branches</span>
@@ -528,6 +574,61 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
         </div>
       </Overlay>
 
+      {searching ? (
+        <section aria-label="Search results">
+          {searchHits.length === 0 ? (
+            <div className="bg-surface border border-subtle rounded-[16px] p-6 text-center text-[12.5px] text-content-secondary">
+              Nothing matches “{query.trim()}”.
+            </div>
+          ) : (
+            <>
+              <p className="px-0.5 mb-2 text-[11px] font-semibold uppercase tracking-wider text-content-muted">
+                {searchHits.length} result{searchHits.length === 1 ? '' : 's'}
+              </p>
+              <div className="bg-surface rounded-[12px] border border-subtle overflow-hidden divide-y divide-subtle">
+                {searchHits.map((hit) => {
+                  const Icon = hit.role === 'Goal' ? Target : hit.role === 'Branch' ? Layers : CircleDot;
+                  const hitPct = hit.node.children.length === 0 && hit.node.steps?.length
+                    ? Math.round(((hit.node.stepDone ?? []).filter(Boolean).length / hit.node.steps.length) * 100)
+                    : rollupPct(hit.node);
+                  const place = hit.ancestors.map((a) => a.title).join(' › ');
+                  return (
+                    <button
+                      key={hit.node.id}
+                      type="button"
+                      onClick={() => {
+                        closeSearch();
+                        onJumpToNode(hit.node.id);
+                      }}
+                      className="w-full flex items-center gap-3 px-3.5 py-2.5 text-left hover:bg-elevated"
+                    >
+                      <Icon size={15} className="shrink-0 text-content-muted" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[13.5px] font-semibold leading-snug text-content-primary break-words">
+                          {hit.node.title}
+                        </span>
+                        <span className="block truncate text-[11px] text-content-muted">
+                          {hit.role}
+                          {place ? ` · ${place}` : ''}
+                        </span>
+                      </span>
+                      <span
+                        className={`text-[12px] font-semibold tabular-nums shrink-0 ${
+                          hitPct >= 100 ? 'text-secondary' : hitPct > 0 ? 'text-primary' : 'text-content-muted'
+                        }`}
+                      >
+                        {hitPct}%
+                      </span>
+                      <ChevronRight size={15} className="text-content-muted shrink-0" />
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </section>
+      ) : (
+      <>
       {/* Pinned/Favorites section */}
       {pinned.length > 0 && pathIds.length === 0 && (
         <>
@@ -649,6 +750,10 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
               <span className="inline-flex items-center gap-1 tabular-nums text-content-muted">
                 <CalendarDays size={11} />
                 {formatGoalDateRange(current.startDate, current.endDate)}
+                {(() => {
+                  const total = daysAllotted(current.startDate, current.endDate);
+                  return total !== null ? ` (${total} ${total === 1 ? 'day' : 'days'})` : '';
+                })()}
               </span>
             )}
             {(() => {
@@ -660,7 +765,7 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                   ? 'text-primary'
                   : 'text-secondary';
               return (
-                <span className={`${colorClass} font-bold`}>
+                <span className={`${colorClass} font-bold basis-full`}>
                   {timing.label}
                 </span>
               );
@@ -942,6 +1047,15 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                     ) : null}
                   </p>
                 )}
+                {!isWorkItem && child.startDate && child.endDate && (
+                  <p className="goal-row-detail tabular-nums">
+                    {formatGoalDateRange(child.startDate, child.endDate)}
+                    {(() => {
+                      const total = daysAllotted(child.startDate, child.endDate);
+                      return total !== null ? ` · ${total} ${total === 1 ? 'day' : 'days'}` : '';
+                    })()}
+                  </p>
+                )}
                 {isWorkItem && child.endDate && !isDone && (
                   <p className="goal-row-detail" data-tone={dueTone}>
                     Due {formatShortDate(child.endDate)} · {deadlineDaysLabel(child.endDate)}
@@ -1055,6 +1169,8 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
         {legacyStyle ? <Plus size={15} className="shrink-0" /> : <Plus size={20} strokeWidth={2.4} className="shrink-0" />}
         <span className="min-w-0 truncate">{current ? `Add to ${current.title}` : 'Create Goal'}</span>
       </button>
+      </>
+      )}
 
     </div>
   );

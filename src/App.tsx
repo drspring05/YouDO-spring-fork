@@ -13,6 +13,7 @@ import { ensureProfileFromAuth } from './lib/profiles';
 import { shouldOfferSessionRecovery } from './lib/sessionStats';
 import Overlay from './components/Overlay';
 import TaskCard from './components/TaskCard';
+import PlannedTaskCard from './components/PlannedTaskCard';
 import AddTaskSheet from './components/AddTaskSheet';
 import CommandBar from './components/CommandBar';
 import { useLocalStorage } from './hooks/useLocalStorage';
@@ -22,6 +23,7 @@ import TodayBriefingSheet from './components/TodayBriefingSheet';
 import UndoToast from './components/UndoToast';
 import { STORAGE_KEYS } from './lib/storageKeys';
 import { daysBetweenLocalISO } from './lib/dates';
+import { originChipNames, upcomingTaskGroups } from './lib/plannedWork';
 import {
   netFocusByLocalDateOverlapping,
   reconcileStreakMeta,
@@ -135,6 +137,8 @@ function AppInner() {
     undo,
     removeTask,
     unlinkTask,
+    toggleTaskStep,
+    setTaskDone,
     reorder,
     addGoalRoot,
     addChildNode,
@@ -713,7 +717,7 @@ function AppInner() {
     void initStatusBar();
   }, [darkMode, legacyStyle]);
 
-  const [todaySubTab, setTodaySubTab] = useState<'today' | 'backlog'>('today');
+  const [todaySubTab, setTodaySubTab] = useState<'today' | 'backlog' | 'upcoming'>('today');
   const [activeCategoryFilter, setActiveCategoryFilter] = useState<string>('all');
 
   const todayTasks = useMemo(
@@ -744,6 +748,13 @@ function AppInner() {
   const openTodayCount = useMemo(
     () => todayTasks.filter((t) => !isTaskComplete(t)).length,
     [todayTasks],
+  );
+  // Open work planned for a later day. A quick task has no goal behind it, so this list (and the calendar)
+  // is the only place it shows up before its day arrives.
+  const upcomingGroups = useMemo(() => upcomingTaskGroups(tasks, todayISO()), [tasks]);
+  const openUpcomingCount = useMemo(
+    () => upcomingGroups.reduce((sum, group) => sum + group.tasks.length, 0),
+    [upcomingGroups],
   );
   const todayCount = todayTasks.length;
   const todayDone = todayTasks.filter(isTaskComplete).length;
@@ -1400,6 +1411,19 @@ function AppInner() {
                     </span>
                   </button>
                   <button
+                    onClick={() => startTransition(() => setTodaySubTab('upcoming'))}
+                    className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 ${
+                      todaySubTab === 'upcoming'
+                        ? 'bg-elevated text-content-primary border border-subtle'
+                        : 'text-content-secondary'
+                    }`}
+                  >
+                    <span>Upcoming</span>
+                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${todaySubTab === 'upcoming' ? 'bg-primary text-on-primary' : 'bg-base text-content-muted'}`}>
+                      {openUpcomingCount}
+                    </span>
+                  </button>
+                  <button
                     onClick={() => startTransition(() => setTodaySubTab('backlog'))}
                     className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 ${
                       todaySubTab === 'backlog'
@@ -1423,6 +1447,14 @@ function AppInner() {
                   >
                     <span>Scheduled</span>
                     <span className="ios-segmented-count">{openTodayCount}</span>
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={todaySubTab === 'upcoming'}
+                    onClick={() => startTransition(() => setTodaySubTab('upcoming'))}
+                  >
+                    <span>Upcoming</span>
+                    <span className="ios-segmented-count">{openUpcomingCount}</span>
                   </button>
                   <button
                     type="button"
@@ -1540,6 +1572,65 @@ function AppInner() {
                               taskSessions={getTaskSessions(t.id)}
                               streakSave={reviveScheduledIds.has(t.id)}
                             />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )
+                ) : todaySubTab === 'upcoming' ? (
+                  /* ─────────── UPCOMING TAB ─────────── */
+                  upcomingGroups.length === 0 ? (
+                    <div className="bg-surface p-8 border border-subtle rounded-[16px] text-center space-y-2">
+                      <Calendar size={20} className="mx-auto text-content-muted" />
+                      <h3 className="text-sm font-semibold text-content-primary">Nothing coming up</h3>
+                      <p className="text-[12px] text-content-muted max-w-xs mx-auto">
+                        Tasks you plan for a later day show up here, so you can tick, edit or delete them before their day.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => openAddTask()}
+                        className="mt-1 bg-primary text-on-primary text-xs font-semibold rounded-xl px-3.5 py-2"
+                      >
+                        Add a task
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4 fade-in">
+                      {upcomingGroups.map((group) => {
+                        const day = new Date(group.date + 'T12:00:00');
+                        const daysAway = daysBetweenLocalISO(todayISO(), group.date);
+                        const label = daysAway === 1
+                          ? 'Tomorrow'
+                          : day.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+                        return (
+                          <div key={group.date} className="space-y-2">
+                            <div className="flex items-center gap-2 px-0.5">
+                              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary-soft text-primary">
+                                <Calendar size={11} />
+                                <span className="text-[11px] font-semibold">{label}</span>
+                              </div>
+                              <span className="text-[10px] font-semibold text-content-secondary">
+                                {daysAway === 1 ? 'in 1 day' : `in ${daysAway} days`} · {group.tasks.length} task{group.tasks.length > 1 ? 's' : ''}
+                              </span>
+                              <div className="flex-1 h-px bg-border/60" />
+                            </div>
+                            {group.tasks.map((t) => {
+                              const last = t.endDate && t.targetDate && t.endDate > t.targetDate ? t.endDate : null;
+                              return (
+                                <PlannedTaskCard
+                                  key={t.id}
+                                  task={t}
+                                  stepStates={stepStatesFor(t)}
+                                  originNames={originChipNames((originNodesFor(t.id) ?? []).map((n) => n.title))}
+                                  subtitle={last && t.targetDate ? `${daysBetweenLocalISO(t.targetDate, last) + 1} days, until ${new Date(last + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : null}
+                                  deleteLabel={t.goalNodeId ? 'Take off the plan' : 'Delete task'}
+                                  onToggleDone={(done) => setTaskDone(t.id, done)}
+                                  onToggleStep={(index) => toggleTaskStep(t.id, index)}
+                                  onDelete={() => (t.goalNodeId ? unlinkTask(t.id) : removeTask(t.id))}
+                                  onJumpToGoal={t.goalNodeId ? () => jumpToGoalTask(t.goalNodeId) : undefined}
+                                />
+                              );
+                            })}
                           </div>
                         );
                       })}
@@ -1781,6 +1872,7 @@ function AppInner() {
                 onNavigateToPath={navigateToGoalPath}
                 onOpenStudio={openBlueprintStudio}
                 onOpenDescription={openDescriptionModal}
+                onJumpToNode={jumpToGoalTask}
               />
             )}
             </Suspense>

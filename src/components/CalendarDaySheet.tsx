@@ -1,6 +1,6 @@
 import { MapPin, Plus } from 'lucide-react';
 import Overlay from './Overlay';
-import OriginChip from './OriginChip';
+import PlannedTaskCard from './PlannedTaskCard';
 import type { Task, TaskSession } from '../types';
 import { eventTimeLabel, type DeviceCalendarEvent } from '../lib/deviceCalendar';
 import { daysBetweenLocalISO } from '../lib/dates';
@@ -19,7 +19,14 @@ interface Props {
   calendarSupported: boolean;
   access: DeviceCalendarAccess;
   sessionHistory: Record<string, TaskSession[]>;
-  getOriginPath: (goalNodeId: string | undefined) => string | null;
+  /** which of a task's steps are done, in the task's own order (matches the Today and Goals tabs) */
+  stepStatesFor: (task: Task) => boolean[];
+  /** goal name plus the last two branches the task sits in; empty for a quick task */
+  originNamesFor: (task: Task) => string[];
+  onToggleDone: (taskId: string, done: boolean) => void;
+  onToggleStep: (taskId: string, stepIndex: number) => void;
+  /** delete a quick task, or take a goal item's task off the plan */
+  onDeleteTask: (task: Task) => void;
   onClose: () => void;
   onAddTask: (date: string) => void;
   onAddEvent: () => void;
@@ -46,7 +53,11 @@ export default function CalendarDaySheet({
   calendarSupported,
   access,
   sessionHistory,
-  getOriginPath,
+  stepStatesFor,
+  originNamesFor,
+  onToggleDone,
+  onToggleStep,
+  onDeleteTask,
   onClose,
   onAddTask,
   onAddEvent,
@@ -151,112 +162,37 @@ export default function CalendarDaySheet({
                   const onDay = taskOccurrenceOnDate(task, date);
                   const occurrence = onDay ?? (task.targetDate ? taskOccurrenceOnDate(task, task.targetDate) : null);
                   if (!occurrence) return null;
-                  const resolved = occurrence.resolved;
-                  const hasSteps = task.steps.length > 0;
-                  const originPath = getOriginPath(task.goalNodeId);
                   const completionMode = onDay ? taskCompletionModeOnDate(task, date, sessionHistory[task.id] ?? []) : null;
                   const lastDay = task.endDate && task.targetDate && task.endDate > task.targetDate ? task.endDate : null;
                   const dayNumber = !onDay && task.targetDate ? daysBetweenLocalISO(task.targetDate, date) + 1 : null;
                   const dayCount = lastDay && task.targetDate ? daysBetweenLocalISO(task.targetDate, lastDay) + 1 : null;
+                  const tag =
+                    occurrence.kind === 'failed'
+                      ? ({ label: 'Failed', tone: 'error' } as const)
+                      : occurrence.kind === 'backlog-completed'
+                        ? ({ label: 'Backlog', tone: 'error' } as const)
+                        : completionMode === 'manual'
+                          ? ({ label: 'Manual', tone: 'muted' } as const)
+                          : completionMode === 'mixed'
+                            ? ({ label: 'Mixed', tone: 'primary' } as const)
+                            : null;
 
                   return (
-                    <div
+                    <PlannedTaskCard
                       key={task.id}
-                      className={`bg-surface border border-subtle rounded-2xl shadow-card p-4 select-none ${resolved ? 'opacity-60' : ''}`}
-                    >
-                      {originPath && (
-                        <div className="mb-1.5">
-                          <OriginChip
-                            names={originPath.split('/').slice(0, 2).map((part) => part.trim())}
-                            onClick={() => onJumpToGoal(task.goalNodeId)}
-                          />
-                        </div>
-                      )}
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-start gap-2 min-w-0 flex-1">
-                          <span
-                            className={`mt-[6px] w-1.5 h-1.5 rounded-full shrink-0 ${resolved ? 'bg-secondary/30' : 'bg-primary'}`}
-                            style={task.color && !resolved ? { backgroundColor: task.color } : undefined}
-                          />
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <h4
-                                className={`text-[14.5px] font-bold leading-snug tracking-tight ${
-                                  resolved ? 'line-through text-content-muted' : 'text-content-primary'
-                                }`}
-                              >
-                                {task.title}
-                              </h4>
-                              {occurrence.kind === 'failed' && (
-                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-error-soft text-error border border-error/20">
-                                  FAILED
-                                </span>
-                              )}
-                              {occurrence.kind === 'backlog-completed' && (
-                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-error-soft text-error border border-error/20">
-                                  BACKLOG
-                                </span>
-                              )}
-                              {completionMode === 'manual' && (
-                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-surface text-content-muted border border-subtle">
-                                  MANUAL
-                                </span>
-                              )}
-                              {completionMode === 'mixed' && (
-                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-primary-soft text-primary border border-primary/20">
-                                  MIXED
-                                </span>
-                              )}
-                            </div>
-                            {dayNumber !== null && dayCount !== null && (
-                              <p className="text-[11px] text-content-muted mt-0.5">
-                                Day {dayNumber} of {dayCount}
-                              </p>
-                            )}
-                            {task.description && (
-                              <p className="text-[11.5px] text-content-secondary/80 line-clamp-2 mt-1">{task.description}</p>
-                            )}
-                          </div>
-                        </div>
-                        <span
-                          className={`text-[12px] font-bold shrink-0 mt-0.5 ${
-                            occurrence.kind === 'failed' ? 'text-error' : 'tabular-nums text-content-secondary'
-                          }`}
-                        >
-                          {occurrence.kind === 'failed' ? 'Missed' : `${task.progress}/${hasSteps ? task.steps.length : 1}`}
-                        </span>
-                      </div>
-
-                      {occurrence.kind !== 'failed' && (
-                        <div className="mt-2 h-1.5 rounded-full bg-border-subtle overflow-hidden">
-                          <div
-                            className="h-full bg-secondary progress-bar-fill rounded-full"
-                            style={{ width: `${(task.progress / (hasSteps ? task.steps.length : 1)) * 100}%` }}
-                          />
-                        </div>
-                      )}
-
-                      {hasSteps && occurrence.kind !== 'failed' && (
-                        <div className="flex flex-wrap gap-1.5 mt-2">
-                          {task.steps.map((step, idx) => {
-                            const stepDone = idx < task.progress;
-                            return (
-                              <span
-                                key={idx}
-                                className={`text-[10px] px-2 py-0.5 rounded-md font-medium ${
-                                  stepDone
-                                    ? 'bg-secondary/10 text-secondary border border-secondary/20 line-through'
-                                    : 'bg-surface text-content-secondary border border-subtle'
-                                }`}
-                              >
-                                {stepDone ? '✓ ' : ''}
-                                {step}
-                              </span>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
+                      task={task}
+                      stepStates={stepStatesFor(task)}
+                      originNames={originNamesFor(task)}
+                      resolved={occurrence.resolved}
+                      tag={tag}
+                      subtitle={dayNumber !== null && dayCount !== null ? `Day ${dayNumber} of ${dayCount}` : null}
+                      locked={occurrence.kind === 'failed'}
+                      deleteLabel={task.goalNodeId ? 'Take off the plan' : 'Delete task'}
+                      onToggleDone={(done) => onToggleDone(task.id, done)}
+                      onToggleStep={(index) => onToggleStep(task.id, index)}
+                      onDelete={() => onDeleteTask(task)}
+                      onJumpToGoal={task.goalNodeId ? () => onJumpToGoal(task.goalNodeId) : undefined}
+                    />
                   );
                 })}
               </div>

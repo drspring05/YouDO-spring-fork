@@ -206,6 +206,10 @@ interface Store {
   unlinkTask: (taskId: string) => void;
   /** Toggle a step's done state directly in the goal view */
   toggleGoalStep: (nodeId: string, stepIdx: number) => void;
+  /** Tick or untick one step of a planned task (calendar leaflet, Upcoming list); keeps the goal item in step. */
+  toggleTaskStep: (taskId: string, stepIdx: number) => void;
+  /** Finish or reopen a whole planned task: every step together. */
+  setTaskDone: (taskId: string, done: boolean) => void;
   /** Toggle pinned/favorite state of a goal node */
   togglePin: (nodeId: string) => void;
   /** Copy a goal node (and its subtree) into the clipboard */
@@ -891,12 +895,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (activeSessionRef.current?.taskId === taskId) return;
       const task = tasksRef.current.find((t) => t.id === taskId);
       const goalNodeId = task?.goalNodeId;
+      // Planning an item can also give the item itself a timeframe (the Plan sheet's "Until" date), and that
+      // timeframe is what draws its bar on the calendar. Unplanning takes the timeframe off too, but only when it
+      // starts on the day that was planned, so a timeframe set some other way is left alone.
+      const node = goalNodeId ? findGoal(goalsRef.current, goalNodeId) : null;
+      const clearDates = !!node && !!task?.targetDate && node.startDate === task.targetDate;
       setTasks((prev) => prev.filter((t) => t.id !== taskId));
       if (task) releaseEvents([task]);
       setGoals((prev) =>
         prev.map((root) =>
           goalNodeId
-            ? updateNode(root, goalNodeId, (n) => (n.todayTaskId === taskId ? { ...n, todayTaskId: null } : n))
+            ? updateNode(root, goalNodeId, (n) =>
+                n.todayTaskId === taskId
+                  ? { ...n, todayTaskId: null, ...(clearDates ? { startDate: undefined, endDate: undefined } : {}) }
+                  : n,
+              )
             : root,
         ),
       );
@@ -951,6 +964,112 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (allDone) hapticGoalComplete();
         else hapticTick();
       }
+    },
+    [activeSessionRef, setGoals, setTasks, recordManualSteps, removeManualStepEvidence],
+  );
+
+  /**
+   * Ticks or unticks one step of a planned task, from the calendar's day leaflet or the Upcoming list.
+   * A task that belongs to a goal item goes through the goal item, exactly like ticking the step in Goals,
+   * so both places always agree. A quick task keeps its steps in order (ticking step 3 ticks 1 to 3).
+   */
+  const toggleTaskStep = useCallback(
+    (taskId: string, stepIdx: number) => {
+      const task = tasksRef.current.find((t) => t.id === taskId);
+      if (!task || activeSessionRef.current?.taskId === taskId) return;
+      if (stepIdx < 0 || stepIdx >= task.steps.length) return;
+      if (task.goalNodeId) {
+        const node = findGoal(goalsRef.current, task.goalNodeId);
+        // An old dated card of a goal item is a record of that day, not something to change.
+        if (!node?.steps?.length || !isMutableGoalPlan(task, node)) return;
+        const masterIdx = task.stepSlice ? task.stepSlice[stepIdx] : stepIdx;
+        if (masterIdx !== undefined) toggleGoalStep(node.id, masterIdx);
+        return;
+      }
+      const wasDone = stepIdx < task.progress;
+      const nextProgress = wasDone ? stepIdx : stepIdx + 1;
+      setTasks((prev) =>
+        prev.map((x) => {
+          if (x.id !== taskId) return x;
+          const updated = { ...x, progress: nextProgress };
+          return nextProgress > x.progress ? clearBacklogIfComplete(updated) : restoreBacklogIfIncomplete(updated);
+        }),
+      );
+      if (nextProgress > task.progress) {
+        const added = Array.from({ length: nextProgress - task.progress }, (_, i) => task.progress + i);
+        recordManualSteps(task, added, nextProgress >= task.steps.length);
+        if (nextProgress >= task.steps.length) hapticSuccess();
+        else hapticTick();
+      } else {
+        removeManualStepEvidence(
+          task.id,
+          Array.from({ length: task.progress - nextProgress }, (_, i) => nextProgress + i),
+        );
+        hapticTick();
+      }
+    },
+    [activeSessionRef, setTasks, toggleGoalStep, recordManualSteps, removeManualStepEvidence],
+  );
+
+  /**
+   * Finishes or reopens a whole planned task (the checkbox in front of its name): all of its steps are ticked
+   * or unticked together. A task from a goal item changes the goal item too.
+   */
+  const setTaskDone = useCallback(
+    (taskId: string, done: boolean) => {
+      const task = tasksRef.current.find((t) => t.id === taskId);
+      if (!task || activeSessionRef.current?.taskId === taskId) return;
+      const total = task.steps.length > 0 ? task.steps.length : 1;
+
+      if (task.goalNodeId) {
+        const node = findGoal(goalsRef.current, task.goalNodeId);
+        if (!node || !isMutableGoalPlan(task, node)) return;
+        clearRollupCache();
+        if (node.steps?.length) {
+          const slice = task.stepSlice ?? node.steps.map((_, i) => i);
+          const stepDone = [...(node.stepDone ?? node.steps.map(() => false))];
+          const changed: number[] = [];
+          slice.forEach((masterIdx, local) => {
+            if (Boolean(stepDone[masterIdx]) !== done) changed.push(local);
+            stepDone[masterIdx] = done;
+          });
+          const allDone = stepDone.every(Boolean);
+          const patched: GoalNode = { ...node, stepDone, completed: allDone };
+          setGoals((prev) =>
+            prev.map((root) =>
+              recomputeCompleted(updateNode(root, node.id, (n) => ({ ...n, stepDone, completed: allDone }))),
+            ),
+          );
+          setTasks((prev) => syncLinkedTasksFromGoal(prev, patched));
+          if (done) recordManualSteps(task, changed, true);
+          else removeManualStepEvidence(task.id, changed);
+        } else {
+          const patched: GoalNode = { ...node, completed: done };
+          setGoals((prev) =>
+            prev.map((root) => recomputeCompleted(updateNode(root, node.id, (n) => ({ ...n, completed: done })))),
+          );
+          setTasks((prev) => syncLinkedTasksFromGoal(prev, patched));
+          if (done) recordManualSteps(task, [0], true);
+          else removeManualStepEvidence(task.id);
+        }
+      } else {
+        const nextProgress = done ? total : 0;
+        setTasks((prev) =>
+          prev.map((x) => {
+            if (x.id !== taskId) return x;
+            const updated = { ...x, progress: nextProgress };
+            return done ? clearBacklogIfComplete(updated) : restoreBacklogIfIncomplete(updated);
+          }),
+        );
+        if (done) {
+          const remaining = Array.from({ length: Math.max(0, total - task.progress) }, (_, i) => task.progress + i);
+          recordManualSteps(task, remaining, true);
+        } else {
+          removeManualStepEvidence(task.id);
+        }
+      }
+      if (done) hapticSuccess();
+      else hapticTick();
     },
     [activeSessionRef, setGoals, setTasks, recordManualSteps, removeManualStepEvidence],
   );
@@ -2008,7 +2127,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       addGoalRoot, addChildNode, updateGoalNode, deleteGoalNode, applyGoalTreeChange, undoGoalTreeChange,
       recentlyDeletedGoals, lastDeletedNotification, clearDeletedNotification, restoreDeletedGoal, clearTrash,
       reorderGoalNodes, moveGoalNode, moveGoalNodes: moveGoalNodesAction, copyGoalNodesToTarget: copyGoalNodesToTargetAction, toggleNodeCompletion,
-      planTask, planBatch, unlinkTask, toggleGoalStep, togglePin,
+      planTask, planBatch, unlinkTask, toggleGoalStep, toggleTaskStep, setTaskDone, togglePin,
       copyGoalNode, copyGoalNodes, pasteGoalNode, clipboard, clearClipboard, deleteGoalNodes,
       exportBackup, importBackup, syncToCloud, cloudSyncConflict, workspaceStorageError, clearCloudData, restoreFromCloud, restoreFromVisitSnapshot, listCloudRestorePoints,
       pruneOldSessions,
@@ -2025,7 +2144,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       addGoalRoot, addChildNode, updateGoalNode, deleteGoalNode, applyGoalTreeChange, undoGoalTreeChange, deleteGoalNodes,
       recentlyDeletedGoals, lastDeletedNotification, clearDeletedNotification, restoreDeletedGoal, clearTrash,
       reorderGoalNodes, moveGoalNode, moveGoalNodesAction, copyGoalNodesToTargetAction, toggleNodeCompletion,
-      planTask, planBatch, unlinkTask, toggleGoalStep, togglePin,
+      planTask, planBatch, unlinkTask, toggleGoalStep, toggleTaskStep, setTaskDone, togglePin,
       copyGoalNode, copyGoalNodes, pasteGoalNode, clipboard, clearClipboard,
       exportBackup, importBackup, syncToCloud, cloudSyncConflict, workspaceStorageError, clearCloudData, restoreFromCloud, restoreFromVisitSnapshot, listCloudRestorePoints,
       pruneOldSessions,

@@ -46,6 +46,11 @@ export interface Task {
   endDate?: string;
   /** Color for the task's phone-calendar event, "#RRGGBB". Missing means the calendar's own color. */
   color?: string;
+  /**
+   * Set when the task was finished and its phone-calendar event was taken off the calendar for that reason.
+   * If the task is un-finished, the event is put back and this is cleared.
+   */
+  calendarFinished?: boolean;
 }
 
 export interface SessionStopOutcome {
