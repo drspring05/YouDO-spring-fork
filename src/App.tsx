@@ -301,6 +301,10 @@ function AppInner() {
           replan.push(node);
           unplan.push(node);
         }
+      } else if (node.startDate || node.endDate) {
+        // Dated but not scheduled on a day: still counts as planned (Replan / Unplan).
+        replan.push(node);
+        unplan.push(node);
       } else {
         schedule.push(node);
       }
@@ -551,12 +555,14 @@ function AppInner() {
   const handleBatchUnplan = useCallback(() => {
     if (batchWorkItemGroups.unplan.length === 0) return;
     for (const node of batchWorkItemGroups.unplan) {
-      if (node.todayTaskId) unlinkTask(node.todayTaskId);
+      const linked = node.todayTaskId ? tasks.find((task) => task.id === node.todayTaskId) : null;
+      if (linked && !isBacklogTask(linked) && !isTaskComplete(linked)) unlinkTask(linked.id);
+      else updateGoalNode(node.id, (n) => ({ ...n, startDate: undefined, endDate: undefined }));
     }
     clearSelectionRef.current();
     setBatchSelectedIds([]);
     setBatchWorkItemIds([]);
-  }, [batchWorkItemGroups.unplan, unlinkTask]);
+  }, [batchWorkItemGroups.unplan, unlinkTask, updateGoalNode, tasks]);
 
   const closeSheet = useCallback(() => {
     setSheetOpen(false);

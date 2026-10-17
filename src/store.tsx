@@ -895,11 +895,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (activeSessionRef.current?.taskId === taskId) return;
       const task = tasksRef.current.find((t) => t.id === taskId);
       const goalNodeId = task?.goalNodeId;
-      // Planning an item can also give the item itself a timeframe (the Plan sheet's "Until" date), and that
-      // timeframe is what draws its bar on the calendar. Unplanning takes the timeframe off too, but only when it
-      // starts on the day that was planned, so a timeframe set some other way is left alone.
-      const node = goalNodeId ? findGoal(goalsRef.current, goalNodeId) : null;
-      const clearDates = !!node && !!task?.targetDate && node.startDate === task.targetDate;
+      // Planning an item gives the item itself a timeframe (the Plan sheet's Start/End dates), and that timeframe
+      // is what draws its bar on the calendar. Unplanning clears the timeframe completely, so the item leaves
+      // the calendar too. Only lowest-level items (no children) are cleared; a branch keeps its own dates.
       setTasks((prev) => prev.filter((t) => t.id !== taskId));
       if (task) releaseEvents([task]);
       setGoals((prev) =>
@@ -907,7 +905,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           goalNodeId
             ? updateNode(root, goalNodeId, (n) =>
                 n.todayTaskId === taskId
-                  ? { ...n, todayTaskId: null, ...(clearDates ? { startDate: undefined, endDate: undefined } : {}) }
+                  ? {
+                      ...n,
+                      todayTaskId: null,
+                      ...(n.children.length === 0 ? { startDate: undefined, endDate: undefined } : {}),
+                    }
                   : n,
               )
             : root,

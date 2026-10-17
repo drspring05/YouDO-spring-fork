@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Check, Zap, Calendar } from 'lucide-react';
+import { Check, Zap } from 'lucide-react';
 import type { GoalNode } from '../types';
 import { todayISO, tomorrowISO, useStore } from '../store';
 import Overlay from './Overlay';
 import EventColorPicker from './EventColorPicker';
 import { sameColor } from '../lib/eventColors';
-import { formatDDMMYYYY } from '../lib/dates';
 
 export interface NodePlan {
   nodeId: string;
@@ -26,7 +25,7 @@ export default function StepSliceSheet({ open, nodes, node, onClose, onConfirm }
   // Map of nodeId -> Set of selected step indices
   const [selectedMap, setSelectedMap] = useState<Record<string, Set<number>>>({});
   const [date, setDate] = useState(todayISO());
-  /** Last day of a timeframe for a single item. Empty (or not after the plan day) leaves the item's dates alone. */
+  /** Last day of the timeframe. Empty (or not after the start day) means a one-day task. */
   const [endDate, setEndDate] = useState('');
   const [color, setColor] = useState<string | null>(null);
 
@@ -45,8 +44,11 @@ export default function StepSliceSheet({ open, nodes, node, onClose, onConfirm }
       const targetKey = targetNodes.map((n) => n.id).join('|');
       if (!targetKey) return;
       setSelectedMap(initialMap);
-      setDate(todayISO());
-      setEndDate('');
+      // Replanning an item keeps its current timeframe (moved up to today if it already started in the past).
+      const only = targetNodes.length === 1 ? targetNodes[0] : null;
+      const keptStart = only?.startDate && only.startDate > todayISO() ? only.startDate : todayISO();
+      setDate(keptStart);
+      setEndDate(only?.endDate && only.endDate > keptStart ? only.endDate : '');
       setColor(targetNodes.length === 1 ? (targetNodes[0].color ?? null) : null);
     }
     // Open + node identity is enough; targetNodes is derived from nodes/node.
@@ -82,22 +84,31 @@ export default function StepSliceSheet({ open, nodes, node, onClose, onConfirm }
   };
 
   const isSingle = targetNodes.length === 1;
-  const effectiveEnd = isSingle && endDate > date ? endDate : '';
+  const effectiveEnd = endDate && endDate >= date ? endDate : '';
+
+  /** Today / Tomorrow set both the start and the end to that day. */
+  const pickDay = (iso: string) => {
+    setDate(iso);
+    setEndDate(iso);
+  };
+  const changeStart = (iso: string) => {
+    if (!iso) return;
+    setDate(iso);
+    if (endDate && endDate < iso) setEndDate(iso);
+  };
 
   const confirm = () => {
     if (targetNodes.some((n) => n.steps?.length && !selectedMap[n.id]?.size)) return;
-    if (isSingle) {
-      // The timeframe and color are saved on the item itself, the same place the pencil edits them.
-      const item = targetNodes[0];
-      const colorChanged = color !== null && !sameColor(color, item.color);
-      if (effectiveEnd || colorChanged) {
-        const chosenColor = color;
-        updateGoalNode(item.id, (current) => ({
-          ...current,
-          ...(effectiveEnd ? { startDate: date, endDate: effectiveEnd } : {}),
-          ...(colorChanged && chosenColor ? { color: chosenColor } : {}),
-        }));
-      }
+    // The timeframe (and color) is saved on the item itself. An empty End means a one-day task.
+    for (const item of targetNodes) {
+      const colorChanged = isSingle && color !== null && !sameColor(color, item.color);
+      const chosenColor = color;
+      updateGoalNode(item.id, (current) => ({
+        ...current,
+        startDate: date,
+        endDate: effectiveEnd || undefined,
+        ...(colorChanged && chosenColor ? { color: chosenColor } : {}),
+      }));
     }
     const plans: NodePlan[] = targetNodes.map((n) => {
       const steps = n.steps ?? [];
@@ -150,7 +161,7 @@ export default function StepSliceSheet({ open, nodes, node, onClose, onConfirm }
           <div className="flex items-center gap-1.5 p-1 bg-elevated border border-subtle rounded-xl">
             <button
               type="button"
-              onClick={() => setDate(todayISO())}
+              onClick={() => pickDay(todayISO())}
               className={`flex-1 h-8 rounded-lg text-[12px] font-bold transition-colors ${
                 date === todayISO()
                   ? 'bg-primary text-on-primary shadow-sm'
@@ -161,7 +172,7 @@ export default function StepSliceSheet({ open, nodes, node, onClose, onConfirm }
             </button>
             <button
               type="button"
-              onClick={() => setDate(tomorrowISO())}
+              onClick={() => pickDay(tomorrowISO())}
               className={`flex-1 h-8 rounded-lg text-[12px] font-bold transition-colors ${
                 date === tomorrowISO()
                   ? 'bg-primary text-on-primary shadow-sm'
@@ -170,68 +181,45 @@ export default function StepSliceSheet({ open, nodes, node, onClose, onConfirm }
             >
               Tomorrow
             </button>
-            <div className="w-px h-4 bg-border mx-0.5 shrink-0" />
-            <label className={`relative flex items-center justify-center w-8 h-8 rounded-lg cursor-pointer transition-colors shrink-0 ${
-              date !== todayISO() && date !== tomorrowISO()
-                ? 'bg-primary text-on-primary shadow-sm'
-                : 'text-content-secondary hover:text-content-primary hover:bg-surface'
-            }`}>
-              <Calendar size={15} />
+          </div>
+
+          <div className="flex gap-2">
+            <div className="flex-1 min-w-0 flex flex-col gap-1">
+              <label htmlFor="plan-start" className="px-1 text-[10px] font-bold uppercase tracking-wider text-content-muted">
+                Start
+              </label>
               <input
+                id="plan-start"
                 type="date"
                 value={date}
-                onChange={(e) => {
-                  if (e.target.value) setDate(e.target.value);
-                }}
-                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                onChange={(e) => changeStart(e.target.value)}
+                className="w-full h-10 px-2.5 bg-elevated border border-subtle rounded-xl text-[13px] font-medium text-content-primary outline-none focus:border-primary transition-colors"
               />
-            </label>
-          </div>
-          
-          {date !== todayISO() && date !== tomorrowISO() && (
-            <div className="text-[12px] font-semibold text-center text-primary bg-primary-soft/40 rounded-lg py-2 border border-primary/20">
-              Selected: {(() => {
-                const parts = date.split('-');
-                if (parts.length === 3) {
-                  return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]))
-                    .toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
-                }
-                return date;
-              })()}
             </div>
-          )}
-
-          {isSingle && (
-            <div className="flex flex-col gap-1.5">
-              <div className="flex items-center justify-between gap-3">
-                <label htmlFor="plan-until" className="text-[10px] font-bold uppercase tracking-wider text-content-muted">
-                  Until (optional)
+            <div className="flex-1 min-w-0 flex flex-col gap-1">
+              <div className="flex items-center justify-between px-1">
+                <label htmlFor="plan-end" className="text-[10px] font-bold uppercase tracking-wider text-content-muted">
+                  End (optional)
                 </label>
-                <div className="flex items-center gap-2 min-w-0">
-                  <input
-                    id="plan-until"
-                    type="date"
-                    min={date}
-                    value={effectiveEnd}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="h-9 px-2.5 bg-elevated border border-subtle rounded-xl text-[12.5px] font-medium text-content-primary outline-none focus:border-primary transition-colors"
-                  />
-                  {effectiveEnd && (
-                    <button type="button" onClick={() => setEndDate('')} className="text-[11px] font-bold text-content-secondary">
-                      Clear
-                    </button>
-                  )}
-                </div>
+                {effectiveEnd && (
+                  <button type="button" onClick={() => setEndDate('')} className="text-[10px] font-bold uppercase text-content-secondary">
+                    Clear
+                  </button>
+                )}
               </div>
-              {(targetNodes[0].startDate || targetNodes[0].endDate) && (
-                <p className="text-[11px] text-content-muted leading-snug">
-                  Now set to {formatDDMMYYYY(targetNodes[0].startDate ?? targetNodes[0].endDate)}
-                  {targetNodes[0].startDate && targetNodes[0].endDate ? ` – ${formatDDMMYYYY(targetNodes[0].endDate)}` : ''}.
-                  Choosing an end date here replaces it.
-                </p>
-              )}
+              <input
+                id="plan-end"
+                type="date"
+                min={date}
+                value={effectiveEnd}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full h-10 px-2.5 bg-elevated border border-subtle rounded-xl text-[13px] font-medium text-content-primary outline-none focus:border-primary transition-colors"
+              />
             </div>
-          )}
+          </div>
+          <p className="text-[11px] text-content-muted leading-snug px-1">
+            Leave End empty for a one-day task.
+          </p>
         </div>
 
         {isSingle && <EventColorPicker value={color} onChange={setColor} label="Calendar color" />}

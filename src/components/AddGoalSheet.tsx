@@ -6,6 +6,7 @@ import type { GoalNode } from '../types';
 import { uid } from '../store';
 import Overlay from './Overlay';
 import StepListEditor, { MAX_STEPS } from './StepListEditor';
+import EventColorPicker from './EventColorPicker';
 
 interface Props {
   open: boolean;
@@ -27,6 +28,7 @@ export default function AddGoalSheet({
   const [endDate, setEndDate] = useState('');
   const [steps, setSteps] = useState<string[]>(['']);
   const [showChecklist, setShowChecklist] = useState(false);
+  const [color, setColor] = useState<string | null>(null);
   const titleRef = useRef<HTMLInputElement>(null);
 
   const isEditing = !!editing;
@@ -50,6 +52,7 @@ export default function AddGoalSheet({
       setSteps(['']);
       setShowChecklist(false);
     }
+    setColor(null);
     // Keyboard opens automatically only when ADDING; editing an existing item waits for a tap.
     if (editing) return;
     const t = setTimeout(() => titleRef.current?.focus(), 120);
@@ -68,8 +71,9 @@ export default function AddGoalSheet({
         ...n,
         title: title.trim(),
         description: description.trim() || undefined,
-        startDate: startDate || undefined,
-        endDate: endDate || undefined,
+        // Lowest-level items get their dates from the Plan button, so the pencil leaves them alone.
+        startDate: isWorkItem ? n.startDate : startDate || undefined,
+        endDate: isWorkItem ? n.endDate : endDate || undefined,
         steps: isWorkItem ? cleanSteps : n.steps,
         stepDone: isWorkItem ? newStepDone : n.stepDone,
         completed: isWorkItem && cleanSteps.length > 0 ? newStepDone.every(Boolean) : n.completed,
@@ -80,8 +84,10 @@ export default function AddGoalSheet({
         kind: parentId ? 'node' : 'goal',
         title: title.trim(),
         description: description.trim() || undefined,
-        startDate: startDate || undefined,
-        endDate: endDate || undefined,
+        // New items start undated; dates come from the Plan button (goals and branches keep date fields).
+        startDate: isWorkItem ? undefined : startDate || undefined,
+        endDate: isWorkItem ? undefined : endDate || undefined,
+        ...(parentId && color ? { color } : {}),
         steps: parentId ? cleanSteps : undefined,
         stepDone: parentId ? cleanSteps.map(() => false) : undefined,
         completed: false,
@@ -133,8 +139,8 @@ export default function AddGoalSheet({
             />
           </div>
 
-          {/* Dates Card */}
-          <div className="bg-surface border border-subtle rounded-2xl overflow-hidden shadow-sm flex divide-x divide-subtle">
+          {/* Dates Card (not for lowest-level items: they are dated with the Plan button) */}
+          {!isWorkItem && <div className="bg-surface border border-subtle rounded-2xl overflow-hidden shadow-sm flex divide-x divide-subtle">
             <div className="flex-1 p-2">
               <label className="px-1.5 text-[10px] font-bold uppercase tracking-wider text-content-muted block mb-1.5">Start date</label>
               <input
@@ -153,7 +159,10 @@ export default function AddGoalSheet({
                 className="w-full h-10 px-2.5 bg-elevated border border-subtle rounded-xl text-[13px] font-medium text-content-primary outline-none focus:border-primary transition-colors"
               />
             </div>
-          </div>
+          </div>}
+
+          {/* Color for a new item on the calendar */}
+          {!isEditing && parentId && <EventColorPicker value={color} onChange={setColor} label="Calendar color" />}
 
           {/* Checklist */}
           {isWorkItem && (

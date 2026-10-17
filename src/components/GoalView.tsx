@@ -145,7 +145,7 @@ function nodeMeta(node: GoalNode): { icon: typeof Target; tint: string; label: s
 }
 
 export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddChild, onEditNode, onPushNode, onUnplan, onCopy, onSelectionChange, clearSelectionRef, onNavigateToPath, onOpenStudio, onOpenDescription, onJumpToNode }: Props) {
-  const { goals, tasks, toggleGoalStep, togglePin, reorderGoalNodes, toggleNodeCompletion } = useStore();
+  const { goals, tasks, toggleGoalStep, togglePin, reorderGoalNodes, toggleNodeCompletion, updateGoalNode } = useStore();
   const [{ legacyStyle }] = useUiPrefs();
   const { activeSession } = useSessionStore();
   const runningTask = tasks.find((task) => task.id === activeSession?.taskId);
@@ -844,6 +844,9 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
           // Completed today-slices stay on the calendar, but Goals should offer Schedule
           // for remaining micro-steps — not look like open work for today.
           const isActivelyScheduled = !!linkedTask && !isBacklogged && !isTaskComplete(linkedTask);
+          // An item that already has dates (set when it was created or copied) counts as planned too:
+          // it offers Replan / Unplan, never a plain Plan.
+          const isDated = isWorkItem && !isActivelyScheduled && !isBacklogged && Boolean(child.startDate || child.endDate);
           const nextItem = isEndpoint ? null : nextOpenItem(child);
           const showActions = isWorkItem && !isDone && selected.size === 0;
           const locked = !!runningTask && goalBranchContainsTask(child, runningTask);
@@ -983,7 +986,7 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                   {child.pinned && <Star size={13} className="goal-row-inline-icon fill-primary text-primary" aria-label="Pinned" />}
                   {showActions && (
                     <div className="goal-row-actions">
-                      {isActivelyScheduled ? (
+                      {isActivelyScheduled || isDated ? (
                         <>
                           <button
                             type="button"
@@ -1000,7 +1003,8 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (child.todayTaskId) onUnplan(child.todayTaskId);
+                              if (isActivelyScheduled && child.todayTaskId) onUnplan(child.todayTaskId);
+                              else updateGoalNode(child.id, (n) => ({ ...n, startDate: undefined, endDate: undefined }));
                             }}
                             className="goal-row-btn is-danger"
                             title="Unschedule"
