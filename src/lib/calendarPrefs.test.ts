@@ -24,8 +24,14 @@ describe('calendar default view', () => {
     expect(normalizeCalendarView('agenda')).toBe('agenda');
     expect(normalizeCalendarView('week')).toBe('week');
     expect(normalizeCalendarView('month')).toBe('month');
-    expect(normalizeCalendarView('year')).toBe('month');
+    expect(normalizeCalendarView('year')).toBe('year');
+    expect(normalizeCalendarView('day')).toBe('month');
     expect(normalizeCalendarView(undefined)).toBe('month');
+  });
+
+  it('reads Year as the saved choice', () => {
+    stubStorage({ [CALENDAR_DEFAULT_VIEW_KEY]: JSON.stringify('year') });
+    expect(readCalendarDefaultView()).toBe('year');
   });
 
   it('defaults to Month when nothing is saved', () => {

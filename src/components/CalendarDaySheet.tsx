@@ -1,6 +1,7 @@
 import { MapPin, Plus } from 'lucide-react';
 import Overlay from './Overlay';
 import PlannedTaskCard from './PlannedTaskCard';
+import OriginChip from './OriginChip';
 import type { Task, TaskSession } from '../types';
 import { eventTimeLabel, type DeviceCalendarEvent } from '../lib/deviceCalendar';
 import { daysBetweenLocalISO } from '../lib/dates';
@@ -23,6 +24,10 @@ interface Props {
   stepStatesFor: (task: Task) => boolean[];
   /** goal name plus the last two branches the task sits in; empty for a quick task */
   originNamesFor: (task: Task) => string[];
+  /** goal name plus the last two branches for an event YouDo made for a goal item; empty for a plain phone event */
+  originNamesForEvent: (event: DeviceCalendarEvent) => string[];
+  /** the goal item an event was made for, or null for a plain phone event */
+  goalNodeIdForEvent: (event: DeviceCalendarEvent) => string | null;
   onToggleDone: (taskId: string, done: boolean) => void;
   onToggleStep: (taskId: string, stepIndex: number) => void;
   /** delete a quick task, or take a goal item's task off the plan */
@@ -55,6 +60,8 @@ export default function CalendarDaySheet({
   sessionHistory,
   stepStatesFor,
   originNamesFor,
+  originNamesForEvent,
+  goalNodeIdForEvent,
   onToggleDone,
   onToggleStep,
   onDeleteTask,
@@ -101,7 +108,11 @@ export default function CalendarDaySheet({
                   <div className={emptyClass}>Nothing on your calendar for this day.</div>
                 ) : (
                   <ul className="space-y-2">
-                    {events.map((ev) => (
+                    {events.map((ev) => {
+                      // Only events YouDo made for a goal item have a place in the goal tree; plain phone events show none.
+                      const originNames = originNamesForEvent(ev);
+                      const goalNodeId = originNames.length > 0 ? goalNodeIdForEvent(ev) : null;
+                      return (
                       <li key={ev.key}>
                         <button
                           type="button"
@@ -111,6 +122,11 @@ export default function CalendarDaySheet({
                         >
                           <span className="w-1 self-stretch rounded-full shrink-0" style={{ backgroundColor: ev.color }} aria-hidden />
                           <div className="min-w-0 flex-1">
+                            {originNames.length > 0 && (
+                              <div className="mb-1.5">
+                                <OriginChip names={originNames} onClick={goalNodeId ? () => onJumpToGoal(goalNodeId) : undefined} />
+                              </div>
+                            )}
                             <p className="text-[14px] font-bold text-content-primary leading-snug">{ev.title || '(No title)'}</p>
                             <p className="text-[11.5px] text-content-secondary mt-0.5 tabular-nums">{eventTimeLabel(ev, date)}</p>
                             {ev.location && (
@@ -125,7 +141,8 @@ export default function CalendarDaySheet({
                           </span>
                         </button>
                       </li>
-                    ))}
+                      );
+                    })}
                   </ul>
                 )
               ) : (

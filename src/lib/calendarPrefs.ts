@@ -1,12 +1,13 @@
 import { readStorageRaw } from './storageKeys';
 
-/** The ways the Calendar tab can be laid out. Year joins this list when that view is built. */
-export type CalendarViewMode = 'month' | 'week' | 'agenda';
+/** The ways the Calendar tab can be laid out. */
+export type CalendarViewMode = 'month' | 'week' | 'agenda' | 'year';
 
 export const CALENDAR_VIEW_OPTIONS: { id: CalendarViewMode; label: string }[] = [
   { id: 'month', label: 'Month' },
   { id: 'week', label: 'Week' },
   { id: 'agenda', label: 'Agenda' },
+  { id: 'year', label: 'Year' },
 ];
 
 /** Which view the Calendar tab opens in. Saved on this device only, like the other look-and-feel choices. */

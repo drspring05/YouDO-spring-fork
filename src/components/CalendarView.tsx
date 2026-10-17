@@ -10,7 +10,7 @@ import { findGoal, localISODate, pathTitles, useStore, isOpenBacklogTask } from 
 import { taskStepStates } from '../lib/goalTree';
 import { originChipNames } from '../lib/plannedWork';
 import { useDeviceCalendar } from '../hooks/useDeviceCalendar';
-import { notifyCalendarChanged } from '../hooks/useTaskCalendarSync';
+import { CALENDAR_CHANGED_EVENT, notifyCalendarChanged } from '../hooks/useTaskCalendarSync';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import CalendarEventSheet from './CalendarEventSheet';
 import CalendarDaySheet from './CalendarDaySheet';
@@ -19,6 +19,10 @@ import { shiftLocalISO } from '../lib/dates';
 import { WEEK_NOTES_KEY, normalizeWeekNotes, weekDaysOf, weekRangeLabel, weekStartOf, withWeekNote } from '../lib/weekView';
 import { eventTimeLabel, groupDeviceEventsByDay, type DeviceCalendarEvent } from '../lib/deviceCalendar';
 import { chunkWeeks, layoutWeek, MAX_BAR_LANES, monthGridDays, readableTextColor } from '../lib/monthLayout';
+import { innerEdges, mergedBlocksForWeek, mergedTint } from '../lib/monthMerge';
+import { yearEndDay, yearStartDay } from '../lib/yearView';
+import { readGoalLinks } from '../lib/goalCalendar';
+import YearView from './YearView';
 import { CALENDAR_VIEW_OPTIONS, readCalendarDefaultView, type CalendarViewMode } from '../lib/calendarPrefs';
 import { formatDuration } from '../lib/format';
 import { buildSessionSummary, isCountableSession, sessionOverlapsLocalDate } from '../lib/sessionStats';
@@ -46,11 +50,34 @@ interface MonthWeekRowProps {
 /** One week of the month grid: tappable day cells underneath, date numbers and colored event bars on top. */
 function MonthWeekRow({ days, events, month, todayStr, selectedDate, tasksByDate, onSelect }: MonthWeekRowProps) {
   const layout = useMemo(() => layoutWeek(days, events), [days, events]);
+  // Events of two or more days join their day cells into one tinted block (the longest event sets the tint).
+  const blocks = useMemo(() => mergedBlocksForWeek(days, events), [days, events]);
+  const mergedEdges = useMemo(() => innerEdges(blocks, days.length), [blocks, days.length]);
 
   return (
     <div className="relative border-t border-subtle first:border-t-0">
+      {blocks.length > 0 && (
+        <div className="absolute inset-0 grid grid-cols-7 pointer-events-none" aria-hidden>
+          {blocks.map((block) => {
+            const left = block.continuesBefore ? 0 : 7;
+            const right = block.continuesAfter ? 0 : 7;
+            return (
+              <div
+                key={`${block.event.key}:${block.startCol}`}
+                style={{
+                  gridColumn: `${block.startCol + 1} / ${block.endCol + 2}`,
+                  gridRow: 1,
+                  backgroundColor: mergedTint(block.event.color),
+                  margin: `1px ${block.continuesAfter ? 0 : 1}px 1px ${block.continuesBefore ? 0 : 1}px`,
+                  borderRadius: `${left}px ${right}px ${right}px ${left}px`,
+                }}
+              />
+            );
+          })}
+        </div>
+      )}
       <div className="absolute inset-0 grid grid-cols-7">
-        {days.map((date) => {
+        {days.map((date, col) => {
           const count = events.filter((ev) => ev.startDay <= date && ev.endDay >= date).length;
           const fullDate = new Date(date + 'T12:00:00').toLocaleDateString(undefined, { dateStyle: 'full' });
           return (
@@ -60,7 +87,7 @@ function MonthWeekRow({ days, events, month, todayStr, selectedDate, tasksByDate
               aria-pressed={date === selectedDate}
               aria-label={count > 0 ? `${fullDate}, ${count} calendar ${count === 1 ? 'event' : 'events'}` : fullDate}
               onClick={() => onSelect(date)}
-              className={`border-r border-subtle last:border-r-0 transition-colors ${date === selectedDate ? 'bg-primary-soft' : ''}`}
+              className={`${mergedEdges[col] ? '' : 'border-r border-subtle'} last:border-r-0 transition-colors ${date === selectedDate ? 'bg-primary-soft' : ''}`}
             />
           );
         })}
@@ -140,6 +167,19 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
   const todayStr = useLocalDay();
   const [selectedDate, setSelectedDate] = useState<string | null>(todayStr);
   const [view, setView] = useState<CalendarViewMode>(readCalendarDefaultView);
+  /** The year the Year view shows. */
+  const [yearCursor, setYearCursor] = useState(() => new Date().getFullYear());
+  /** Which phone events YouDo made for goal items (event id → goal item), for the location chip in the leaflet. */
+  const [goalLinks, setGoalLinks] = useState(readGoalLinks);
+  useEffect(() => {
+    const reload = () => setGoalLinks(readGoalLinks());
+    window.addEventListener(CALENDAR_CHANGED_EVENT, reload);
+    window.addEventListener('focus', reload);
+    return () => {
+      window.removeEventListener(CALENDAR_CHANGED_EVENT, reload);
+      window.removeEventListener('focus', reload);
+    };
+  }, []);
   const [storedWeekNotes, setStoredWeekNotes] = useLocalStorage<Record<string, string>>(WEEK_NOTES_KEY, {});
   const weekNotes = useMemo(() => normalizeWeekNotes(storedWeekNotes), [storedWeekNotes]);
   const agendaRef = useRef<HTMLDivElement>(null);
@@ -228,8 +268,11 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
   const weeks = useMemo(() => chunkWeeks(gridDays), [gridDays]);
   const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
 
-  // Phone calendar events for everything the grid shows.
-  const deviceCalendar = useDeviceCalendar(gridDays[0], gridDays[gridDays.length - 1]);
+  // Phone calendar events for everything on screen: the month grid, or the whole year in the Year view.
+  const deviceCalendar = useDeviceCalendar(
+    view === 'year' ? yearStartDay(yearCursor) : gridDays[0],
+    view === 'year' ? yearEndDay(yearCursor) : gridDays[gridDays.length - 1],
+  );
   // An event a task created is shown through that task, so it is not listed a second time as a bar.
   const eventsByDay = useMemo(() => {
     const linked = new Set(tasks.flatMap((task) => (task.calendarEventId ? [task.calendarEventId] : [])));
@@ -238,6 +281,30 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
 
   const prevMonth = () => setCursor(new Date(year, month - 1, 1));
   const nextMonth = () => setCursor(new Date(year, month + 1, 1));
+  const stepYear = (direction: -1 | 1) => setYearCursor((current) => current + direction);
+  /** A month (or a day) tapped in the Year view opens in the Month view. */
+  const openMonthFromYear = (targetYear: number, targetMonth: number) => {
+    setCursor(new Date(targetYear, targetMonth, 1));
+    setView('month');
+  };
+
+  /** Goal item an event was made for, if YouDo made it (plain phone events return null). */
+  const goalNodeIdForEvent = (event: DeviceCalendarEvent): string | null => {
+    for (const [nodeId, link] of Object.entries(goalLinks)) {
+      if (!link.removed && link.eventId === event.id) return nodeId;
+    }
+    return null;
+  };
+  /** Goal name plus the last two branches above the item the event belongs to; empty for a plain event. */
+  const originNamesForEvent = (event: DeviceCalendarEvent): string[] => {
+    const nodeId = goalNodeIdForEvent(event);
+    if (!nodeId) return [];
+    for (const root of goals) {
+      const titles = pathTitles(root, nodeId);
+      if (titles.length) return originChipNames(titles.slice(0, -1));
+    }
+    return [];
+  };
 
   // The Week view shows the week that holds the selected day; stepping a week moves the selection by seven days.
   const weekAnchor = selectedDate ?? todayStr;
@@ -258,8 +325,12 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
     setSelectedDate(date);
     const parsed = new Date(date + 'T12:00:00');
     setCursor(new Date(parsed.getFullYear(), parsed.getMonth(), 1));
+    setYearCursor(parsed.getFullYear());
   };
-  const showTodayButton = selectedDate !== todayStr || monthKey !== todayStr.slice(0, 7);
+  const showTodayButton =
+    selectedDate !== todayStr ||
+    monthKey !== todayStr.slice(0, 7) ||
+    (view === 'year' && yearCursor !== Number(todayStr.slice(0, 4)));
   /** Tapping a day in the Month or Week view selects it and opens its leaflet. */
   const openDay = (date: string) => {
     selectDay(date);
@@ -286,6 +357,7 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
     if (Math.abs(dx) < 56 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
     hapticTick();
     if (view === 'week') stepWeek(dx < 0 ? 1 : -1);
+    else if (view === 'year') stepYear(dx < 0 ? 1 : -1);
     else if (dx < 0) nextMonth();
     else prevMonth();
   };
@@ -391,8 +463,11 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
               type="button"
               role="tab"
               aria-selected={view === mode}
-              onClick={() => setView(mode)}
-              className={`px-3.5 h-8 rounded-[10px] text-[12px] font-semibold transition-colors ${
+              onClick={() => {
+                if (mode === 'year') setYearCursor(year);
+                setView(mode);
+              }}
+              className={`px-3 h-8 rounded-[10px] text-[12px] font-semibold transition-colors ${
                 view === mode ? 'bg-primary text-on-primary' : 'text-content-secondary'
               }`}
             >
@@ -413,11 +488,11 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
 
       {/* Month / week navigation */}
       <div className="flex items-center justify-between">
-        <button type="button" aria-label={view === 'week' ? 'Previous week' : 'Previous month'} onClick={view === 'week' ? () => stepWeek(-1) : prevMonth} className="p-2 rounded-lg text-content-secondary hover:text-content-primary hover:bg-surface transition-colors">
+        <button type="button" aria-label={view === 'week' ? 'Previous week' : view === 'year' ? 'Previous year' : 'Previous month'} onClick={view === 'week' ? () => stepWeek(-1) : view === 'year' ? () => stepYear(-1) : prevMonth} className="p-2 rounded-lg text-content-secondary hover:text-content-primary hover:bg-surface transition-colors">
           <ChevronLeft size={18} />
         </button>
-        <h2 className="text-base font-bold text-content-primary">{view === 'week' ? weekLabel : monthName}</h2>
-        <button type="button" aria-label={view === 'week' ? 'Next week' : 'Next month'} onClick={view === 'week' ? () => stepWeek(1) : nextMonth} className="p-2 rounded-lg text-content-secondary hover:text-content-primary hover:bg-surface transition-colors">
+        <h2 className="text-base font-bold text-content-primary">{view === 'week' ? weekLabel : view === 'year' ? yearCursor : monthName}</h2>
+        <button type="button" aria-label={view === 'week' ? 'Next week' : view === 'year' ? 'Next year' : 'Next month'} onClick={view === 'week' ? () => stepWeek(1) : view === 'year' ? () => stepYear(1) : nextMonth} className="p-2 rounded-lg text-content-secondary hover:text-content-primary hover:bg-surface transition-colors">
           <ChevronRight size={18} />
         </button>
       </div>
@@ -445,6 +520,19 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
               onSelect={openDay}
             />
           ))}
+        </div>
+      ) : view === 'year' ? (
+        <div className="no-swipe" onTouchStart={onGridTouchStart} onTouchEnd={onGridTouchEnd}>
+          <YearView
+            year={yearCursor}
+            todayStr={todayStr}
+            events={deviceCalendar.events}
+            onOpenMonth={openMonthFromYear}
+            onOpenDay={(date) => {
+              selectDay(date);
+              setView('month');
+            }}
+          />
         </div>
       ) : view === 'week' ? (
         <div className="no-swipe" onTouchStart={onGridTouchStart} onTouchEnd={onGridTouchEnd}>
@@ -544,6 +632,8 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
           sessionHistory={sessionHistory}
           stepStatesFor={stepStatesFor}
           originNamesFor={originNamesFor}
+          originNamesForEvent={originNamesForEvent}
+          goalNodeIdForEvent={goalNodeIdForEvent}
           onToggleDone={setTaskDone}
           onToggleStep={toggleTaskStep}
           onDeleteTask={(task) => (task.goalNodeId ? unlinkTask(task.id) : removeTask(task.id))}
