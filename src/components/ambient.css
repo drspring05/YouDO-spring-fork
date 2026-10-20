@@ -30,27 +30,23 @@
   color: #8e8e93;
   font-variant-numeric: tabular-nums;
 }
+/* Apple-style digits: heavy, rounded, one line (StandBy, the iPhone timer). Nunito
+   is a free stand-in for SF Pro Rounded, which cannot ship in the app. */
 .ambient-digits {
-  font-family: ui-rounded, 'SF Pro Rounded', 'Nunito', system-ui, sans-serif;
-  font-weight: 600;
-  line-height: 0.9;
-  letter-spacing: -0.02em;
+  font-family: 'Nunito Variable', ui-rounded, 'SF Pro Rounded', system-ui, sans-serif;
+  font-weight: 800;
+  /* About 90% of the width: 39:58 is ~2.3em wide, 1:39:58 ~3.3em. */
+  font-size: min(36vw, 52vh);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  letter-spacing: -0.035em;
+  white-space: nowrap;
   text-align: center;
   color: var(--primary);
-  font-variant-numeric: tabular-nums;
   transition: opacity 0.4s ease;
 }
-.ambient-digits-line { display: block; font-size: min(30vw, 58vh); }
-.ambient-digits-stack { display: none; }
-@media (orientation: portrait) {
-  .ambient-digits-line { display: none; }
-  .ambient-digits-stack { display: flex; flex-direction: column; font-size: min(44vw, 30vh); }
-}
-/* Past an hour the timer gets wider (01:32:17), so it steps down a size. */
-.ambient-digits.has-hours .ambient-digits-line { font-size: min(19vw, 50vh); }
-@media (orientation: portrait) {
-  .ambient-digits.has-hours .ambient-digits-stack { font-size: min(27vw, 24vh); }
-}
+/* Past an hour the timer is longer (1:39:58), so it steps down a size. */
+.ambient-digits.has-hours { font-size: min(26vw, 50vh); }
 .ambient-screen.is-paused .ambient-digits { opacity: 0.4; }
 .ambient-task {
   display: flex;

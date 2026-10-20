@@ -1,5 +1,14 @@
 import { STORAGE_KEYS } from './storageKeys';
 
+/** The ambient timer, Apple style: no leading zero (9:58, 39:58, 1:39:58). */
+export function formatAmbientTimer(totalSeconds: number): string {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = String(s % 60).padStart(2, '0');
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
+}
+
 /** Night mode turns on by itself from 21:00 to 06:00. */
 export function isNightHour(hour: number): boolean {
   return hour >= 21 || hour < 6;

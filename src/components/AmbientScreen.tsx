@@ -4,10 +4,10 @@ import { KeepAwake } from '@capacitor-community/keep-awake';
 import type { ActiveSession, Task } from '../types';
 import Overlay from './Overlay';
 import OriginChip from './OriginChip';
-import { formatElapsed } from '../lib/format';
 import { computeNetFocusMs } from '../lib/sessionStats';
 import { sessionClockLabel } from '../lib/sessionClock';
-import { ambientDrift, isNightHour } from '../lib/ambient';
+import { ambientDrift, formatAmbientTimer, isNightHour } from '../lib/ambient';
+import '@fontsource-variable/nunito';
 import './ambient.css';
 
 function formatPauseDuration(ms: number) {
@@ -97,10 +97,7 @@ export function AmbientScreen({
   }, [showControls]);
 
   const night = nightOverride ?? isNightHour(now.getHours());
-  const parts = formatElapsed(elapsed).split(':');
-  // Portrait stacks the last part under the rest: "24" over "18", or "1:24" over "18".
-  const head = parts.slice(0, -1).join(':');
-  const tail = parts[parts.length - 1];
+  const timer = formatAmbientTimer(elapsed);
   const clock = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   const paused = activeSession.isPaused;
 
@@ -129,12 +126,9 @@ export function AmbientScreen({
             </span>
           </div>
 
-          <div className={`ambient-digits ${parts.length > 2 ? 'has-hours' : ''}`} aria-live="off" aria-label={`Focused ${formatElapsed(elapsed)}`}>
-            <span className="ambient-digits-line">{formatElapsed(elapsed)}</span>
-            <span className="ambient-digits-stack" aria-hidden>
-              <span>{head}</span>
-              <span>{tail}</span>
-            </span>
+          {/* One line, like StandBy and the iPhone timer: 9:58, 39:58, 1:39:58. */}
+          <div className={`ambient-digits ${elapsed >= 3600 ? 'has-hours' : ''}`} aria-live="off" aria-label={`Focused ${timer}`}>
+            {timer}
           </div>
 
           <div className="ambient-task">
