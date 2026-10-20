@@ -17,6 +17,13 @@ Guidance: keep 3–6 short, user-facing bullets. Group related small fixes under
 
 ---
 
+## [v8.1.1] - 2026-10-20 - Private Hub Fix
+
+- **Private Hub opens once** — Opening the Private Hub no longer reloads it again and again while the app signs you back in.
+- **Android APK** — versionName **8.1.1**, versionCode **81**. Installs over v8.1.0 (80).
+
+---
+
 ## [v8.1.0] - 2026-10-20 - Ambient Clock, Focus Sounds and Goal Sharing
 
 - **Ambient clock** — Turn your phone sideways during a session (or tap Ambient on the task card) for a full-screen clock in big, soft accent-coloured digits on true black. Tap for pause, stop and sounds. The digits drift and dim gently over time to protect OLED screens from burn-in.
