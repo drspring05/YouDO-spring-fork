@@ -581,24 +581,12 @@ button {
   touch-action: none;
 }
 
-.briefing-slider-knob--snap {
-  transition: transform 520ms cubic-bezier(0.22, 1.25, 0.36, 1);
-}
-
 .briefing-slider-knob--drag {
   cursor: grabbing;
 }
 
-.briefing-slider-knob--done {
-  transition: transform 420ms cubic-bezier(0.22, 1.2, 0.36, 1);
-}
-
-.briefing-slider-fill--snap {
-  transition: width 520ms cubic-bezier(0.22, 1.25, 0.36, 1), opacity 320ms ease;
-}
-
 .briefing-slider-label {
-  transition: color 220ms ease, opacity 180ms ease, text-shadow 220ms ease;
+  transition: color 220ms ease;
 }
 
 .briefing-slider-sheen {
@@ -632,10 +620,6 @@ button {
 .briefing-sheet--exit {
   animation: briefing-sheet-exit 0.45s cubic-bezier(0.33, 1, 0.68, 1) forwards;
   pointer-events: none;
-}
-
-.briefing-slider--done {
-  animation: briefing-done-pulse 420ms ease-out;
 }
 
 @keyframes briefing-sheen {
@@ -677,34 +661,15 @@ button {
   }
 }
 
-@keyframes briefing-done-pulse {
-  0% {
-    transform: scale(1);
-  }
-  40% {
-    transform: scale(1.015);
-  }
-  100% {
-    transform: scale(1);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .briefing-slider-sheen,
   .briefing-slider-label--idle,
-  .briefing-slider--done,
   .briefing-sheet--exit {
     animation: none !important;
   }
 
   .briefing-sheet--exit {
     opacity: 0;
-  }
-
-  .briefing-slider-knob--snap,
-  .briefing-slider-knob--done,
-  .briefing-slider-fill--snap {
-    transition-duration: 160ms !important;
   }
 }
 

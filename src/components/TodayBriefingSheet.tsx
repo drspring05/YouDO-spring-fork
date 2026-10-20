@@ -1,14 +1,12 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { CalendarDays, Check, CheckCircle2, ListTodo, Flame, ChevronRight, Repeat } from 'lucide-react';
+import { CalendarDays, CheckCircle2, ListTodo, Flame, ChevronRight, Repeat } from 'lucide-react';
 import Overlay from './Overlay';
 import type { Task, TaskSession } from '../types';
 import { formatCountdownHm, formatDuration } from '../lib/format';
 import { isCountableSession, sessionOverlapsLocalDate } from '../lib/sessionStats';
 import { hapticTap, hapticTick } from '../lib/haptics';
 import { useReducedEffects } from '../hooks/useReducedEffects';
-import { useUiPrefs } from '../hooks/useUiPrefs';
-import { StretchModel, springStep, stepLift } from '../lib/liquidMotion';
-import { useLiquidLens } from '../lib/liquidLens';
+import { springStep } from '../lib/liquidMotion';
 import { localISODate, msUntilEndOfLocalISODate, shiftLocalISO } from '../lib/dates';
 import { useReviveTimeLeftSub } from '../hooks/useReviveCountdown';
 import type { StreakView } from '../lib/focusTrends';
@@ -25,34 +23,20 @@ interface Props {
   onDismiss: () => void;
 }
 
-/** Classic slide-to-unlock: must drag near the end, then release. */
+/*
+ * Slide to unlock, like the old iPhone: the knob stays under the finger (no
+ * lag, no jump where you grab it), the label fades as it moves, and let go
+ * early it glides home on a spring. Each frame only changes transform and
+ * opacity, so the phone never re-lays out or repaints while you drag.
+ */
 const UNLOCK_THRESHOLD = 0.88;
 const FLICK_VELOCITY = 0.0022; // progress units per ms
 const THUMB_W = 56;
 const THUMB_H = 36;
 const TRACK_PAD = 6;
 const TRACK_H = 48;
-/** How quickly the knob chases the finger, in s. */
-const FOLLOW_TAU = 0.045;
-
-/*
- * Liquid Glass on the knob (Settings → Appearance → Liquid Glass), the same
- * motion as the tab bar's pill: pressed, it lifts into a blue glass bubble
- * that stands past the track and bends the label under it; it stretches with
- * its speed; let go, it springs home and deflates with a little bounce.
- */
-/** How much taller than the track the lifted bubble stands, in px. */
-const BUBBLE_GROW = 6;
-const LIFT_STIFFNESS = 250;
-const LIFT_DAMPING_X = 19;
-const LIFT_DAMPING_Y = 22.1;
-const MATERIAL_STIFFNESS = 1000;
-const MATERIAL_DAMPING = 63.3;
-const RETURN_STIFFNESS = 180;
-const RETURN_DAMPING = 2 * 0.94 * Math.sqrt(RETURN_STIFFNESS);
-/** Depth of the bubble's refracting rim and how far it bends, in px. */
-const BUBBLE_LENS_RIM = 12;
-const BUBBLE_LENS_BEND = 12;
+const RETURN_STIFFNESS = 260;
+const RETURN_DAMPING = 2 * 0.9 * Math.sqrt(RETURN_STIFFNESS);
 
 function StatCard({
   icon,
@@ -137,41 +121,24 @@ export default function TodayBriefingSheet({
   onDismiss,
 }: Props) {
   const [reducedEffects] = useReducedEffects();
-  const [{ liquidGlass }] = useUiPrefs();
-  const bubbleOn = liquidGlass && !reducedEffects;
-  const bubbleOnRef = useRef(bubbleOn);
-  bubbleOnRef.current = bubbleOn;
-  const lens = useLiquidLens();
-  // SVG refraction is drawn on the CPU and re-runs every frame of a drag, which
-  // stutters on phones. Touch screens get a GPU blur glass with the same rim.
-  const [refract] = useState(() => typeof window !== 'undefined' && !window.matchMedia?.('(pointer: coarse)').matches);
-  const refractRef = useRef(refract);
-  const lensRef = useRef<HTMLSpanElement>(null);
-  const faceRef = useRef<HTMLSpanElement>(null);
-  /** The knob's springs: lift per axis, glass, the return home, and the speed stretch. */
-  const knob = useRef({
-    liftX: 0, liftXVel: 0, liftY: 0, liftYVel: 0, material: 0, materialVel: 0,
-    returning: false, returnTarget: 0, returnVel: 0,
-    stretch: new StretchModel(), last: -1,
-  });
   const trackRef = useRef<HTMLDivElement>(null);
   const knobRef = useRef<HTMLButtonElement>(null);
   const fillRef = useRef<HTMLDivElement>(null);
   const labelRef = useRef<HTMLParagraphElement>(null);
-  const dragging = useRef(false);
-  const confirmedRef = useRef(false);
+  const travelRef = useRef(1);
   const progressRef = useRef(0);
-  const targetProgressRef = useRef(0);
-  const rafRef = useRef(0);
-  const lastSampleRef = useRef<{ x: number; t: number; p: number } | null>(null);
+  const draggingRef = useRef(false);
+  const confirmedRef = useRef(false);
+  /** Where on the knob the finger landed, so the knob never jumps to centre under it. */
+  const grabOffsetRef = useRef(0);
+  const lastSampleRef = useRef<{ t: number; p: number } | null>(null);
   const velocityRef = useRef(0);
   const hapticBucketRef = useRef(0);
-  const [progress, setProgress] = useState(0);
+  const springRef = useRef({ target: 0, vel: 0, last: -1 });
+  const rafRef = useRef(0);
+  const [isDragging, setIsDragging] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [exiting, setExiting] = useState(false);
-  const [knobAnimating, setKnobAnimating] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const [trackWidth, setTrackWidth] = useState(280);
   const [now, setNow] = useState(() => Date.now());
 
   const todayStr = localISODate(new Date());
@@ -240,155 +207,73 @@ export default function TodayBriefingSheet({
     return 'Work in progress.';
   }, [startedToday, scheduledTotal, openBacklogCount, remainingToday]);
 
-  const maxTravel = Math.max(0, trackWidth - THUMB_W - TRACK_PAD * 2);
 
-  const paintSlider = useCallback((p: number) => {
-    const travel = Math.max(0, (trackRef.current?.clientWidth ?? trackWidth) - THUMB_W - TRACK_PAD * 2);
-    const glow = Math.min(1, p / UNLOCK_THRESHOLD);
-    const k = knob.current;
-    let sx: number;
-    let sy: number;
-    if (bubbleOnRef.current) {
-      const grow = (TRACK_H + BUBBLE_GROW) / THUMB_H - 1;
-      const stretch = k.stretch.current * Math.max(0, Math.min(1, k.material));
-      sx = (1 + grow * k.liftX) * (1 + stretch);
-      sy = (1 + grow * k.liftY) * (1 - stretch);
-    } else {
-      sx = sy = confirmedRef.current ? 1.04 : dragging.current ? 1.06 : 1;
-    }
+  const measure = useCallback(() => {
+    const width = trackRef.current?.clientWidth ?? 0;
+    travelRef.current = Math.max(1, width - THUMB_W - TRACK_PAD * 2);
+  }, []);
+
+  /** The only per-frame work: transform and opacity. */
+  const paint = useCallback((p: number) => {
+    const travel = travelRef.current;
+    const x = p * travel;
     if (knobRef.current) {
-      knobRef.current.style.transform = `translate3d(${(p * travel).toFixed(2)}px, -50%, 0) scale(${sx.toFixed(4)}, ${sy.toFixed(4)})`;
+      const scale = draggingRef.current ? 1.04 : 1;
+      knobRef.current.style.transform = `translate3d(${x.toFixed(2)}px, -50%, 0) scale(${scale})`;
     }
-    const material = bubbleOnRef.current ? Math.max(0, Math.min(1, k.material)) : 0;
-    if (faceRef.current) faceRef.current.style.opacity = String(1 - 0.8 * material);
-    if (lensRef.current) {
-      lensRef.current.style.opacity = material.toFixed(3);
-      lensRef.current.style.visibility = material > 0.002 ? 'visible' : 'hidden';
-    }
-    if (refractRef.current) lens.setBend(BUBBLE_LENS_BEND * material);
-    if (fillRef.current) {
-      fillRef.current.style.width = `${THUMB_W + TRACK_PAD + p * travel}px`;
-      fillRef.current.style.opacity = String(0.45 + glow * 0.55);
-    }
-    if (labelRef.current) {
-      labelRef.current.style.opacity = String(Math.max(0.18, 0.82 - p * 0.9 + glow * 0.1));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trackWidth]);
+    if (fillRef.current) fillRef.current.style.transform = `translate3d(${(x - travel).toFixed(2)}px, 0, 0)`;
+    if (labelRef.current) labelRef.current.style.opacity = String(Math.max(0, 1 - p * 1.6));
+    trackRef.current?.setAttribute('aria-valuenow', String(Math.round(p * 100)));
+  }, []);
 
-  /**
-   * One loop for the knob: it chases the finger while held, springs home
-   * when let go, and carries the bubble's lift, glass and stretch throughout.
-   */
-  const tick = useCallback((time: number) => {
-    const k = knob.current;
-    const now = time / 1000;
-    const dt = k.last < 0 ? 0 : Math.min(0.05, now - k.last);
-    k.last = now;
-    const travel = Math.max(1, (trackRef.current?.clientWidth ?? trackWidth) - THUMB_W - TRACK_PAD * 2);
+  const stopLoop = useCallback(() => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = 0;
+  }, []);
 
-    if (dragging.current && !confirmedRef.current) {
-      const target = targetProgressRef.current;
-      const next = progressRef.current + (target - progressRef.current) * (1 - Math.exp(-dt / FOLLOW_TAU));
-      progressRef.current = Math.abs(target - next) < 0.001 ? target : next;
-      const bucket = Math.floor(progressRef.current * 6);
-      if (bucket > hapticBucketRef.current && progressRef.current > 0.08) {
-        hapticBucketRef.current = bucket;
-        hapticTick();
-      }
-    } else if (k.returning) {
-      // Travel in px, so the spring feels the same on any width.
-      const [x, v] = springStep(progressRef.current * travel, k.returnVel * travel, k.returnTarget * travel, dt, RETURN_STIFFNESS, RETURN_DAMPING);
-      progressRef.current = Math.min(1, Math.max(0, x / travel));
-      k.returnVel = v / travel;
-      if (Math.abs(progressRef.current - k.returnTarget) < 0.0015 && Math.abs(k.returnVel) < 0.01) {
-        progressRef.current = k.returnTarget;
-        k.returning = false;
-        k.returnVel = 0;
-      }
-    }
-
-    const held = dragging.current && !confirmedRef.current && bubbleOnRef.current ? 1 : 0;
-    [k.liftX, k.liftXVel] = stepLift(k.liftX, k.liftXVel, held, dt, LIFT_STIFFNESS, LIFT_DAMPING_X);
-    [k.liftY, k.liftYVel] = stepLift(k.liftY, k.liftYVel, held, dt, LIFT_STIFFNESS, LIFT_DAMPING_Y);
-    [k.material, k.materialVel] = stepLift(k.material, k.materialVel, held, dt, MATERIAL_STIFFNESS, MATERIAL_DAMPING);
-    k.stretch.track(progressRef.current * travel, dt);
-    paintSlider(progressRef.current);
-
-    const settled =
-      !dragging.current && !k.returning && k.liftX === 0 && k.liftY === 0 && k.material === 0 &&
-      Math.abs(progressRef.current - targetProgressRef.current) < 0.001;
-    if (settled || (!dragging.current && !k.returning && !bubbleOnRef.current)) {
-      rafRef.current = 0;
-      k.last = -1;
-      k.stretch.reset();
-      setProgress(progressRef.current);
+  /** Glide to `target` (0 home, 1 the end), carrying the finger's speed. */
+  const springTo = useCallback((target: number, velocity: number) => {
+    stopLoop();
+    if (reducedEffects) {
+      progressRef.current = target;
+      paint(target);
       return;
     }
-    rafRef.current = requestAnimationFrame(tick);
-  }, [paintSlider, trackWidth]);
-
-  const run = useCallback(() => {
-    if (!rafRef.current) rafRef.current = requestAnimationFrame(tick);
-  }, [tick]);
-
-  const setKnobProgress = useCallback((next: number) => {
-    const clamped = Math.min(1, Math.max(0, next));
-    progressRef.current = clamped;
-    targetProgressRef.current = clamped;
-    knob.current.returning = false;
-    setProgress(clamped);
-    paintSlider(clamped);
-  }, [paintSlider]);
-
-  /** Let go short of the end, or confirmed at it: the knob springs there. */
-  const springTo = useCallback((target: number, velocity = 0) => {
-    const k = knob.current;
-    targetProgressRef.current = target;
-    k.returning = true;
-    k.returnTarget = target;
-    k.returnVel = velocity;
-    run();
-  }, [run]);
+    const s = springRef.current;
+    s.target = target;
+    s.vel = velocity;
+    s.last = -1;
+    const step = (time: number) => {
+      const now = time / 1000;
+      const dt = s.last < 0 ? 1 / 60 : Math.min(0.05, now - s.last);
+      s.last = now;
+      const travel = travelRef.current;
+      const [x, v] = springStep(progressRef.current * travel, s.vel * travel, s.target * travel, dt, RETURN_STIFFNESS, RETURN_DAMPING);
+      progressRef.current = Math.min(1, Math.max(0, x / travel));
+      s.vel = v / travel;
+      if (Math.abs(progressRef.current - s.target) < 0.001 && Math.abs(s.vel) < 0.01) {
+        progressRef.current = s.target;
+        paint(s.target);
+        rafRef.current = 0;
+        return;
+      }
+      paint(progressRef.current);
+      rafRef.current = requestAnimationFrame(step);
+    };
+    rafRef.current = requestAnimationFrame(step);
+  }, [paint, reducedEffects, stopLoop]);
 
   const finish = useCallback(() => {
     if (confirmedRef.current) return;
     confirmedRef.current = true;
-    dragging.current = false;
+    draggingRef.current = false;
     setIsDragging(false);
-    if (bubbleOnRef.current) {
-      springTo(1, knob.current.returnVel);
-    } else {
-      setKnobAnimating(true);
-      setKnobProgress(1);
-    }
     setConfirmed(true);
+    springTo(1, Math.max(velocityRef.current * 1000, 0));
     setExiting(true);
     hapticTap();
     window.setTimeout(() => onDismiss(), reducedEffects ? 0 : 200);
-  }, [onDismiss, setKnobProgress, springTo, reducedEffects]);
-
-  const resetSlider = useCallback(() => {
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    rafRef.current = 0;
-    confirmedRef.current = false;
-    dragging.current = false;
-    progressRef.current = 0;
-    targetProgressRef.current = 0;
-    velocityRef.current = 0;
-    hapticBucketRef.current = 0;
-    lastSampleRef.current = null;
-    Object.assign(knob.current, {
-      liftX: 0, liftXVel: 0, liftY: 0, liftYVel: 0, material: 0, materialVel: 0,
-      returning: false, returnTarget: 0, returnVel: 0, last: -1,
-    });
-    knob.current.stretch.reset();
-    setIsDragging(false);
-    setKnobAnimating(false);
-    setKnobProgress(0);
-    setConfirmed(false);
-    setExiting(false);
-  }, [setKnobProgress]);
+  }, [onDismiss, springTo, reducedEffects]);
 
   useEffect(() => {
     if (!exiting) return;
@@ -398,65 +283,79 @@ export default function TodayBriefingSheet({
     layer.style.opacity = '0';
   }, [exiting]);
 
+  // Home position every time the sheet opens; re-measure when the window resizes.
   useLayoutEffect(() => {
     if (!open) return;
-    const el = trackRef.current;
-    if (!el) return;
-    setTrackWidth(el.clientWidth);
-    lens.setSize(THUMB_W, THUMB_H, BUBBLE_LENS_RIM);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
-  useEffect(() => {
-    if (open) resetSlider();
-  }, [open, resetSlider]);
-
-  useEffect(() => {
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    stopLoop();
+    confirmedRef.current = false;
+    draggingRef.current = false;
+    progressRef.current = 0;
+    velocityRef.current = 0;
+    lastSampleRef.current = null;
+    setIsDragging(false);
+    setConfirmed(false);
+    setExiting(false);
+    measure();
+    paint(0);
+    const onResize = () => {
+      measure();
+      paint(progressRef.current);
     };
-  }, []);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [open, measure, paint, stopLoop]);
 
-  const progressFromClientX = (clientX: number) => {
-    const el = trackRef.current;
-    if (!el) return 0;
-    const rect = el.getBoundingClientRect();
-    const travel = Math.max(1, rect.width - THUMB_W - TRACK_PAD * 2);
-    return Math.min(1, Math.max(0, (clientX - rect.left - TRACK_PAD - THUMB_W / 2) / travel));
+  useEffect(() => stopLoop, [stopLoop]);
+
+  const progressAt = (clientX: number) => {
+    const rect = trackRef.current?.getBoundingClientRect();
+    if (!rect) return progressRef.current;
+    return Math.min(1, Math.max(0, (clientX - rect.left - TRACK_PAD - grabOffsetRef.current) / travelRef.current));
   };
 
-  const onPointerDown = (e: React.PointerEvent) => {
+  const onPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
     if (confirmedRef.current) return;
-    dragging.current = true;
+    stopLoop();
+    measure();
+    const rect = trackRef.current?.getBoundingClientRect();
+    grabOffsetRef.current = rect
+      ? e.clientX - rect.left - TRACK_PAD - progressRef.current * travelRef.current
+      : THUMB_W / 2;
+    draggingRef.current = true;
     setIsDragging(true);
-    setKnobAnimating(false);
     hapticTap();
     hapticBucketRef.current = 0;
-    knob.current.returning = false;
-    const p = progressFromClientX(e.clientX);
-    targetProgressRef.current = p;
-    lastSampleRef.current = { x: e.clientX, t: performance.now(), p };
     velocityRef.current = 0;
+    lastSampleRef.current = { t: performance.now(), p: progressRef.current };
     e.currentTarget.setPointerCapture(e.pointerId);
-    run();
+    paint(progressRef.current);
   };
 
-  const onPointerMove = (e: React.PointerEvent) => {
-    if (!dragging.current || confirmedRef.current) return;
-    const p = progressFromClientX(e.clientX);
+  const onPointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (!draggingRef.current || confirmedRef.current) return;
+    const p = progressAt(e.clientX);
     const now = performance.now();
     const prev = lastSampleRef.current;
-    if (prev && now > prev.t) {
-      velocityRef.current = (p - prev.p) / (now - prev.t);
+    if (prev && now > prev.t) velocityRef.current = (p - prev.p) / (now - prev.t);
+    lastSampleRef.current = { t: now, p };
+    progressRef.current = p;
+    const bucket = Math.floor(p * 6);
+    if (bucket > hapticBucketRef.current && p > 0.08) {
+      hapticBucketRef.current = bucket;
+      hapticTick();
     }
-    lastSampleRef.current = { x: e.clientX, t: now, p };
-    targetProgressRef.current = p;
-    run();
+    // At most one paint per frame, always with the latest finger position.
+    if (!rafRef.current) {
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = 0;
+        if (draggingRef.current) paint(progressRef.current);
+      });
+    }
   };
 
-  const onPointerUp = (e: React.PointerEvent) => {
-    if (!dragging.current) return;
-    dragging.current = false;
+  const onPointerUp = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (!draggingRef.current) return;
+    draggingRef.current = false;
     setIsDragging(false);
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
@@ -464,26 +363,17 @@ export default function TodayBriefingSheet({
       /* ignore */
     }
     if (confirmedRef.current) return;
-
-    const releaseProgress = Math.max(progressRef.current, progressFromClientX(e.clientX));
-    const flicked = velocityRef.current >= FLICK_VELOCITY && releaseProgress >= 0.55;
-    if (releaseProgress >= UNLOCK_THRESHOLD || flicked) {
-      knob.current.returnVel = velocityRef.current * 1000;
+    const p = progressRef.current;
+    const flicked = velocityRef.current >= FLICK_VELOCITY && p >= 0.55;
+    if (p >= UNLOCK_THRESHOLD || flicked) {
       finish();
       return;
     }
-    if (bubbleOnRef.current) {
-      // Home on a spring, carrying the finger's speed, deflating as it goes.
-      springTo(0, velocityRef.current * 1000);
-      return;
-    }
-    setKnobAnimating(true);
-    setKnobProgress(0);
+    springTo(0, Math.min(velocityRef.current * 1000, 0));
   };
 
   if (!open) return null;
 
-  const glow = confirmed ? 1 : Math.min(1, progress / UNLOCK_THRESHOLD);
 
   return (
     <Overlay open={open} scrim align="center">
@@ -567,29 +457,19 @@ export default function TodayBriefingSheet({
           )}
         </div>
 
+
         <div className="pt-3">
           <div
             ref={trackRef}
             className={`briefing-slider relative rounded-[999px] border select-none touch-none ${
-              confirmed
-                ? 'border-primary/50 briefing-slider--done'
-                : isDragging
-                  ? 'border-primary/35'
-                  : 'border-subtle'
+              isDragging || confirmed ? 'border-primary/35' : 'border-subtle'
             }`}
-            style={{
-              height: TRACK_H,
-              boxShadow: confirmed
-                ? '0 0 0 1px color-mix(in srgb, var(--primary) 30%, transparent), 0 8px 28px color-mix(in srgb, var(--primary) 18%, transparent)'
-                : isDragging
-                  ? '0 0 0 1px color-mix(in srgb, var(--primary) 18%, transparent), 0 6px 20px color-mix(in srgb, black 22%, transparent)'
-                  : 'inset 0 1px 0 color-mix(in srgb, var(--text-primary) 4%, transparent)',
-            }}
+            style={{ height: TRACK_H }}
             role="slider"
             tabIndex={0}
             aria-valuemin={0}
             aria-valuemax={100}
-            aria-valuenow={Math.round(progress * 100)}
+            aria-valuenow={0}
             aria-label="Slide to Got it"
             onKeyDown={(event) => {
               if (event.key !== 'Enter' && event.key !== ' ') return;
@@ -607,47 +487,33 @@ export default function TodayBriefingSheet({
               }}
             />
 
-            {!isDragging && !confirmed && progress < 0.08 && (
+            {!isDragging && !confirmed && (
               <div className="briefing-slider-sheen pointer-events-none" aria-hidden />
             )}
 
+            {/* The trail behind the knob: a full-width pill slid along inside a
+                clipping window, so it grows with transform alone. */}
             <div
-              ref={fillRef}
-              className={`absolute left-[6px] rounded-[999px] pointer-events-none ${
-                knobAnimating && !isDragging ? 'briefing-slider-fill--snap' : ''
-              }`}
-              style={{
-                top: TRACK_PAD,
-                bottom: TRACK_PAD,
-                width: `${THUMB_W + TRACK_PAD + progress * maxTravel}px`,
-                maxWidth: `calc(100% - ${TRACK_PAD * 2}px)`,
-                background: confirmed
-                  ? 'linear-gradient(90deg, color-mix(in srgb, var(--primary) 42%, transparent), color-mix(in srgb, var(--primary-glow) 28%, transparent))'
-                  : 'linear-gradient(90deg, color-mix(in srgb, var(--primary) 32%, transparent) 0%, color-mix(in srgb, var(--primary-glow) 16%, transparent) 72%, transparent 100%)',
-                opacity: 0.5 + glow * 0.5,
-                boxShadow:
-                  glow > 0.4
-                    ? `0 0 ${14 + glow * 16}px color-mix(in srgb, var(--primary) ${18 + glow * 18}%, transparent)`
-                    : undefined,
-              }}
-            />
+              className="absolute overflow-hidden rounded-[999px] pointer-events-none"
+              style={{ top: TRACK_PAD, bottom: TRACK_PAD, left: TRACK_PAD, right: TRACK_PAD }}
+              aria-hidden
+            >
+              <div
+                ref={fillRef}
+                className="absolute inset-0 rounded-[999px] will-change-transform"
+                style={{
+                  background:
+                    'linear-gradient(90deg, color-mix(in srgb, var(--primary) 12%, transparent), color-mix(in srgb, var(--primary) 30%, transparent))',
+                }}
+              />
+            </div>
 
             <p
               ref={labelRef}
               className={`briefing-slider-label absolute left-1/2 top-1/2 z-[1] -translate-x-1/2 -translate-y-1/2 text-[16px] font-semibold tracking-[0.07em] leading-none pointer-events-none whitespace-nowrap ${
-                !isDragging && !confirmed && progress < 0.08 ? 'briefing-slider-label--idle' : ''
+                !isDragging && !confirmed ? 'briefing-slider-label--idle' : ''
               }`}
-              style={{
-                color:
-                  glow > 0.55
-                    ? 'var(--primary-glow)'
-                    : 'color-mix(in srgb, var(--text-secondary) 82%, var(--primary-glow) 18%)',
-                opacity: Math.max(0.22, 0.82 - progress * 0.85 + glow * 0.12),
-                textShadow:
-                  glow > 0.4
-                    ? `0 0 ${6 + glow * 10}px color-mix(in srgb, var(--primary) 30%, transparent)`
-                    : '0 1px 0 color-mix(in srgb, black 18%, transparent)',
-              }}
+              style={{ color: 'color-mix(in srgb, var(--text-secondary) 82%, var(--primary-glow) 18%)' }}
               aria-hidden
             >
               Got it!
@@ -662,56 +528,24 @@ export default function TodayBriefingSheet({
               onPointerUp={onPointerUp}
               onPointerCancel={onPointerUp}
               className={`briefing-slider-knob absolute top-1/2 z-[2] flex items-center justify-center rounded-full touch-none will-change-transform ${
-                knobAnimating && !isDragging ? 'briefing-slider-knob--snap' : ''
-              } ${confirmed ? 'briefing-slider-knob--done' : ''} ${isDragging ? 'briefing-slider-knob--drag' : ''}`}
+                isDragging ? 'briefing-slider-knob--drag' : ''
+              }`}
               style={{
                 width: THUMB_W,
                 height: THUMB_H,
                 left: TRACK_PAD,
-                transform: `translate3d(${progress * maxTravel}px, -50%, 0) scale(${
-                  confirmed ? 1.04 : isDragging ? 1.06 : 1
-                })`,
+                background:
+                  'linear-gradient(165deg, color-mix(in srgb, var(--primary-glow) 95%, white) 0%, var(--primary) 48%, color-mix(in srgb, var(--primary) 85%, black) 100%)',
+                boxShadow:
+                  '0 2px 10px color-mix(in srgb, black 34%, transparent), 0 0 0 1px color-mix(in srgb, var(--primary-glow) 35%, transparent), inset 0 1px 0 color-mix(in srgb, white 30%, transparent)',
               }}
               aria-label="Got it"
             >
-              <span
-                ref={faceRef}
-                className="pointer-events-none absolute inset-0 rounded-full briefing-slider-knob-face"
-                style={{
-                  background: confirmed
-                    ? 'linear-gradient(165deg, color-mix(in srgb, var(--secondary) 70%, white) 0%, var(--secondary) 55%, color-mix(in srgb, var(--secondary) 80%, black) 100%)'
-                    : 'linear-gradient(165deg, color-mix(in srgb, var(--primary-glow) 95%, white) 0%, var(--primary) 48%, color-mix(in srgb, var(--primary) 85%, black) 100%)',
-                  boxShadow: confirmed
-                    ? '0 0 0 1px color-mix(in srgb, var(--secondary) 55%, transparent), 0 6px 20px color-mix(in srgb, var(--secondary) 35%, transparent), inset 0 1px 0 color-mix(in srgb, white 35%, transparent)'
-                    : isDragging
-                      ? '0 0 0 1px color-mix(in srgb, var(--primary-glow) 55%, transparent), 0 6px 22px color-mix(in srgb, var(--primary) 40%, transparent), inset 0 1px 0 color-mix(in srgb, white 35%, transparent)'
-                      : '0 2px 10px color-mix(in srgb, black 34%, transparent), 0 0 0 1px color-mix(in srgb, var(--primary-glow) 35%, transparent), inset 0 1px 0 color-mix(in srgb, white 30%, transparent)',
-                }}
+              <ChevronRight
+                size={17}
+                strokeWidth={2.35}
+                className="text-on-primary drop-shadow-[0_1px_0_color-mix(in_srgb,black_25%,transparent)]"
               />
-              {bubbleOn && (
-                <span
-                  ref={lensRef}
-                  className="briefing-bubble-lens pointer-events-none absolute inset-0 rounded-full"
-                  style={{
-                    backdropFilter: refract ? `url(#${lens.id}) saturate(1.6) brightness(1.08)` : 'blur(3px) saturate(1.6) brightness(1.08)',
-                    WebkitBackdropFilter: refract ? undefined : 'blur(3px) saturate(1.6) brightness(1.08)',
-                  }}
-                  aria-hidden
-                />
-              )}
-              {confirmed ? (
-                <Check
-                  size={16}
-                  strokeWidth={2.75}
-                  className="relative z-[1] text-on-primary drop-shadow-[0_1px_0_color-mix(in_srgb,black_25%,transparent)]"
-                />
-              ) : (
-                <ChevronRight
-                  size={17}
-                  strokeWidth={2.35}
-                  className="relative z-[1] text-on-primary drop-shadow-[0_1px_0_color-mix(in_srgb,black_25%,transparent)]"
-                />
-              )}
             </button>
           </div>
           <p
@@ -720,7 +554,6 @@ export default function TodayBriefingSheet({
           >
             Slide to continue
           </p>
-          {bubbleOn && refract && lens.filter}
         </div>
       </div>
     </Overlay>
