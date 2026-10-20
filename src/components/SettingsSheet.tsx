@@ -1107,6 +1107,18 @@ export default function SettingsSheet({
                             </label>
                             <input
                               type="text"
+                              name="profile_handle"
+                              id="profile_handle_field"
+                              autoComplete="off"
+                              autoCapitalize="none"
+                              autoCorrect="off"
+                              spellCheck={false}
+                              data-protonpass-ignore="true"
+                              data-1p-ignore="true"
+                              data-lpignore="true"
+                              data-bwignore="true"
+                              data-form-type="other"
+                              aria-label="Handle"
                               value={editUsername}
                               onChange={(e) => setEditUsername(e.target.value.toLowerCase())}
                               placeholder="@username"
@@ -1119,6 +1131,14 @@ export default function SettingsSheet({
                             </label>
                             <input
                               type="text"
+                              name="profile_display_name"
+                              id="profile_display_name_field"
+                              autoComplete="off"
+                              data-protonpass-ignore="true"
+                              data-1p-ignore="true"
+                              data-lpignore="true"
+                              data-bwignore="true"
+                              data-form-type="other"
                               value={editName}
                               onChange={(e) => setEditName(e.target.value)}
                               placeholder="Your name"
