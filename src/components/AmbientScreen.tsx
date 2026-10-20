@@ -9,7 +9,7 @@ import OriginChip from './OriginChip';
 import { computeNetFocusMs } from '../lib/sessionStats';
 import { sessionClockLabel } from '../lib/sessionClock';
 import FocusSoundPicker from './FocusSoundPicker';
-import { ambientDigits, ambientDrift, formatAmbientTimer } from '../lib/ambient';
+import { ambientClockDriftRange, ambientDigits, ambientDrift, formatAmbientTimer } from '../lib/ambient';
 import '@fontsource/quicksand/600.css';
 import './ambient.css';
 
@@ -63,6 +63,8 @@ interface Props {
 const CONTROLS_MS = 4000;
 /** The face moves a little every minute so nothing stays lit in one place. */
 const DRIFT_MS = 60_000;
+/** After this long without a tap the digits dim a little, so fewer pixels run at full brightness. */
+const REST_MS = 3 * 60_000;
 
 /**
  * StandBy-style ambient clock: the session timer in huge accent-coloured digits
@@ -85,7 +87,10 @@ export function AmbientScreen({
   const [controls, setControls] = useState(true);
   const [soundsOpen, setSoundsOpen] = useState(false);
   const [drift, setDrift] = useState({ x: 0, y: 0 });
+  const [clockDrift, setClockDrift] = useState({ x: 0, y: 0 });
+  const [resting, setResting] = useState(false);
   const hideTimer = useRef(0);
+  const restTimer = useRef(0);
 
   useEffect(() => {
     try {
@@ -123,7 +128,12 @@ export function AmbientScreen({
 
   useEffect(() => {
     let step = 0;
-    const interval = setInterval(() => setDrift(ambientDrift(++step)), DRIFT_MS);
+    const interval = setInterval(() => {
+      step += 1;
+      setDrift(ambientDrift(step));
+      // The big digits walk further, on their own path, so their thick strokes move too.
+      setClockDrift(ambientDrift(step + 5, ambientClockDriftRange(window.innerWidth, window.innerHeight)));
+    }, DRIFT_MS);
     return () => clearInterval(interval);
   }, []);
 
@@ -131,10 +141,16 @@ export function AmbientScreen({
     setControls(true);
     window.clearTimeout(hideTimer.current);
     hideTimer.current = window.setTimeout(() => setControls(false), CONTROLS_MS);
+    setResting(false);
+    window.clearTimeout(restTimer.current);
+    restTimer.current = window.setTimeout(() => setResting(true), REST_MS);
   }, []);
   useEffect(() => {
     showControls();
-    return () => window.clearTimeout(hideTimer.current);
+    return () => {
+      window.clearTimeout(hideTimer.current);
+      window.clearTimeout(restTimer.current);
+    };
   }, [showControls]);
   // The controls stay while the sound panel is open.
   useEffect(() => {
@@ -155,7 +171,7 @@ export function AmbientScreen({
   return (
     <Overlay open scrim={false} align="full" fullWidth="bleed">
       <div
-        className={`ambient-screen ${paused ? 'is-paused' : ''} ${controls ? 'controls-on' : ''} ${soundsOpen ? 'sounds-on' : ''}`}
+        className={`ambient-screen ${paused ? 'is-paused' : ''} ${resting ? 'is-resting' : ''} ${controls ? 'controls-on' : ''} ${soundsOpen ? 'sounds-on' : ''}`}
         onClick={() => {
           setSoundsOpen(false);
           showControls();
@@ -175,7 +191,7 @@ export function AmbientScreen({
           </div>
 
           {/* Minutes and seconds big (stacked in portrait, side by side in landscape), hours small above. */}
-          <div className="ambient-clock" role="timer" aria-live="off" aria-label={`Focused ${timer}`}>
+          <div className="ambient-clock" style={{ transform: `translate3d(${clockDrift.x}px, ${clockDrift.y}px, 0)` }} role="timer" aria-live="off" aria-label={`Focused ${timer}`}>
             <span className="ambient-hours" aria-hidden>
               {digits.hours > 0 ? `${digits.hours} ${digits.hours === 1 ? 'hr' : 'hrs'}` : ''}
             </span>

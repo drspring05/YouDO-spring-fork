@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { DRIFT_RANGE, ambientAutoOpenEnabled, ambientDigits, ambientDrift, formatAmbientTimer, ambientTipSeen, markAmbientTipSeen, setAmbientAutoOpen } from './ambient';
+import { DRIFT_RANGE, ambientAutoOpenEnabled, ambientClockDriftRange, ambientDigits, ambientDrift, formatAmbientTimer, ambientTipSeen, markAmbientTipSeen, setAmbientAutoOpen } from './ambient';
 
 const store = new Map<string, string>();
 vi.stubGlobal('localStorage', {
@@ -36,5 +36,18 @@ describe('ambient clock', () => {
     expect(ambientTipSeen()).toBe(false);
     markAmbientTipSeen();
     expect(ambientTipSeen()).toBe(true);
+  });
+});
+
+describe('ambientClockDriftRange', () => {
+  it('moves the big digits about a stroke width, never less than the face drift', () => {
+    // A phone held sideways (412 px tall): digits ~231 px, strokes ~25 px.
+    expect(ambientClockDriftRange(915, 412)).toBe(28);
+    expect(ambientClockDriftRange(915, 412)).toBeGreaterThan(DRIFT_RANGE * 3);
+    expect(ambientClockDriftRange(100, 100)).toBe(DRIFT_RANGE);
+  });
+
+  it('keeps a wider drift inside its range', () => {
+    for (let i = 1; i <= 60; i++) expect(Math.hypot(ambientDrift(i, 28).x, ambientDrift(i, 28).y)).toBeLessThanOrEqual(29);
   });
 });

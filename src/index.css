@@ -1195,6 +1195,18 @@ input[type='datetime-local'] {
 }
 .tab-bar-sheet { border-radius: 30px; padding: 8px; }
 
+/* Phone held sideways: little height, plenty of width. A slimmer icon-only bar
+   and a smaller title leave room for the page, which uses more of the width. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .app-frame { max-width: 44rem; }
+  .app-large-title { font-size: 26px; line-height: 32px; }
+  .tab-bar-wrap { bottom: max(0.5rem, env(safe-area-inset-bottom, 0px)); max-width: 22rem; }
+  .tab-bar { min-height: 48px; padding: 3px; }
+  .tab-bar-item { height: 42px; }
+  .tab-bar-label { display: none; }
+  .tab-bar-orb { width: 48px; height: 48px; }
+}
+
 @media (max-width: 340px) {
   .tab-bar-label { display: none; }
   .tab-bar, .tab-bar-orb { min-height: 56px; }

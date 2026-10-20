@@ -19,16 +19,26 @@ export function ambientDigits(totalSeconds: number): { hours: number; minutes: s
   };
 }
 
-/** Largest drift from centre, in px: enough to spare pixels, too little to notice. */
+/** Largest drift of the whole face from centre, in px: the small text moves past its own strokes. */
 export const DRIFT_RANGE = 8;
+
+/**
+ * Largest drift of the big digits, in px. Their strokes are about a tenth of the
+ * digit height thick, so they must move further than the small text for the
+ * middle of each stroke to leave its pixels. Matches --digit-size in ambient.css.
+ */
+export function ambientClockDriftRange(width: number, height: number): number {
+  const digitSize = Math.min(width * 0.33, height * 0.56);
+  return Math.max(DRIFT_RANGE, Math.round(digitSize * 0.12));
+}
 
 /**
  * Where the face sits after `step` minutes: a slow, repeating walk around the
  * centre, so no digit edge stays lit on the same pixels (OLED burn-in).
  */
-export function ambientDrift(step: number): { x: number; y: number } {
+export function ambientDrift(step: number, range = DRIFT_RANGE): { x: number; y: number } {
   const angle = step * 2.399963; // golden angle: points spread evenly, never repeat quickly
-  const radius = DRIFT_RANGE * Math.sqrt(((step % 12) + 1) / 12);
+  const radius = range * Math.sqrt(((step % 12) + 1) / 12);
   return { x: Math.round(Math.cos(angle) * radius), y: Math.round(Math.sin(angle) * radius) };
 }
 

@@ -45,7 +45,10 @@
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--ambient-ink);
+  /* Its own, wider drift glides like the face's; the rest dim fades in slowly. */
+  transition: transform 2s ease, opacity 4s ease;
 }
+.ambient-screen.is-resting .ambient-clock { opacity: 0.72; }
 .ambient-hours {
   min-height: 1.3em;
   font-size: max(14px, calc(var(--digit-size) * 0.085));
