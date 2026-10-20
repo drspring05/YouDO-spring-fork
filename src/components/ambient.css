@@ -1,0 +1,100 @@
+/* Ambient clock (StandBy-style). Loaded with its component, so it applies under
+   both the new look and Classic Look. True black keeps an OLED screen dark. */
+.ambient-screen {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  color: #f2f2f7;
+  user-select: none;
+  touch-action: manipulation;
+}
+.ambient-face {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 100%;
+  padding: max(18px, var(--safe-area-top, 0px)) 28px max(18px, env(safe-area-inset-bottom, 0px));
+  /* The minute-by-minute drift glides, so it is never noticed. */
+  transition: transform 2s ease;
+}
+.ambient-top {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  font-size: 13px;
+  color: #8e8e93;
+  font-variant-numeric: tabular-nums;
+}
+.ambient-digits {
+  font-family: ui-rounded, 'SF Pro Rounded', 'Nunito', system-ui, sans-serif;
+  font-weight: 600;
+  line-height: 0.9;
+  letter-spacing: -0.02em;
+  text-align: center;
+  color: var(--primary);
+  font-variant-numeric: tabular-nums;
+  transition: opacity 0.4s ease;
+}
+.ambient-digits-line { display: block; font-size: min(30vw, 58vh); }
+.ambient-digits-stack { display: none; }
+@media (orientation: portrait) {
+  .ambient-digits-line { display: none; }
+  .ambient-digits-stack { display: flex; flex-direction: column; font-size: min(44vw, 30vh); }
+}
+.ambient-screen.is-paused .ambient-digits { opacity: 0.4; }
+.ambient-task {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 92%;
+  transition: opacity 0.3s ease;
+}
+.ambient-title {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 15px;
+  color: #d1d1d6;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ambient-controls {
+  position: absolute;
+  left: 50%;
+  bottom: max(22px, env(safe-area-inset-bottom, 0px));
+  display: flex;
+  gap: 14px;
+  transform: translateX(-50%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+.ambient-controls.is-visible { opacity: 1; pointer-events: auto; }
+.ambient-screen.controls-on .ambient-task { opacity: 0; }
+.ambient-controls button {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #f2f2f7;
+}
+.ambient-controls button[aria-pressed='true'] { background: rgba(255, 255, 255, 0.22); }
+/* Night: everything turns dim red, kind to eyes in the dark. */
+.ambient-screen.is-night .ambient-digits { color: #b3261e; }
+.ambient-screen.is-night .ambient-top,
+.ambient-screen.is-night .ambient-title { color: #7a1c14; }
+.ambient-screen.is-night .ambient-task > :not(.ambient-title),
+.ambient-screen.is-night .ambient-controls {
+  filter: grayscale(1) brightness(0.45) sepia(1) hue-rotate(-50deg) saturate(9);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ambient-face { transition: none; }
+}

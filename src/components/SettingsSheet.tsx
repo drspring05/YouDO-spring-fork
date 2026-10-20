@@ -1,5 +1,6 @@
 import { useUiPrefs } from '../hooks/useUiPrefs';
 import { setSettingsBackHandler } from '../lib/settingsBack';
+import { ambientAutoOpenEnabled, setAmbientAutoOpen } from '../lib/ambient';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Browser } from '@capacitor/browser';
 import { Capacitor } from '@capacitor/core';
@@ -214,6 +215,7 @@ export default function SettingsSheet({
   const publicBoardRef = useRef<HTMLElement>(null);
   const [activeTab, setActiveTab] = useState<SettingsTab>(focusSection === 'public-board' ? 'board' : (initialTab ?? 'account'));
   const [page, setPage] = useState<SettingsPage>(() => initialPage(focusSection, initialTab));
+  const [ambientAutoOpen, setAmbientAutoOpenState] = useState(ambientAutoOpenEnabled);
   const [highlightBoard, setHighlightBoard] = useState(focusSection === 'public-board');
   const contentRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<Partial<Record<SettingsTab, HTMLButtonElement | null>>>({});
@@ -2861,6 +2863,32 @@ export default function SettingsSheet({
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Ambient clock: open it when the phone turns sideways during a session */}
+          <div hidden={!legacyStyle && page === 'board'} className="settings-card settings-focus-card bg-elevated rounded-2xl border border-subtle p-4 shadow-lg mb-2.5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3 min-w-0 flex-1">
+                <div className="w-9 h-9 rounded-xl bg-primary-soft flex items-center justify-center text-primary shrink-0 mt-0.5">
+                  <Moon size={16} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-xs font-semibold text-content-primary">Ambient clock when sideways</h3>
+                  <p className="text-[10.5px] text-content-secondary font-medium mt-0.5 leading-snug">
+                    Turn your phone sideways during a session to see a big, calm timer.
+                  </p>
+                </div>
+              </div>
+              <Toggle
+                checked={ambientAutoOpen}
+                onChange={() => {
+                  const next = !ambientAutoOpen;
+                  setAmbientAutoOpen(next);
+                  setAmbientAutoOpenState(next);
+                }}
+                label="Open the ambient clock when the phone turns sideways"
+              />
             </div>
           </div>
 

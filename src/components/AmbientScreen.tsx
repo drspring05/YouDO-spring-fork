@@ -1,16 +1,19 @@
-import { useEffect, useState } from 'react';
-import { Pause, Play, Square, Minimize2, Link2, Clock } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Minimize2, Moon, Pause, Play, Square } from 'lucide-react';
 import { KeepAwake } from '@capacitor-community/keep-awake';
 import type { ActiveSession, Task } from '../types';
 import Overlay from './Overlay';
+import OriginChip from './OriginChip';
 import { formatElapsed } from '../lib/format';
 import { computeNetFocusMs } from '../lib/sessionStats';
-import { sessionClockLabel } from '../lib/sessionClock';
+import { ambientDrift, isNightHour } from '../lib/ambient';
+import './ambient.css';
 
 interface Props {
   activeSession: ActiveSession;
   task: Task;
-  origin?: string;
+  /** First one or two names on the way to the task, shown as the Today chip. */
+  originNames?: string[];
   onPause: () => void;
   onResume: () => void;
   onStop: () => void;
@@ -18,18 +21,20 @@ interface Props {
   onJumpToGoal?: () => void;
 }
 
-function formatPauseDuration(ms: number) {
-  const mins = Math.floor(ms / 60000);
-  const hrs = Math.floor(mins / 60);
-  const remMins = mins % 60;
-  if (hrs > 0) return `${hrs}h ${remMins}m`;
-  return `${mins}m`;
-}
+/** How long the controls stay after a tap. */
+const CONTROLS_MS = 4000;
+/** The face moves a little every minute so nothing stays lit in one place. */
+const DRIFT_MS = 60_000;
 
+/**
+ * StandBy-style ambient clock: the session timer in huge digits on true black,
+ * the clock and the task small around it. Tap to show the controls. Dim red
+ * after dark, and a slow drift against screen burn-in.
+ */
 export function AmbientScreen({
   activeSession,
   task,
-  origin,
+  originNames,
   onPause,
   onResume,
   onStop,
@@ -37,6 +42,11 @@ export function AmbientScreen({
   onJumpToGoal,
 }: Props) {
   const [elapsed, setElapsed] = useState(0);
+  const [now, setNow] = useState(() => new Date());
+  const [controls, setControls] = useState(true);
+  const [nightOverride, setNightOverride] = useState<boolean | null>(null);
+  const [drift, setDrift] = useState({ x: 0, y: 0 });
+  const hideTimer = useRef(0);
 
   useEffect(() => {
     try {
@@ -54,141 +64,95 @@ export function AmbientScreen({
   }, []);
 
   useEffect(() => {
-    const calcElapsed = () => {
-      return Math.floor(computeNetFocusMs(activeSession, Date.now()) / 1000);
+    const tick = () => {
+      setElapsed(Math.floor(computeNetFocusMs(activeSession, Date.now()) / 1000));
+      setNow(new Date());
     };
-    setElapsed(calcElapsed());
-    if (activeSession.isPaused) return;
-    const interval = setInterval(() => setElapsed(calcElapsed()), 1000);
+    tick();
+    const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
   }, [activeSession]);
 
-  const formattedTime = formatElapsed(elapsed);
-  const circumference = 2 * Math.PI * 116;
-  const minuteProgress = (elapsed % 3600) / 3600;
-  const dash = circumference * minuteProgress;
+  useEffect(() => {
+    let step = 0;
+    const interval = setInterval(() => setDrift(ambientDrift(++step)), DRIFT_MS);
+    return () => clearInterval(interval);
+  }, []);
 
-  const handleGoToGoal = () => {
-    if (onJumpToGoal) {
-      onMinimize();
-      onJumpToGoal();
-    }
+  const showControls = useCallback(() => {
+    setControls(true);
+    window.clearTimeout(hideTimer.current);
+    hideTimer.current = window.setTimeout(() => setControls(false), CONTROLS_MS);
+  }, []);
+  useEffect(() => {
+    showControls();
+    return () => window.clearTimeout(hideTimer.current);
+  }, [showControls]);
+
+  const night = nightOverride ?? isNightHour(now.getHours());
+  const parts = formatElapsed(elapsed).split(':');
+  // Portrait stacks the last part under the rest: "24" over "18", or "1:24" over "18".
+  const head = parts.slice(0, -1).join(':');
+  const tail = parts[parts.length - 1];
+  const clock = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const paused = activeSession.isPaused;
+
+  const control = (event: React.MouseEvent, action: () => void) => {
+    event.stopPropagation();
+    action();
+    showControls();
   };
 
   return (
     <Overlay open scrim={false} align="full" fullWidth="bleed">
-      <div className="h-full bg-base text-content-primary flex flex-col justify-between px-6 pb-6 fade-in relative overflow-hidden">
-        <div className="pointer-events-none absolute inset-0">
-          <div
-            className="ambient-orb absolute -top-16 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full"
-            style={{ background: 'radial-gradient(circle, var(--primary-soft), transparent 68%)' }}
-          />
-          <div
-            className="ambient-orb ambient-orb-delay absolute bottom-8 -right-10 h-56 w-56 rounded-full"
-            style={{ background: 'radial-gradient(circle, var(--secondary-soft), transparent 70%)' }}
-          />
-        </div>
+      <div
+        className={`ambient-screen ${night ? 'is-night' : ''} ${paused ? 'is-paused' : ''} ${controls ? 'controls-on' : ''}`}
+        onClick={showControls}
+        role="presentation"
+      >
+        <div
+          className="ambient-face"
+          style={{ transform: `translate3d(${drift.x}px, ${drift.y}px, 0)` }}
+        >
+          <div className="ambient-top">
+            <span>{clock}</span>
+            <span>{paused ? 'Paused' : 'Focus'}{activeSession.pauses.length > 0 ? ` · ${activeSession.pauses.length} ${activeSession.pauses.length === 1 ? 'pause' : 'pauses'}` : ''}</span>
+          </div>
 
-        <div className="relative flex items-center justify-between" style={{ paddingTop: 'max(1.25rem, var(--safe-area-top))' }}>
-          <div className="flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${activeSession.isPaused ? 'bg-content-muted' : 'bg-primary animate-session-pulse'}`} />
-            <span className="text-[11px] font-mono tracking-[0.16em] uppercase text-content-muted">
-              {activeSession.isPaused ? 'Paused' : 'Focus'}
+          <div className="ambient-digits" aria-live="off" aria-label={`Focused ${formatElapsed(elapsed)}`}>
+            <span className="ambient-digits-line">{formatElapsed(elapsed)}</span>
+            <span className="ambient-digits-stack" aria-hidden>
+              <span>{head}</span>
+              <span>{tail}</span>
             </span>
           </div>
-          <button
-            onClick={onMinimize}
-            className="p-2 rounded-[12px] bg-surface border border-subtle text-content-secondary text-xs font-medium flex items-center gap-1.5"
-          >
-            <Minimize2 className="w-4 h-4" />
-            Minimize
-          </button>
-        </div>
 
-        <div className="relative flex flex-col items-center justify-center text-center my-auto px-2">
-          {origin && (
-            <button
-              onClick={handleGoToGoal}
-              className={`mb-5 max-w-sm text-[11px] leading-relaxed text-content-muted ${!onJumpToGoal ? 'pointer-events-none' : ''}`}
-            >
-              <Link2 size={11} className="inline mr-1 text-primary" />
-              {origin}
-            </button>
-          )}
-
-          <h1 className="text-[22px] font-semibold text-content-primary mb-8 max-w-md leading-snug">
-            {task.title}
-          </h1>
-
-          <div className="relative mb-8 w-[264px] h-[264px] grid place-items-center">
-            <svg width="264" height="264" className="-rotate-90 absolute inset-0" aria-hidden="true">
-              <circle cx="132" cy="132" r="116" fill="none" stroke="var(--border-subtle)" strokeWidth="3" />
-              <circle
-                cx="132"
-                cy="132"
-                r="116"
-                fill="none"
-                stroke="var(--primary)"
-                strokeWidth="3"
-                strokeLinecap="round"
-                strokeDasharray={`${dash} ${circumference}`}
-                style={{ transition: 'stroke-dasharray 0.8s ease' }}
-              />
-            </svg>
-            <div className="font-mono text-[40px] sm:text-[44px] font-semibold tabular-nums tracking-tight text-content-primary animate-ambient-clock leading-none px-5 text-center">
-              {formattedTime}
-            </div>
+          <div className="ambient-task">
+            <p className="ambient-title">{task.title}</p>
+            {originNames && originNames.length > 0 && (
+              <OriginChip names={originNames} onClick={onJumpToGoal ? () => { onMinimize(); onJumpToGoal(); } : undefined} />
+            )}
           </div>
-
-          <p className="text-[12px] font-mono text-content-muted">
-            Started {sessionClockLabel(activeSession.startTime, activeSession.wallClockStart)}
-            {activeSession.pauses.length > 0 && ` · ${activeSession.pauses.length} pause${activeSession.pauses.length > 1 ? 's' : ''}`}
-          </p>
-
-          {activeSession.pauses.length > 0 && (
-            <div className="mt-5 w-full max-w-xs space-y-1.5 max-h-28 overflow-y-auto no-scrollbar text-left">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-content-muted flex items-center gap-1">
-                <Clock size={10} /> Pauses
-              </p>
-              {activeSession.pauses.map((p, idx) => {
-                const startStr = sessionClockLabel(p.start, p.wallClockStart);
-                const endStr = p.end ? sessionClockLabel(p.end, p.wallClockEnd) : 'now';
-                const durMs = p.end ? (p.durationMs || (p.end - p.start)) : (activeSession.pauseStart ? Date.now() - activeSession.pauseStart : 0);
-                return (
-                  <div key={idx} className="flex items-center justify-between text-[11px] font-mono text-content-secondary">
-                    <span>{startStr} – {endStr}</span>
-                    <span className="text-primary">{formatPauseDuration(durMs)}</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </div>
 
-        <div className="relative max-w-sm w-full mx-auto flex items-center gap-3">
-          {activeSession.isPaused ? (
-            <button
-              onClick={onResume}
-              className="flex-1 py-3.5 rounded-[12px] bg-primary text-on-primary font-semibold text-sm flex items-center justify-center gap-2"
-            >
-              <Play className="w-5 h-5 fill-current" />
-              Resume
-            </button>
-          ) : (
-            <button
-              onClick={onPause}
-              className="flex-1 py-3.5 rounded-[12px] bg-surface border border-subtle text-content-primary font-medium text-sm flex items-center justify-center gap-2"
-            >
-              <Pause className="w-5 h-5" />
-              Pause
-            </button>
-          )}
+        <div className={`ambient-controls ${controls ? 'is-visible' : ''}`} aria-hidden={!controls}>
+          <button type="button" tabIndex={controls ? 0 : -1} onClick={(e) => control(e, paused ? onResume : onPause)} aria-label={paused ? 'Resume' : 'Pause'}>
+            {paused ? <Play size={20} className="fill-current" /> : <Pause size={20} />}
+          </button>
+          <button type="button" tabIndex={controls ? 0 : -1} onClick={(e) => control(e, onStop)} aria-label="Stop session">
+            <Square size={17} className="fill-current" />
+          </button>
           <button
-            onClick={onStop}
-            className="py-3.5 px-5 rounded-[12px] bg-error-soft text-error font-medium text-sm flex items-center justify-center gap-2"
+            type="button"
+            tabIndex={controls ? 0 : -1}
+            onClick={(e) => control(e, () => setNightOverride(!night))}
+            aria-label={night ? 'Turn off night mode' : 'Turn on night mode'}
+            aria-pressed={night}
           >
-            <Square className="w-4 h-4 fill-current" />
-            Stop
+            <Moon size={19} />
+          </button>
+          <button type="button" tabIndex={controls ? 0 : -1} onClick={(e) => control(e, onMinimize)} aria-label="Minimize">
+            <Minimize2 size={19} />
           </button>
         </div>
       </div>

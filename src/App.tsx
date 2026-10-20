@@ -8,6 +8,7 @@ import { initPushNotifications } from './lib/pushNotifications';
 import { syncPushPreferences } from './lib/pushPreferences';
 import { OPEN_APP_UPDATES_EVENT } from './lib/boardUpdate';
 import { settingsBackStep } from './lib/settingsBack';
+import { PHONE_LANDSCAPE_QUERY, ambientAutoOpenEnabled } from './lib/ambient';
 import type { GoalKind, GoalNode, Task, View, TaskSession } from './types';
 import { useNavigationSync } from './hooks/useNavigationSync';
 import { formatDDMMYYYY, hasGoalExecutionState, isBacklogTask, isGoalEndpoint, isOpenBacklogTask, isTaskComplete, isToday, pathNodes, pathTitles, todayISO, useStore, useSessionStore, findGoal } from './store';
@@ -485,6 +486,18 @@ function AppInner() {
     window.addEventListener(OPEN_APP_UPDATES_EVENT, openUpdates);
     return () => window.removeEventListener(OPEN_APP_UPDATES_EVENT, openUpdates);
   }, [pushModalState]);
+
+  // StandBy-style: turning the phone sideways during a session opens the ambient clock.
+  const hasActiveSession = !!activeSession;
+  useEffect(() => {
+    if (!hasActiveSession || typeof window.matchMedia !== 'function') return;
+    const sideways = window.matchMedia(PHONE_LANDSCAPE_QUERY);
+    const onChange = (event: MediaQueryListEvent) => {
+      if (event.matches && ambientAutoOpenEnabled()) setShowAmbient(true);
+    };
+    sideways.addEventListener('change', onChange);
+    return () => sideways.removeEventListener('change', onChange);
+  }, [hasActiveSession]);
 
   const openBoardSettings = () => {
     setSettingsFocus('public-board');
@@ -1979,7 +1992,7 @@ function AppInner() {
         <AmbientScreen
           activeSession={activeSession}
           task={activeTask}
-          origin={originNodesFor(activeTask.id)?.map(n => n.title).join(' / ')}
+          originNames={originNodesFor(activeTask.id)?.slice(0, 2).map(n => n.title)}
           onPause={pauseSession}
           onResume={resumeSession}
           onStop={() => { setShowAmbient(false); setStopDialogTask(activeTask); }}
