@@ -305,7 +305,7 @@
   position: absolute;
   inset: 0 -6px;
 }
-.studio-depth-rail:active,
+.studio-depth-rail:active { background: var(--primary); }
 @media (hover: hover) {
   .studio-depth-rail:hover { background: var(--primary); }
 }
