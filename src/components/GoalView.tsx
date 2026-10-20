@@ -743,7 +743,9 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
           const showActions = isWorkItem && !isDone && selected.size === 0;
           const locked = !!runningTask && goalBranchContainsTask(child, runningTask);
           const daysLeft = child.endDate ? daysBetweenLocalISO(todayISO(), child.endDate) : null;
-          const dueTone = daysLeft === null ? 'none' : daysLeft < 0 ? 'overdue' : daysLeft <= 7 ? 'soon' : 'ok';
+          // Start-aware, like the header: a branch that hasn't started reads "X days to start".
+          const timing = goalTimingLabel(child.startDate, child.endDate);
+          const dueTone = daysLeft === null ? 'none' : timing?.status === 'upcoming' ? 'ok' : daysLeft < 0 ? 'overdue' : daysLeft <= 7 ? 'soon' : 'ok';
 
           const isHighlighted = child.id === highlightNodeId;
           const isLast = index === children.length - 1;
@@ -807,7 +809,7 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                 isHighlighted
                   ? 'bg-primary-soft'
                   : isSelected
-                    ? 'bg-primary/10'
+                    ? 'is-selected'
                     : 'hover:bg-elevated'
               } ${overId === child.id && !dragIds.includes(child.id) ? 'ring-2 ring-primary z-10' : ''}`}
             >
@@ -920,7 +922,7 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                   )}
                   {!isWorkItem && child.endDate && !isDone ? (
                     <span className="goal-row-status" data-tone={dueTone} title={`Due ${formatShortDate(child.endDate)}`}>
-                      {deadlineDaysLabel(child.endDate)}
+                      {timing?.label ?? deadlineDaysLabel(child.endDate)}
                     </span>
                   ) : null}
                   {canDrill && !showActions && (
@@ -944,7 +946,7 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                 )}
                 {isWorkItem && child.endDate && !isDone && (
                   <p className="goal-row-detail" data-tone={dueTone}>
-                    Due {formatShortDate(child.endDate)} · {deadlineDaysLabel(child.endDate)}
+                    Due {formatShortDate(child.endDate)} · {timing?.label ?? deadlineDaysLabel(child.endDate)}
                   </p>
                 )}
 
