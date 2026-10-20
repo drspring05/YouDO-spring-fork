@@ -20,7 +20,6 @@ import AddTaskSheet from './components/AddTaskSheet';
 import CommandBar from './components/CommandBar';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { useReviveDeadlineLabel } from './hooks/useReviveCountdown';
-import HelpCenterSheet from './components/HelpCenterSheet';
 import TodayBriefingSheet from './components/TodayBriefingSheet';
 import UndoToast from './components/UndoToast';
 import { STORAGE_KEYS } from './lib/storageKeys';
@@ -31,7 +30,6 @@ import {
 } from './lib/focusTrends';
 import AddGoalSheet from './components/AddGoalSheet';
 import StepSliceSheet from './components/StepSliceSheet';
-import { AmbientScreen } from './components/AmbientScreen';
 import { SessionStopDialog } from './components/SessionStopDialog';
 import { useTheme } from './hooks/useTheme';
 import { useClockIntegrity } from './hooks/useClockIntegrity';
@@ -59,6 +57,9 @@ const CalendarView = lazy(() => import('./components/CalendarView'));
 const HubView = lazy(() => import('./components/HubView'));
 const SettingsSheet = lazy(() => import('./components/SettingsSheet'));
 const AdminHubSheet = lazy(() => import('./components/AdminHubSheet'));
+// Only shown during a session; keeps its font and sound picker out of the first load.
+const HelpCenterSheet = lazy(() => import('./components/HelpCenterSheet'));
+const AmbientScreen = lazy(() => import('./components/AmbientScreen').then((m) => ({ default: m.AmbientScreen })));
 
 const pickQuote = (quotes: AppQuote[]): AppQuote | null => quotes.length
   ? quotes[Math.floor(Math.random() * quotes.length)]
@@ -229,6 +230,9 @@ function AppInner() {
   const [sessionSaveError, setSessionSaveError] = useState('');
   useEffect(() => { setSessionSaveError(''); }, [stopDialogTask]);
   const [helpOpen, setHelpOpen] = useState(false);
+  // Help loads on first open, then stays mounted so it can animate closed.
+  const [helpMounted, setHelpMounted] = useState(false);
+  if (helpOpen && !helpMounted) setHelpMounted(true);
   const [hasSeenHelp, setHasSeenHelp] = useLocalStorage(STORAGE_KEYS.helpSeen, false);
   const firstHelpRef = useRef(false);
   const [briefingOpen, setBriefingOpen] = useState(false);
@@ -1991,7 +1995,7 @@ function AppInner() {
 
       {/* ── Ambient Screen Component ── */}
       {showAmbient && activeSession && activeTask && (
-        <AmbientScreen
+        <Suspense fallback={null}><AmbientScreen
           activeSession={activeSession}
           task={activeTask}
           originNames={originNodesFor(activeTask.id)?.slice(0, 2).map(n => n.title)}
@@ -2000,7 +2004,7 @@ function AppInner() {
           onStop={() => { setShowAmbient(false); setStopDialogTask(activeTask); }}
           onMinimize={() => setShowAmbient(false)}
           onJumpToGoal={activeTask.goalNodeId ? () => jumpToGoalTask(activeTask.goalNodeId) : undefined}
-        />
+        /></Suspense>
       )}
 
       {/* ── Session Stop Dialog ── */}
@@ -2121,13 +2125,13 @@ function AppInner() {
       )}
 
       {/* ── Help Center Sheet ── */}
-      <HelpCenterSheet
+      {helpMounted && <Suspense fallback={null}><HelpCenterSheet
         open={helpOpen}
         onClose={() => {
           setHasSeenHelp(true);
           setHelpOpen(false);
         }}
-      />
+      /></Suspense>}
       <TodayBriefingSheet
         open={briefingOpen}
         todayTasks={todayTasks}
