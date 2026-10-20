@@ -174,7 +174,7 @@ v8 brings a new look: large titles, borderless cards and a floating **Liquid Gla
 
 ## Your data remains yours
 
-YouDO requires an account for a real workspace so signed-out and cross-account data can never be mixed accidentally.
+Use YouDO without an account (**Continue offline**), or sign in for cloud backup and multi-device sync. Offline and account workspaces are kept apart, so data from different accounts can never be mixed accidentally.
 
 - **Local-first workspace:** your phone saves each change immediately; the signed-in cloud copy provides backup and multi-device continuity.
 - **Offline continuity:** after signing in, keep working through temporary network loss. YouDO retries when connectivity returns, and **Sync now** remains available before signing out or changing phones.
