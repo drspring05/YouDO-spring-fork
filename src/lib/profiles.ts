@@ -303,7 +303,12 @@ export async function upsertProfile(profile: Partial<Profile> & { id: string }):
     updateData.username = normalized;
   }
 
-  const { error } = await supabase.from('profiles').upsert(updateData);
+  // A partial patch (e.g. avatar only) must UPDATE: an upsert would try to INSERT
+  // a row without the NOT NULL columns first and fail with 23502.
+  const isFullRow = updateData.username !== undefined && updateData.display_name !== undefined;
+  const { error } = isFullRow
+    ? await supabase.from('profiles').upsert(updateData)
+    : await supabase.from('profiles').update(updateData).eq('id', profile.id);
 
   const savedUsername = normalizeUsername(profile.username);
   if (!error && savedUsername) {
