@@ -6,17 +6,35 @@ import Overlay from './Overlay';
 import OriginChip from './OriginChip';
 import { computeNetFocusMs } from '../lib/sessionStats';
 import { sessionClockLabel } from '../lib/sessionClock';
-import { ambientDrift, ambientTiles, formatAmbientTimer, isNightHour } from '../lib/ambient';
-import '@fontsource/barlow-condensed/600.css';
+import { ambientDigits, ambientDrift, formatAmbientTimer, isNightHour } from '../lib/ambient';
+import '@fontsource/barlow-condensed/400.css';
 import './ambient.css';
 
-/** One flip-clock card: a number that flips in when it changes, and a small corner label. */
-function FlipTile({ value, corner }: { value: string; corner?: string }) {
+/** One digit that rolls softly to its next value: the old one rises and blurs away as the new one settles in. */
+function RollDigit({ digit }: { digit: string }) {
+  const [roll, setRoll] = useState({ current: digit, previous: null as string | null, count: 0 });
+  if (roll.current !== digit) setRoll({ current: digit, previous: roll.current, count: roll.count + 1 });
   return (
-    <div className="ambient-tile" aria-hidden>
-      {corner && <span className="ambient-tile-corner">{corner}</span>}
-      <span key={value} className="ambient-tile-value">{value}</span>
-    </div>
+    <span className="ambient-digit">
+      {roll.previous !== null && (
+        <span
+          key={`out-${roll.count}`}
+          className="ambient-digit-out"
+          onAnimationEnd={() => setRoll((r) => ({ ...r, previous: null }))}
+        >
+          {roll.previous}
+        </span>
+      )}
+      <span key={`in-${roll.count}`} className={roll.count > 0 ? 'ambient-digit-in' : undefined}>{roll.current}</span>
+    </span>
+  );
+}
+
+function RollNumber({ value, className }: { value: string; className: string }) {
+  return (
+    <span className={className}>
+      {value.split('').map((digit, idx) => <RollDigit key={idx} digit={digit} />)}
+    </span>
   );
 }
 
@@ -44,8 +62,8 @@ const CONTROLS_MS = 4000;
 const DRIFT_MS = 60_000;
 
 /**
- * StandBy-style ambient clock: the session timer in huge digits on true black,
- * the clock and the task small around it. Tap to show the controls. Dim red
+ * StandBy-style ambient clock: the session timer in huge accent-coloured digits
+ * on true black, the clock and the task small around it. Tap to show the controls. Dim red
  * after dark, and a slow drift against screen burn-in.
  */
 export function AmbientScreen({
@@ -108,7 +126,7 @@ export function AmbientScreen({
 
   const night = nightOverride ?? isNightHour(now.getHours());
   const timer = formatAmbientTimer(elapsed);
-  const tiles = ambientTiles(elapsed);
+  const digits = ambientDigits(elapsed);
   const clock = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   const paused = activeSession.isPaused;
 
@@ -137,10 +155,16 @@ export function AmbientScreen({
             </span>
           </div>
 
-          {/* Two flip tiles, like Apple's flip clock: stacked in portrait, side by side in landscape. */}
-          <div className="ambient-tiles" role="timer" aria-live="off" aria-label={`Focused ${timer}`}>
-            <FlipTile value={tiles.first} corner={tiles.unit} />
-            <FlipTile value={tiles.second} corner={tiles.seconds ? `${tiles.seconds}s` : undefined} />
+          {/* Minutes and seconds big (stacked in portrait, side by side in landscape), hours small above. */}
+          <div className="ambient-clock" role="timer" aria-live="off" aria-label={`Focused ${timer}`}>
+            <span className="ambient-hours" aria-hidden>
+              {digits.hours > 0 ? `${digits.hours} ${digits.hours === 1 ? 'hr' : 'hrs'}` : ''}
+            </span>
+            <span className="ambient-digits" aria-hidden>
+              <RollNumber value={digits.minutes} className="ambient-minutes" />
+              <span className="ambient-colon"><i /><i /></span>
+              <RollNumber value={digits.seconds} className="ambient-seconds" />
+            </span>
           </div>
 
           <div className="ambient-task">

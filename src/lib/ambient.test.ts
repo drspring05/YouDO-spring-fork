@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { DRIFT_RANGE, ambientAutoOpenEnabled, ambientDrift, ambientTiles, formatAmbientTimer, ambientTipSeen, isNightHour, markAmbientTipSeen, setAmbientAutoOpen } from './ambient';
+import { DRIFT_RANGE, ambientAutoOpenEnabled, ambientDigits, ambientDrift, formatAmbientTimer, ambientTipSeen, isNightHour, markAmbientTipSeen, setAmbientAutoOpen } from './ambient';
 
 const store = new Map<string, string>();
 vi.stubGlobal('localStorage', {
@@ -10,14 +10,14 @@ vi.stubGlobal('localStorage', {
 beforeEach(() => store.clear());
 
 describe('ambient clock', () => {
-  it('shows minutes | seconds under an hour, hours | minutes after, seconds small', () => {
-    expect(ambientTiles(2398)).toEqual({ first: '39', second: '58', unit: 'MIN' });
-    expect(ambientTiles(298)).toEqual({ first: '4', second: '58', unit: 'MIN' });
-    expect(ambientTiles(5998)).toEqual({ first: '1', second: '39', unit: 'HR', seconds: '58' });
+  it('shows minutes and seconds as two digits, hours apart', () => {
+    expect(ambientDigits(2398)).toEqual({ hours: 0, minutes: '39', seconds: '58' });
+    expect(ambientDigits(298)).toEqual({ hours: 0, minutes: '04', seconds: '58' });
+    expect(ambientDigits(5998)).toEqual({ hours: 1, minutes: '39', seconds: '58' });
   });
 
-  it('shows the timer without a leading zero, like the iPhone timer', () => {
-    expect([0, 598, 2398, 5998, 36000].map(formatAmbientTimer)).toEqual(['0:00', '9:58', '39:58', '1:39:58', '10:00:00']);
+  it('reads the timer as 00:00, with hours only past an hour', () => {
+    expect([0, 598, 2398, 5998, 36000].map(formatAmbientTimer)).toEqual(['00:00', '09:58', '39:58', '1:39:58', '10:00:00']);
   });
 
   it('turns night mode on from 21:00 to 06:00', () => {

@@ -1,27 +1,22 @@
 import { STORAGE_KEYS } from './storageKeys';
 
-/** The ambient timer, Apple style: no leading zero (9:58, 39:58, 1:39:58). */
+/** The ambient timer as two-digit minutes and seconds: 00:00, 09:58, 1:39:58. */
 export function formatAmbientTimer(totalSeconds: number): string {
-  const s = Math.max(0, Math.floor(totalSeconds));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = String(s % 60).padStart(2, '0');
-  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
+  const { hours, minutes, seconds } = ambientDigits(totalSeconds);
+  return hours > 0 ? `${hours}:${minutes}:${seconds}` : `${minutes}:${seconds}`;
 }
 
 /**
- * The two flip tiles: the two units that matter most right now. Under an hour
- * minutes | seconds; past an hour hours | minutes, with the seconds small in
- * the corner. `unit` labels the first tile so 1 | 39 is never read as 1:39.
+ * What the ambient clock shows: minutes and seconds big, always two digits,
+ * and the hours apart and small (0 when under an hour).
  */
-export function ambientTiles(totalSeconds: number): { first: string; second: string; unit: 'HR' | 'MIN'; seconds?: string } {
+export function ambientDigits(totalSeconds: number): { hours: number; minutes: string; seconds: string } {
   const s = Math.max(0, Math.floor(totalSeconds));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = String(s % 60).padStart(2, '0');
-  return h > 0
-    ? { first: String(h), second: String(m).padStart(2, '0'), unit: 'HR', seconds: sec }
-    : { first: String(m), second: sec, unit: 'MIN' };
+  return {
+    hours: Math.floor(s / 3600),
+    minutes: String(Math.floor((s % 3600) / 60)).padStart(2, '0'),
+    seconds: String(s % 60).padStart(2, '0'),
+  };
 }
 
 /** Night mode turns on by itself from 21:00 to 06:00. */

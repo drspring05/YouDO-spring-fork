@@ -7,6 +7,8 @@
   overflow: hidden;
   background: #000;
   color: #f2f2f7;
+  /* The accent of the app; the brighter dark-theme shade on light themes too. */
+  --ambient-ink: var(--primary, #c9a46e);
   user-select: none;
   touch-action: manipulation;
 }
@@ -30,78 +32,106 @@
   color: #8e8e93;
   font-variant-numeric: tabular-nums;
 }
-/* Flip-clock tiles, after Apple's flip clock: near-black cards split by a thin
-   line, light grey condensed digits. Side by side in landscape, stacked in
-   portrait. Barlow Condensed is a free stand-in for SF Pro Condensed. */
-.ambient-tiles {
-  --tile-w: min(41vw, 64vh);
-  --tile-h: calc(var(--tile-w) * 0.86);
+/* The timer: minutes and seconds big in the accent colour, hours small above.
+   Side by side in landscape, minutes over seconds in portrait. Barlow
+   Condensed lets two digits fill the width. Each digit rolls softly to the
+   next: the old one rises and blurs out as the new one settles. */
+.ambient-clock {
+  --digit-size: min(36vw, 56vh);
   display: flex;
-  gap: calc(var(--tile-w) * 0.06);
+  flex-direction: column;
+  align-items: center;
+  font-family: 'Barlow Condensed', 'SF Pro Display', system-ui, sans-serif;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
 }
-@media (orientation: portrait) {
-  .ambient-tiles {
-    --tile-w: min(78vw, 44vh);
-    --tile-h: calc(var(--tile-w) * 0.74);
-    flex-direction: column;
-  }
+.ambient-hours {
+  min-height: 1.3em;
+  font-size: max(14px, calc(var(--digit-size) * 0.085));
+  line-height: 1.3;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ambient-ink);
+  opacity: 0.8;
 }
-.ambient-tile {
+.ambient-digits {
   position: relative;
-  display: grid;
-  place-items: center;
-  width: var(--tile-w);
-  height: var(--tile-h);
-  overflow: hidden;
-  border-radius: calc(var(--tile-h) * 0.09);
-  background: #141414;
-  color: #c2c2c6;
-  perspective: 900px;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  font-size: var(--digit-size);
+  transition: opacity 0.6s ease;
 }
-/* The split between the two flaps. */
-.ambient-tile::after {
+/* A faint glow of the accent behind the digits. */
+.ambient-digits::before {
   content: '';
   position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  z-index: 1;
-  height: max(2px, calc(var(--tile-h) * 0.012));
-  transform: translateY(-50%);
-  background: #000;
+  inset: -12% -18%;
+  z-index: -1;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--ambient-ink) 14%, transparent), transparent);
+  pointer-events: none;
 }
-.ambient-tile-value {
-  font-family: 'Barlow Condensed', 'SF Pro Display', system-ui, sans-serif;
-  font-weight: 600;
-  /* Digits fill about three quarters of the card, centred on the split. */
+.ambient-minutes,
+.ambient-seconds { display: flex; }
+.ambient-seconds { opacity: 0.62; }
+.ambient-digit {
   position: relative;
-  top: -0.035em;
-  font-size: calc(var(--tile-h) * 1.05);
-  line-height: 1;
-  letter-spacing: -0.01em;
-  font-variant-numeric: tabular-nums;
-  animation: ambient-flip 0.38s cubic-bezier(0.3, 0.7, 0.4, 1);
-  transform-origin: 50% 50%;
-  transition: opacity 0.4s ease;
+  width: 0.5em;
+  text-align: center;
 }
-.ambient-tile-corner {
+/* Line height 1, so the gradient covers the whole digit. */
+.ambient-digit > span {
+  display: block;
+  line-height: 1;
+  color: transparent;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--ambient-ink) 70%, #fff) 8%,
+    var(--ambient-ink) 55%,
+    color-mix(in srgb, var(--ambient-ink) 78%, #000) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+.ambient-digit-in { animation: ambient-roll-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.ambient-digit > .ambient-digit-out {
   position: absolute;
-  top: 7%;
-  left: 7%;
-  font-family: 'Barlow Condensed', system-ui, sans-serif;
-  font-weight: 600;
-  font-size: max(12px, calc(var(--tile-h) * 0.1));
-  line-height: 1;
-  letter-spacing: 0.02em;
+  inset: 0;
+  animation: ambient-roll-out 0.5s cubic-bezier(0.4, 0, 0.2, 1) both;
 }
-@keyframes ambient-flip {
-  from { transform: rotateX(-75deg); opacity: 0.35; }
-  to { transform: none; opacity: 1; }
+@keyframes ambient-roll-in {
+  from { opacity: 0; transform: translateY(0.24em) scale(0.97); filter: blur(0.05em); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+@keyframes ambient-roll-out {
+  to { opacity: 0; transform: translateY(-0.24em) scale(0.97); filter: blur(0.05em); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .ambient-tile-value { animation: none; }
+  .ambient-digit-in { animation: none; }
+  .ambient-digit > .ambient-digit-out { display: none; }
 }
-.ambient-screen.is-paused .ambient-tile-value { opacity: 0.4; }
+/* The colon: two still dots (vertical between the pairs, level between the rows). */
+.ambient-colon {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2em;
+  margin: 0 0.05em;
+}
+.ambient-colon i {
+  width: 0.06em;
+  height: 0.06em;
+  border-radius: 50%;
+  background: var(--ambient-ink);
+  opacity: 0.55;
+}
+@media (orientation: portrait) {
+  .ambient-clock { --digit-size: min(74vw, 32vh); }
+  .ambient-digits { flex-direction: column; }
+  .ambient-minutes,
+  .ambient-seconds { margin: -0.07em 0; }
+  .ambient-colon { flex-direction: row; gap: 0.16em; margin: 0.03em 0; }
+}
+.ambient-screen.is-paused .ambient-digits { opacity: 0.4; }
 .ambient-task {
   display: flex;
   flex-direction: column;
@@ -167,7 +197,9 @@
 }
 .ambient-controls button[aria-pressed='true'] { background: rgba(255, 255, 255, 0.22); }
 /* Night: everything turns dim red, kind to eyes in the dark. */
-.ambient-screen.is-night .ambient-tile { color: #a3261c; background: #120707; }
+.ambient-screen.is-night { --ambient-ink: #a3261c; }
+.ambient-screen.is-night .ambient-digit > span { background: var(--ambient-ink); -webkit-background-clip: text; background-clip: text; }
+.ambient-screen.is-night .ambient-digits::before { display: none; }
 .ambient-screen.is-night .ambient-top,
 .ambient-screen.is-night .ambient-title { color: #7a1c14; }
 .ambient-screen.is-night .ambient-task > :not(.ambient-title),
@@ -178,3 +210,4 @@
 @media (prefers-reduced-motion: reduce) {
   .ambient-face { transition: none; }
 }
+html:not(.dark) .ambient-screen:not(.is-night) { --ambient-ink: color-mix(in srgb, var(--primary, #8c6a3a) 80%, #fff); }
