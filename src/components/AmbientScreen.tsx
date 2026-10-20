@@ -6,9 +6,19 @@ import Overlay from './Overlay';
 import OriginChip from './OriginChip';
 import { computeNetFocusMs } from '../lib/sessionStats';
 import { sessionClockLabel } from '../lib/sessionClock';
-import { ambientDrift, formatAmbientTimer, isNightHour } from '../lib/ambient';
-import '@fontsource-variable/nunito';
+import { ambientDrift, ambientTiles, formatAmbientTimer, isNightHour } from '../lib/ambient';
+import '@fontsource/barlow-condensed/600.css';
 import './ambient.css';
+
+/** One flip-clock card: a number that flips in when it changes, and a small corner label. */
+function FlipTile({ value, corner }: { value: string; corner?: string }) {
+  return (
+    <div className="ambient-tile" aria-hidden>
+      {corner && <span className="ambient-tile-corner">{corner}</span>}
+      <span key={value} className="ambient-tile-value">{value}</span>
+    </div>
+  );
+}
 
 function formatPauseDuration(ms: number) {
   const mins = Math.floor(ms / 60000);
@@ -98,6 +108,7 @@ export function AmbientScreen({
 
   const night = nightOverride ?? isNightHour(now.getHours());
   const timer = formatAmbientTimer(elapsed);
+  const tiles = ambientTiles(elapsed);
   const clock = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   const paused = activeSession.isPaused;
 
@@ -126,9 +137,10 @@ export function AmbientScreen({
             </span>
           </div>
 
-          {/* One line, like StandBy and the iPhone timer: 9:58, 39:58, 1:39:58. */}
-          <div className={`ambient-digits ${elapsed >= 3600 ? 'has-hours' : ''}`} aria-live="off" aria-label={`Focused ${timer}`}>
-            {timer}
+          {/* Two flip tiles, like Apple's flip clock: stacked in portrait, side by side in landscape. */}
+          <div className="ambient-tiles" role="timer" aria-live="off" aria-label={`Focused ${timer}`}>
+            <FlipTile value={tiles.first} corner={tiles.unit} />
+            <FlipTile value={tiles.second} corner={tiles.seconds ? `${tiles.seconds}s` : undefined} />
           </div>
 
           <div className="ambient-task">

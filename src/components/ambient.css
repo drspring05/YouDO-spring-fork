@@ -30,24 +30,78 @@
   color: #8e8e93;
   font-variant-numeric: tabular-nums;
 }
-/* Apple-style digits: heavy, rounded, one line (StandBy, the iPhone timer). Nunito
-   is a free stand-in for SF Pro Rounded, which cannot ship in the app. */
-.ambient-digits {
-  font-family: 'Nunito Variable', ui-rounded, 'SF Pro Rounded', system-ui, sans-serif;
-  font-weight: 800;
-  /* About 90% of the width: 39:58 is ~2.3em wide, 1:39:58 ~3.3em. */
-  font-size: min(36vw, 52vh);
-  font-variant-numeric: tabular-nums;
+/* Flip-clock tiles, after Apple's flip clock: near-black cards split by a thin
+   line, light grey condensed digits. Side by side in landscape, stacked in
+   portrait. Barlow Condensed is a free stand-in for SF Pro Condensed. */
+.ambient-tiles {
+  --tile-w: min(41vw, 64vh);
+  --tile-h: calc(var(--tile-w) * 0.86);
+  display: flex;
+  gap: calc(var(--tile-w) * 0.06);
+}
+@media (orientation: portrait) {
+  .ambient-tiles {
+    --tile-w: min(78vw, 44vh);
+    --tile-h: calc(var(--tile-w) * 0.74);
+    flex-direction: column;
+  }
+}
+.ambient-tile {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: var(--tile-w);
+  height: var(--tile-h);
+  overflow: hidden;
+  border-radius: calc(var(--tile-h) * 0.09);
+  background: #141414;
+  color: #c2c2c6;
+  perspective: 900px;
+}
+/* The split between the two flaps. */
+.ambient-tile::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  z-index: 1;
+  height: max(2px, calc(var(--tile-h) * 0.012));
+  transform: translateY(-50%);
+  background: #000;
+}
+.ambient-tile-value {
+  font-family: 'Barlow Condensed', 'SF Pro Display', system-ui, sans-serif;
+  font-weight: 600;
+  /* Digits fill about three quarters of the card, centred on the split. */
+  position: relative;
+  top: -0.035em;
+  font-size: calc(var(--tile-h) * 1.05);
   line-height: 1;
-  letter-spacing: -0.035em;
-  white-space: nowrap;
-  text-align: center;
-  color: var(--primary);
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  animation: ambient-flip 0.38s cubic-bezier(0.3, 0.7, 0.4, 1);
+  transform-origin: 50% 50%;
   transition: opacity 0.4s ease;
 }
-/* Past an hour the timer is longer (1:39:58), so it steps down a size. */
-.ambient-digits.has-hours { font-size: min(26vw, 50vh); }
-.ambient-screen.is-paused .ambient-digits { opacity: 0.4; }
+.ambient-tile-corner {
+  position: absolute;
+  top: 7%;
+  left: 7%;
+  font-family: 'Barlow Condensed', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: max(12px, calc(var(--tile-h) * 0.1));
+  line-height: 1;
+  letter-spacing: 0.02em;
+}
+@keyframes ambient-flip {
+  from { transform: rotateX(-75deg); opacity: 0.35; }
+  to { transform: none; opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ambient-tile-value { animation: none; }
+}
+.ambient-screen.is-paused .ambient-tile-value { opacity: 0.4; }
 .ambient-task {
   display: flex;
   flex-direction: column;
@@ -113,7 +167,7 @@
 }
 .ambient-controls button[aria-pressed='true'] { background: rgba(255, 255, 255, 0.22); }
 /* Night: everything turns dim red, kind to eyes in the dark. */
-.ambient-screen.is-night .ambient-digits { color: #b3261e; }
+.ambient-screen.is-night .ambient-tile { color: #a3261c; background: #120707; }
 .ambient-screen.is-night .ambient-top,
 .ambient-screen.is-night .ambient-title { color: #7a1c14; }
 .ambient-screen.is-night .ambient-task > :not(.ambient-title),

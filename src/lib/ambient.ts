@@ -9,6 +9,21 @@ export function formatAmbientTimer(totalSeconds: number): string {
   return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
 }
 
+/**
+ * The two flip tiles: the two units that matter most right now. Under an hour
+ * minutes | seconds; past an hour hours | minutes, with the seconds small in
+ * the corner. `unit` labels the first tile so 1 | 39 is never read as 1:39.
+ */
+export function ambientTiles(totalSeconds: number): { first: string; second: string; unit: 'HR' | 'MIN'; seconds?: string } {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = String(s % 60).padStart(2, '0');
+  return h > 0
+    ? { first: String(h), second: String(m).padStart(2, '0'), unit: 'HR', seconds: sec }
+    : { first: String(m), second: sec, unit: 'MIN' };
+}
+
 /** Night mode turns on by itself from 21:00 to 06:00. */
 export function isNightHour(hour: number): boolean {
   return hour >= 21 || hour < 6;
