@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks=vi.hoisted(()=>({rpc:vi.fn()}));
 vi.mock('./supabase',()=>({supabase:{rpc:mocks.rpc}}));
-import { chooseCommunityHashtag, fetchAdminCommunityHashtags, fetchAdminHashtagRequests, manageCommunityHashtag, parseAdminCommunityHashtag, parseAdminHashtagRequest, parseHashtagContext, requestCommunityHashtag, reviewCommunityHashtagRequest } from './communityHashtags';
+import { chooseCommunityHashtag, fetchAdminCommunityHashtags, fetchAdminHashtagRequests, manageCommunityHashtag, parseAdminCommunityHashtag, parseAdminHashtagRequest, parseHashtagContext, requestCommunityHashtag, reviewCommunityHashtagRequest, withdrawCommunityHashtagRequest } from './communityHashtags';
 
 beforeEach(()=>mocks.rpc.mockReset());
 
@@ -59,5 +59,17 @@ describe('community hashtag contracts',()=>{
     expect(mocks.rpc).toHaveBeenLastCalledWith('review_community_hashtag_request',{
       target_request:'r1',decision:'reject',response_note:'',hashtag_label:null,
     });
+  });
+});
+
+describe('withdrawCommunityHashtagRequest',()=>{
+  it('deletes only through the owner-checked RPC',async()=>{
+    mocks.rpc.mockResolvedValueOnce({data:true,error:null});
+    await withdrawCommunityHashtagRequest('r1');
+    expect(mocks.rpc).toHaveBeenCalledWith('withdraw_community_hashtag_request',{target_request:'r1'});
+  });
+  it('explains a server that has not been updated yet',async()=>{
+    mocks.rpc.mockResolvedValueOnce({data:null,error:{code:'PGRST202',message:'Could not find the function'}});
+    await expect(withdrawCommunityHashtagRequest('r1')).rejects.toThrow('needs an update on our side');
   });
 });

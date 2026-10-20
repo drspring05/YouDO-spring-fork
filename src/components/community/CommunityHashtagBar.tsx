@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight, MessageSquare, X } from 'lucide-react';
 import {
   fetchCommunityRooms,
   requestCommunityHashtag,
+  withdrawCommunityHashtagRequest,
   type CommunityHashtagContext,
   type CommunityHashtagRequest,
 } from '../../lib/communityHashtags';
@@ -27,6 +28,9 @@ export default function CommunityHashtagBar({selectedId,onSelect,onContextChange
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
   const prevWaitingIds = useRef<Set<string> | null>(null);
+  /** null: follow the default (open only while an admin reply waits). */
+  const [requestsOpen,setRequestsOpen]=useState<boolean|null>(null);
+  const [confirmRemove,setConfirmRemove]=useState<string|null>(null);
 
   const refresh=useCallback(async()=>{
     try {
@@ -76,6 +80,19 @@ export default function CommunityHashtagBar({selectedId,onSelect,onContextChange
     }
   };
 
+  const withdraw = async (item: CommunityHashtagRequest) => {
+    setBusy(true); setError('');
+    try {
+      await withdrawCommunityHashtagRequest(item.id);
+      setConfirmRemove(null);
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not remove this request.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const tap = (id?: string) => {
     onSelect(id);
   };
@@ -86,6 +103,8 @@ export default function CommunityHashtagBar({selectedId,onSelect,onContextChange
   }
 
   const hasWaitingRequests = context.requests.some(r => r.status === 'waiting');
+  const showRequests = requestsOpen ?? hasWaitingRequests;
+  const activeRequests = context.requests.filter(r => r.status !== 'declined');
 
   const otherUnreadCount = context.hashtags.reduce((acc, tag) => {
     if (tag.id !== secondTabTag?.id) {
@@ -174,85 +193,6 @@ export default function CommunityHashtagBar({selectedId,onSelect,onContextChange
               <button type="button" onClick={() => setPanel(null)} aria-label="Close"><X size={17} /></button>
             </header>
 
-            {/* User Hashtag Requests Section */}
-            {context.requests.length > 0 && (
-              <div className="mt-2 mb-3 space-y-2">
-                <div className="flex items-center justify-between px-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-secondary flex items-center gap-1.5">
-                    <MessageSquare size={12} />
-                    Your Hashtag Requests
-                  </span>
-                  <span className="text-[9.5px] font-semibold text-content-muted">
-                    {context.requests.length} sent
-                  </span>
-                </div>
-                <div className="space-y-2">
-                  {context.requests.map((item) => (
-                    <div
-                      key={item.id}
-                      className={`p-3 rounded-xl border ${
-                        item.status === 'waiting'
-                          ? 'border-warning/35 bg-warning/10 shadow-sm'
-                          : item.status === 'declined'
-                          ? 'border-error/25 bg-error-soft/30'
-                          : 'border-subtle bg-surface'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="font-bold text-content-primary text-[12.5px]">
-                          #{item.examName}
-                        </span>
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
-                            item.status === 'waiting'
-                              ? 'bg-warning/20 text-warning border border-warning/30'
-                              : item.status === 'declined'
-                              ? 'bg-error-soft text-error'
-                              : 'bg-primary-soft text-primary'
-                          }`}
-                        >
-                          {item.status === 'waiting'
-                            ? 'Admin replied'
-                            : item.status === 'declined'
-                            ? 'Not approved'
-                            : 'Pending review'}
-                        </span>
-                      </div>
-
-                      {item.adminResponse ? (
-                        <p className="text-[11px] leading-relaxed text-content-secondary mt-1 bg-elevated/60 p-2 rounded-lg border border-subtle/50">
-                          <strong className="text-secondary font-semibold">Admin: </strong>
-                          {item.adminResponse}
-                        </p>
-                      ) : item.details ? (
-                        <p className="text-[10.5px] text-content-muted truncate mt-0.5">
-                          {item.details}
-                        </p>
-                      ) : null}
-
-                      <button
-                        type="button"
-                        onClick={() => setChatRequest(item)}
-                        className={`mt-2 w-full flex items-center justify-center gap-1.5 h-8.5 rounded-lg text-[11px] font-semibold transition active:scale-[0.98] ${
-                          item.status === 'waiting'
-                            ? 'bg-secondary text-on-secondary shadow-sm font-bold'
-                            : 'bg-surface border border-subtle text-content-secondary hover:text-content-primary'
-                        }`}
-                      >
-                        <MessageSquare size={13} />
-                        <span>
-                          {item.status === 'waiting'
-                            ? 'Open Support Chat & Reply'
-                            : 'Open Support Chat'}
-                        </span>
-                        <ChevronRight size={13} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
             <div className="mt-2 flex max-h-[50vh] flex-col gap-2 overflow-y-auto pb-4">
               {context.hashtags.map(tag => {
                 const unreadCount = context.roomUnread?.[tag.id] ?? 0;
@@ -267,6 +207,68 @@ export default function CommunityHashtagBar({selectedId,onSelect,onContextChange
                 );
               })}
             </div>
+            {context.requests.length > 0 && (
+              <div className="border-t border-subtle pt-1">
+                <button
+                  type="button"
+                  onClick={() => setRequestsOpen(!showRequests)}
+                  aria-expanded={showRequests}
+                  className="flex w-full items-center justify-between px-1 py-2 text-[12px] font-semibold text-content-secondary"
+                >
+                  <span className="flex items-center gap-1.5">
+                    Your requests
+                    {hasWaitingRequests && (
+                      <span className="rounded-full bg-primary-soft px-1.5 py-0.5 text-[9.5px] font-bold text-primary">Admin replied</span>
+                    )}
+                  </span>
+                  <span className="flex items-center gap-1 text-content-muted tabular-nums">
+                    {context.requests.length}
+                    <ChevronDown size={14} className={`transition-transform ${showRequests ? 'rotate-180' : ''}`} />
+                  </span>
+                </button>
+                {showRequests && (
+                  <ul className="mb-1 divide-y divide-[color:var(--separator)] rounded-xl border border-subtle">
+                    {context.requests.map((item) => (
+                      <li key={item.id} className="flex items-center gap-2 px-3 py-2.5">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[12.5px] font-semibold text-content-primary">#{item.examName}</p>
+                          <p className={`text-[11px] ${item.status === 'waiting' ? 'font-semibold text-primary' : 'text-content-muted'}`}>
+                            {item.status === 'waiting' ? 'Admin replied' : item.status === 'declined' ? 'Not approved' : 'Waiting for review'}
+                          </p>
+                        </div>
+                        {confirmRemove === item.id ? (
+                          <span className="flex shrink-0 items-center gap-1.5 text-[11px]">
+                            <span className="text-content-muted">{item.status === 'declined' ? 'Clear?' : 'Cancel request?'}</span>
+                            <button type="button" disabled={busy} onClick={() => void withdraw(item)} className="rounded-md bg-elevated px-2 py-1 font-semibold text-error">Yes</button>
+                            <button type="button" onClick={() => setConfirmRemove(null)} className="rounded-md px-1.5 py-1 text-content-muted">No</button>
+                          </span>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => setChatRequest(item)}
+                              className={`flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold ${item.status === 'waiting' ? 'bg-primary-soft text-primary' : 'text-content-secondary'}`}
+                            >
+                              <MessageSquare size={12} />
+                              {item.status === 'waiting' ? 'Reply' : 'Chat'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setError(''); setConfirmRemove(item.id); }}
+                              aria-label={item.status === 'declined' ? `Clear #${item.examName}` : `Cancel request for #${item.examName}`}
+                              className="grid size-7 shrink-0 place-items-center rounded-full text-content-muted"
+                            >
+                              <X size={14} />
+                            </button>
+                          </>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+            {error && <p role="alert" className="c-hashtag-sheet-error">{error}</p>}
             <button type="button" className="c-hashtag-submit mt-2 w-full" onClick={() => setPanel('request')}>Request a new exam hashtag</button>
           </section>
         )}
@@ -282,9 +284,9 @@ export default function CommunityHashtagBar({selectedId,onSelect,onContextChange
               <button type="button" onClick={() => setPanel(null)} aria-label="Close"><X size={17} /></button>
             </header>
             <>
-              {context.requests.length > 0 && (
+              {activeRequests.length > 0 && (
                 <div className="c-hashtag-request-list mb-3">
-                  {context.requests.map((item) => (
+                  {activeRequests.map((item) => (
                     <div className={`c-hashtag-request-state is-${item.status}`} key={item.id}>
                       <div className="flex items-center justify-between w-full">
                         <strong>{item.status === 'waiting' ? 'Admin replied' : item.status === 'declined' ? 'Not approved' : 'Request sent'}</strong>

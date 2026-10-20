@@ -154,7 +154,13 @@ export default function CommunityHashtagSupportChat({
           )}
         </div>
 
-        {/* Composer */}
+        {/* A declined request is closed: replying would quietly open a new
+            request that the admin already turned down. */}
+        {request.status === 'declined' ? (
+          <p className="border-t border-subtle pt-3 text-center text-[11px] text-content-muted">
+            This request is closed. You can send a new request from Explore rooms any time.
+          </p>
+        ) : (
         <div className="border-t border-subtle pt-3 space-y-2.5">
           <label className="block">
             <span className="block text-[10.5px] font-semibold text-content-primary mb-1">
@@ -196,6 +202,7 @@ export default function CommunityHashtagSupportChat({
             <span>{busy ? 'Sending...' : 'Send reply to admin'}</span>
           </button>
         </div>
+        )}
       </div>
     </Overlay>
   );
