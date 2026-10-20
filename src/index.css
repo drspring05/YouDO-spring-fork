@@ -1143,23 +1143,26 @@ input[type='datetime-local'] {
 @media (prefers-reduced-motion: reduce) {
   .admin-hold-ring circle { animation: none; stroke-dashoffset: 0; opacity: 0.6; }
 }
-/* Admin items waiting: a number, top-left, so it never reads as the sync warning dot. */
+/* Admin items waiting: a small accent count sitting on the orb's rim, top-left
+   (clear of the gear, and never mistaken for the sync warning dot top-right). */
 .admin-orb-badge {
   position: absolute;
-  left: 8px;
-  top: 8px;
-  min-width: 17px;
-  height: 17px;
-  padding: 0 4px;
+  left: 2px;
+  top: 2px;
+  z-index: 2; /* above the Liquid Glass rim (::after, z-index 1), which greyed it out */
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
   display: grid;
   place-items: center;
   border-radius: 999px;
   background: var(--primary);
   color: var(--on-primary);
-  font-size: 9.5px;
+  font-size: 10.5px;
   font-weight: 700;
   line-height: 1;
-  box-shadow: 0 0 0 2px var(--bg-surface);
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 0 0 2px var(--bg-base), 0 2px 6px color-mix(in srgb, black 25%, transparent);
   pointer-events: none;
 }
 .tab-bar-sheet { border-radius: 30px; padding: 8px; }
