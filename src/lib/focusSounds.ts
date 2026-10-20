@@ -126,7 +126,7 @@ class FocusSoundPlayer {
         ? Promise.resolve((() => {
           const length = ctx.sampleRate * 8;
           const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
-          buffer.copyToChannel(generateNoise(sound.id as 'brown' | 'pink', length) as Float32Array<ArrayBuffer>, 0);
+          buffer.copyToChannel(generateNoise(sound.id as 'brown' | 'pink', length), 0);
           return buffer;
         })())
         : fetch(`${import.meta.env.BASE_URL}${sound.src}`)
