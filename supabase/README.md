@@ -17,6 +17,7 @@ files in this directory.
 - **YouDO — Admin Hashtag Management** → `community_hashtag_admin.sql`
 - **YouDO — Hashtag Request Cleanup** → `hashtag_request_cleanup.sql` (after `community_hashtag_admin.sql`)
 - **YouDO — Board Update Push** → `board_update_push.sql` (after `push_dispatch.sql`, `hub_push.sql` and `community_chat.sql`)
+- **YouDO — Board Update Extras** → `board_update_extras.sql` (after `board_update_push.sql`)
 - **YouDO — Managed App Quotes** → `app_quotes.sql`
 - **YouDO — Account Sessions** → `account_sessions.sql`
 - **YouDO — Optimize Auth RLS Policies** → `optimize_auth_rls_policies.sql`

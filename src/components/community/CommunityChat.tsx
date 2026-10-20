@@ -8,6 +8,7 @@ import { dismissCommunityNotification } from '../../lib/notifications';
 import { fetchCommunityRooms, type CommunityHashtagContext, type CommunityHashtagRequest } from '../../lib/communityHashtags';
 import { activeChatMessages, chatCacheGeneration, CHAT_HISTORY_LIMIT, CHAT_PAGE_SIZE, clearChatCache, deleteChatMessage, editChatMessage, fetchChatPage, mergeChatPage, pendingChatMessage, readChatCache, saveChatCache, sendChatMessage, type ChatMessage } from '../../lib/communityChat';
 import CommunityHashtagBar from './CommunityHashtagBar';
+import UpdateExtras from './UpdateExtras';
 
 /** The Board top bar's My Reports button opens the chat's reports sheet. */
 export const OPEN_COMMUNITY_REPORTS_EVENT = 'youdo-community-open-reports';
@@ -422,7 +423,7 @@ export default function CommunityChat({ userId, context, names, onProfile, onOpe
           {!!context.unread?.updates && <span className="c-update-new">New</span>}
           <ChevronDown className="c-update-chevron" size={15}/>
         </button>
-        {updateOpen && <div className="c-update-body"><p>{context.settings.announcement}</p>{context.settings.announcementUpdatedAt && <time dateTime={context.settings.announcementUpdatedAt}>{new Date(context.settings.announcementUpdatedAt).toLocaleString()}</time>}</div>}
+        {updateOpen && <div className="c-update-body"><p>{context.settings.announcement}</p>{context.settings.announcementUpdatedAt && <time dateTime={context.settings.announcementUpdatedAt}>{new Date(context.settings.announcementUpdatedAt).toLocaleString()}</time>}<UpdateExtras refreshKey={`${context.settings.announcement}|${context.settings.announcementUpdatedAt ?? ''}`}/></div>}
       </section>}
       {hasOlder && <button className="c-text-button c-load" disabled={loading} onClick={()=>void loadOlder()}>{loading?'Loading…':'Earlier messages'}</button>}
       {loading && messages.length===0 ? <div className="c-skeleton" role="status" aria-label="Loading chat"><i/><i/><i/></div>

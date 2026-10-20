@@ -6,6 +6,7 @@ import { LocalNotifications } from '@capacitor/local-notifications';
 import { ensureNotificationChannels, getNotificationPreferences, scheduleMorningBriefing } from './lib/notifications';
 import { initPushNotifications } from './lib/pushNotifications';
 import { syncPushPreferences } from './lib/pushPreferences';
+import { OPEN_APP_UPDATES_EVENT } from './lib/boardUpdate';
 import type { GoalKind, GoalNode, Task, View, TaskSession } from './types';
 import { useNavigationSync } from './hooks/useNavigationSync';
 import { formatDDMMYYYY, hasGoalExecutionState, isBacklogTask, isGoalEndpoint, isOpenBacklogTask, isTaskComplete, isToday, pathNodes, pathTitles, todayISO, useStore, useSessionStore, findGoal } from './store';
@@ -206,6 +207,8 @@ function AppInner() {
   const [sheetInitialDate, setSheetInitialDate] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsFocus, setSettingsFocus] = useState<'public-board' | null>(null);
+  /** Opens Settings on a given tab (e.g. About, from a Board update's "Check for updates"). */
+  const [settingsTab, setSettingsTab] = useState<'about' | undefined>(undefined);
   const [goalSheetOpen, setGoalSheetOpen] = useState(false);
   const [blueprintStudioOpen, setBlueprintStudioOpen] = useState(false);
   const [blueprintUndo, setBlueprintUndo] = useState<{ token: string; title: string } | null>(null);
@@ -460,6 +463,17 @@ function AppInner() {
     setSettingsOpen(true);
   };
 
+  useEffect(() => {
+    const openUpdates = () => {
+      setSettingsFocus(null);
+      setSettingsTab('about');
+      pushModalState();
+      setSettingsOpen(true);
+    };
+    window.addEventListener(OPEN_APP_UPDATES_EVENT, openUpdates);
+    return () => window.removeEventListener(OPEN_APP_UPDATES_EVENT, openUpdates);
+  }, [pushModalState]);
+
   const openBoardSettings = () => {
     setSettingsFocus('public-board');
     pushModalState();
@@ -563,6 +577,7 @@ function AppInner() {
   const closeSettings = useCallback(() => {
     setSettingsOpen(false);
     setSettingsFocus(null);
+    setSettingsTab(undefined);
     if (window.history.state?.modal) window.history.back();
   }, []);
 
@@ -1893,6 +1908,7 @@ function AppInner() {
             open={settingsOpen}
             onClose={closeSettings}
             focusSection={settingsFocus ?? undefined}
+            initialTab={settingsTab}
             streakBarHours={streakMeta.barHours}
             onStreakBarHoursChange={setStreakBarHours}
             briefingStreak={{ current: streakStatus.current, best: streakStatus.best }}
