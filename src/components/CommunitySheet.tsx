@@ -32,6 +32,7 @@ import Toggle from './Toggle';
 import { hapticSuccess, hapticTick, hapticWarn } from '../lib/haptics';
 import CommunityChat from './community/CommunityChat';
 import CommunityHashtagAdmin from './community/CommunityHashtagAdmin';
+import { OPEN_COMMUNITY_REPORTS_EVENT } from './community/CommunityChat';
 import CommunityHashtagManager from './community/CommunityHashtagManager';
 import CommunityQuoteAdmin from './community/CommunityQuoteAdmin';
 import { clearChatCache } from '../lib/communityChat';
@@ -276,6 +277,9 @@ export default function CommunitySheet({ open, onClose, userId, rows, initialCon
           <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-primary">Board community</p>
           <h2 className="text-[16px] font-bold text-content-primary truncate">Community</h2>
         </div>
+        {mode === 'room' && context.chatV2 && (
+          <button type="button" onClick={() => window.dispatchEvent(new Event(OPEN_COMMUNITY_REPORTS_EVENT))} className="grid size-9 place-items-center rounded-xl text-content-muted" aria-label="My reports" title="My reports"><Flag size={15} /></button>
+        )}
         <button type="button" disabled={refreshing} onClick={() => void refresh()} className="grid size-9 place-items-center rounded-xl text-content-muted" aria-label="Refresh"><RefreshCw size={15} /></button>
       </header>
       )}
