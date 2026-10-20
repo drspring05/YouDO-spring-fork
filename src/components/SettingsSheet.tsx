@@ -17,7 +17,6 @@ import {
   Download,
   Edit2,
   Flame,
-  Hash,
   History,
   Heart,
   Info,
@@ -39,16 +38,13 @@ import {
   Smartphone,
   Sparkles,
   Sun,
-  Target,
   Trash2,
   TrendingUp,
   Upload,
   Users,
   WifiOff,
   X,
-  Megaphone,
   Database,
-  UserRound,
 } from 'lucide-react';
 import Overlay from './Overlay';
 import Toggle from './Toggle';
@@ -575,6 +571,8 @@ export default function SettingsSheet({
   if (!open) return null;
 
   const showPanels = legacyStyle || page !== 'home';
+  // The new look shows updates and support open on the home list, not behind a row.
+  const aboutVisible = (showPanels && activeTab === 'about') || (!legacyStyle && page === 'home');
 
   const handleExport = async () => {
     try {
@@ -791,8 +789,6 @@ export default function SettingsSheet({
           const avatar = user?.user_metadata?.avatar_url;
           const rows: { id: string; label: string; icon: typeof Bell; onClick: () => void; badge?: React.ReactNode }[][] = [
             [
-              { id: 'account', label: 'Account and sync', icon: UserRound, onClick: () => openPage('account'),
-                badge: cloudSyncConflict ? <span className="size-2 rounded-full bg-warning" aria-label="Sync conflict requires review" /> : undefined },
               { id: 'appearance', label: 'Appearance', icon: Palette, onClick: () => openPage('appearance') },
               { id: 'notifications', label: 'Notifications', icon: Bell, onClick: () => openPage('notifications') },
               { id: 'focus', label: 'Focus and streak', icon: Flame, onClick: () => openPage('focus') },
@@ -804,8 +800,6 @@ export default function SettingsSheet({
             [
               ...(onOpenAdminHub ? [{ id: 'admin', label: 'Admin Hub', icon: ShieldCheck, onClick: onOpenAdminHub,
                 badge: adminPending > 0 ? <span className="settings-home-count" aria-label={`${adminPending} waiting`}>{adminPending > 99 ? '99+' : adminPending}</span> : undefined }] : []),
-              { id: 'about', label: 'About and updates', icon: Info, onClick: () => openPage('about'),
-                badge: availableUpdate ? <span className="settings-home-pill">Update</span> : undefined },
             ],
           ];
           return (
@@ -813,7 +807,7 @@ export default function SettingsSheet({
               <button
                 type="button"
                 className="settings-home-profile"
-                onClick={() => { openPage('account'); if (user) setEditProfileOpen(true); }}
+                onClick={() => openPage('account')}
               >
                 <span className="settings-home-avatar" aria-hidden>
                   {!user ? <WifiOff size={24} />
@@ -824,9 +818,10 @@ export default function SettingsSheet({
                 <span className="min-w-0 flex-1 text-left">
                   <span className="block truncate text-[18px] font-semibold text-content-primary">{name}</span>
                   <span className="block truncate text-[13px] text-content-secondary">
-                    {!user ? 'Stored on this device' : handle ? `@${handle} · Edit profile` : 'Edit profile'}
+                    {!user ? 'Stored on this device' : handle ? `@${handle} · Account and sync` : 'Account and sync'}
                   </span>
                 </span>
+                {cloudSyncConflict && <span className="size-2 shrink-0 rounded-full bg-warning" aria-label="Sync conflict requires review" />}
                 <ChevronRight size={18} className="shrink-0 text-content-muted" aria-hidden />
               </button>
               {rows.map((group, index) => (
@@ -2302,15 +2297,14 @@ export default function SettingsSheet({
                 </div>
 
                 {/* Sub-toggles for content */}
-                <div className="bg-base/60 rounded-xl p-3 border border-subtle/80 space-y-2.5">
+                <div className="pt-3 border-t border-subtle space-y-2.5">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-content-muted block mb-1">
                     Include in Morning Summary
                   </span>
                   
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <Target size={13} className="text-primary shrink-0" />
-                      <span className="text-xs text-content-primary truncate">Goal countdowns (days remaining)</span>
+                      <h4 className="text-[11.5px] font-semibold text-content-primary truncate">Goal countdowns (days remaining)</h4>
                     </div>
                     <Toggle
                       checked={notifPrefs.morningBriefing.includeGoals}
@@ -2360,8 +2354,7 @@ export default function SettingsSheet({
 
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <Check size={13} className="text-secondary shrink-0" />
-                      <span className="text-xs text-content-primary truncate">Today's planned schedule &amp; focus</span>
+                      <h4 className="text-[11.5px] font-semibold text-content-primary truncate">Today's planned schedule &amp; focus</h4>
                     </div>
                     <Toggle
                       checked={notifPrefs.morningBriefing.includeTodayPlan}
@@ -2377,8 +2370,7 @@ export default function SettingsSheet({
 
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <AlertTriangle size={13} className="text-amber-400 shrink-0" />
-                      <span className="text-xs text-content-primary truncate">Uncompleted backlog tasks alert</span>
+                      <h4 className="text-[11.5px] font-semibold text-content-primary truncate">Uncompleted backlog tasks alert</h4>
                     </div>
                     <Toggle
                       checked={notifPrefs.morningBriefing.includeBacklog}
@@ -2394,8 +2386,7 @@ export default function SettingsSheet({
 
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <Flame size={13} className="text-orange-400 shrink-0" />
-                      <span className="text-xs text-content-primary truncate">Streak counter &amp; momentum</span>
+                      <h4 className="text-[11.5px] font-semibold text-content-primary truncate">Streak counter &amp; momentum</h4>
                     </div>
                     <Toggle
                       checked={notifPrefs.morningBriefing.includeStreak}
@@ -2438,7 +2429,7 @@ export default function SettingsSheet({
                     <div className="text-[12px] font-bold text-content-primary flex items-center gap-1.5">
                       {briefingPreview.title}
                     </div>
-                    <div className="mt-1 text-[11px] text-content-secondary leading-relaxed whitespace-pre-line font-mono bg-elevated/80 p-2 rounded-lg border border-subtle">
+                    <div className="mt-1 text-[11px] text-content-secondary leading-relaxed whitespace-pre-line bg-elevated/80 p-2 rounded-lg border border-subtle">
                       {briefingPreview.body}
                     </div>
                   </div>
@@ -2587,7 +2578,6 @@ export default function SettingsSheet({
               <div className="space-y-3 pt-2 border-t border-subtle">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <Megaphone size={13} className="text-primary shrink-0" />
                     <div className="min-w-0 flex-1">
                       <h4 className="text-[11.5px] font-semibold text-content-primary">Board Updates</h4>
                       <p className="text-[10px] text-content-secondary">When the YouDO team posts news on the Board</p>
@@ -2607,7 +2597,6 @@ export default function SettingsSheet({
 
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <MessageSquare size={13} className="text-primary shrink-0" />
                     <div className="min-w-0 flex-1">
                       <h4 className="text-[11.5px] font-semibold text-content-primary">Community Chat Messages</h4>
                       <p className="text-[10px] text-content-secondary">Alerts for new messages in public chat</p>
@@ -2627,7 +2616,6 @@ export default function SettingsSheet({
 
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <Hash size={13} className="text-primary shrink-0" />
                     <div className="min-w-0 flex-1">
                       <h4 className="text-[11.5px] font-semibold text-content-primary">Hashtag Community Updates</h4>
                       <p className="text-[10px] text-content-secondary">Alerts for your selected exam hashtag</p>
@@ -2683,7 +2671,6 @@ export default function SettingsSheet({
                   {/* New Hashtag Requests */}
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <Hash size={13} className="text-primary shrink-0" />
                       <div className="min-w-0 flex-1">
                         <h4 className="text-[11.5px] font-semibold text-content-primary">New Hashtag Requests</h4>
                         <p className="text-[10px] text-content-secondary">Alerts when users submit new exam room requests</p>
@@ -2707,7 +2694,6 @@ export default function SettingsSheet({
                   {/* Reported Messages */}
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <AlertTriangle size={13} className="text-warning shrink-0" />
                       <div className="min-w-0 flex-1">
                         <h4 className="text-[11.5px] font-semibold text-content-primary">Reported Messages</h4>
                         <p className="text-[10px] text-content-secondary">Alerts when members flag chat messages for moderation</p>
@@ -2731,7 +2717,6 @@ export default function SettingsSheet({
                   {/* Support Chat Replies */}
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <MessageSquare size={13} className="text-primary shrink-0" />
                       <div className="min-w-0 flex-1">
                         <h4 className="text-[11.5px] font-semibold text-content-primary">Support Chat Replies</h4>
                         <p className="text-[10px] text-content-secondary">Alerts when a requester answers your note in Support Chat</p>
@@ -2997,9 +2982,9 @@ export default function SettingsSheet({
         role="tabpanel"
         id="settings-panel-about"
         aria-labelledby="settings-tab-about"
-        hidden={!showPanels || activeTab !== 'about'}
-        tabIndex={activeTab === 'about' ? 0 : -1}
-        className={showPanels && activeTab === 'about' ? 'space-y-5 fade-in outline-none' : 'hidden'}
+        hidden={!aboutVisible}
+        tabIndex={aboutVisible ? 0 : -1}
+        className={aboutVisible ? 'space-y-5 fade-in outline-none' : 'hidden'}
       >
         {/* ── SECTION 6: UPDATES & COMMUNITY ── */}
         <section>
