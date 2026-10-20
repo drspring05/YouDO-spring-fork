@@ -41,6 +41,7 @@ import { useCommunityActivity } from './hooks/useCommunityActivity';
 import { useHubAttention } from './hooks/useHubAttention';
 import { useIsCommunityAdmin } from './hooks/useIsCommunityAdmin';
 import { useFocusStatusShare } from './hooks/useFocusStatusShare';
+import { useFocusSoundSession } from './hooks/useFocusSoundSession';
 import { ADMIN_QUEUE_EVENT, useAdminHubCounts } from './hooks/useAdminHubCounts';
 import { useAuth } from './contexts/AuthContext';
 import { closeTopOverlay } from './lib/overlayNavigation';
@@ -187,6 +188,7 @@ function AppInner() {
   const isCommunityAdmin = useIsCommunityAdmin(activityUser?.id);
   // Room-mates see when you are focusing (never what on).
   useFocusStatusShare(activityUser?.id, activeSession);
+  useFocusSoundSession(activeSession);
   const {
     privatePending: hubPrivatePending,
     communityUnread: hubCommunityUnread,

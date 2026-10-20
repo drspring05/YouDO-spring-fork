@@ -88,6 +88,13 @@
             </intent-filter>
         </activity-alias>
 
+        <!-- Focus sounds with "Keep playing" on: keeps the app alive with the screen off. -->
+        <service
+            android:name=".FocusSoundService"
+            android:exported="false"
+            android:stopWithTask="true"
+            android:foregroundServiceType="mediaPlayback" />
+
         <receiver
             android:name=".SessionNotificationReceiver"
             android:exported="false" />
@@ -120,4 +127,6 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 </manifest>

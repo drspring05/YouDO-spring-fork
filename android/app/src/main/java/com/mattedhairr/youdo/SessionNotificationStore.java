@@ -47,6 +47,8 @@ final class SessionNotificationStore {
 
     static boolean clear(Context ctx) {
         if (!ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().clear().commit()) return false;
+        // A focus sound service holds this card while it plays; let it go first.
+        FocusSoundService.stop(ctx);
         NotificationManagerCompat.from(ctx).cancel(NOTIF_ID);
         return true;
     }
@@ -127,6 +129,21 @@ final class SessionNotificationStore {
     }
 
     static void show(Context ctx, boolean paused, String title) {
+        android.app.Notification notification = build(ctx, paused, title);
+        try {
+            NotificationManagerCompat.from(ctx).notify(NOTIF_ID, notification);
+        } catch (SecurityException ignored) {
+            /* permission denied */
+        }
+    }
+
+    /** The live card for the saved session; the focus sound service shows it while it runs. */
+    static android.app.Notification buildCurrent(Context ctx) {
+        JSONObject session = sessionObject(ctx);
+        return build(ctx, session != null && session.optBoolean("isPaused", false), title(ctx));
+    }
+
+    private static android.app.Notification build(Context ctx, boolean paused, String title) {
         ensureChannel(ctx);
         String safeTitle = title == null || title.trim().isEmpty() ? "Focus Session" : title.trim();
         long elapsedMs = elapsedFocusMs(sessionObject(ctx), paused);
@@ -160,12 +177,7 @@ final class SessionNotificationStore {
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setContentIntent(openAppIntent(ctx));
-
-        try {
-            NotificationManagerCompat.from(ctx).notify(NOTIF_ID, builder.build());
-        } catch (SecurityException ignored) {
-            /* permission denied */
-        }
+        return builder.build();
     }
 
     private static RemoteViews sessionViews(Context ctx, int layout, String title, boolean paused, long chronoBase, PendingIntent toggle) {

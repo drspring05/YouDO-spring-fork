@@ -64,6 +64,23 @@ export function saveFocusSoundPrefs(next: FocusSoundPrefs): void {
 }
 
 /**
+ * What the player should do right now. Sound follows the session: it plays
+ * while the timer runs, pauses with it, and stops when it ends. Leaving the app
+ * (or turning the screen off) pauses it too, unless "Keep playing" is on.
+ */
+export function focusSoundAction(state: {
+  session: boolean;
+  paused: boolean;
+  sound: FocusSoundId | null;
+  visible: boolean;
+  keepPlaying: boolean;
+}): 'play' | 'pause' | 'stop' {
+  if (!state.session || !state.sound) return 'stop';
+  if (state.paused || (!state.visible && !state.keepPlaying)) return 'pause';
+  return 'play';
+}
+
+/**
  * Brown (deep, like a far waterfall) or pink (softer rain-like hiss) noise. The
  * last `blend` samples are mixed into the first ones so the loop has no seam.
  */
@@ -162,9 +179,21 @@ class FocusSoundPlayer {
     this.stopCurrent();
     const buffer = await this.buffer(sound).catch(() => null);
     if (!buffer || token !== this.token) return;
-    if (ctx.state === 'suspended') await ctx.resume().catch(() => undefined);
+    this.wake(ctx);
     this.current = { id, stop: sound.kind === 'crossfade' ? this.startCrossfade(buffer) : this.startLoop(buffer) };
     this.ramp(this.volume, FADE_S);
+  }
+
+  /**
+   * Start the audio clock. A browser may hold it until the next tap (for
+   * example after a reload mid-session), so the first tap also wakes it.
+   */
+  private wake(ctx: AudioContext) {
+    if (ctx.state !== 'suspended') return;
+    void ctx.resume().catch(() => undefined);
+    window.addEventListener('pointerdown', () => {
+      if (this.current && ctx.state === 'suspended') void ctx.resume().catch(() => undefined);
+    }, { once: true, capture: true });
   }
 
   private startLoop(buffer: AudioBuffer): () => void {
@@ -233,7 +262,9 @@ class FocusSoundPlayer {
 
   async resume(): Promise<void> {
     if (!this.ctx || !this.current) return;
-    if (this.ctx.state === 'suspended') await this.ctx.resume().catch(() => undefined);
+    // A newer request: a pause or stop still fading out must not cut the sound.
+    this.token++;
+    this.wake(this.ctx);
     this.ramp(this.volume, FADE_S);
   }
 
