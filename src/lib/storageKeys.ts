@@ -32,6 +32,7 @@ export const STORAGE_KEYS = {
   notificationPrefs: 'youdo-notification-prefs-v1',
   ambientAutoOpen: 'youdo-ambient-auto-open-v1',
   ambientTipSeen: 'youdo-ambient-tip-seen-v1',
+  focusSounds: 'youdo-focus-sounds-v1',
 } as const;
 
 export const REQUEST_ACCOUNT_ACCESS_EVENT = 'youdo:request-account-access';
