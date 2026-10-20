@@ -465,7 +465,7 @@ export default function TodayBriefingSheet({
               the left, how it went on the right, split by a light divider. */}
           {sessionNudge && (
             <div className="col-span-2 flex bg-surface border border-subtle rounded-[12px] p-3 min-w-0">
-              <div className="flex-1 min-w-0">
+              <div className="shrink-0">
                 <div className="flex items-center gap-1.5 text-content-muted mb-1.5">
                   <History className={`w-3.5 h-3.5 shrink-0 ${nudgeClass}`} />
                   <span className="text-[10px] font-semibold uppercase tracking-wider">Last session</span>
@@ -473,14 +473,16 @@ export default function TodayBriefingSheet({
                 <p className={`text-[18px] font-semibold tabular-nums leading-none ${nudgeClass}`}>{sessionNudge.ago}</p>
                 <p className="text-[11px] text-content-secondary mt-1">{sessionNudge.hint}</p>
               </div>
-              <ul className="flex-1 min-w-0 flex flex-col justify-center gap-1.5 border-l border-subtle pl-3 ml-3 text-[11.5px] text-content-secondary">
+              <ul className="flex-1 min-w-0 flex flex-col justify-center gap-2 border-l border-subtle pl-4 ml-4 text-[12px] text-content-secondary">
                 <li className="flex items-center gap-1.5 min-w-0">
                   <span className="size-1 shrink-0 rounded-full bg-[color:var(--text-muted)]" aria-hidden />
-                  <span className="truncate">Length <span className="font-semibold text-content-primary tabular-nums">{formatDuration(sessionNudge.lengthMs)}</span></span>
+                  <span className="truncate">Length</span>
+                  <span className="ml-auto shrink-0 font-semibold text-content-primary tabular-nums">{formatDuration(sessionNudge.lengthMs)}</span>
                 </li>
                 <li className="flex items-center gap-1.5 min-w-0">
                   <span className="size-1 shrink-0 rounded-full bg-[color:var(--text-muted)]" aria-hidden />
-                  <span className="truncate">Efficiency <span className="font-semibold text-primary tabular-nums">{sessionNudge.efficiency}%</span></span>
+                  <span className="truncate">Efficiency</span>
+                  <span className="ml-auto shrink-0 font-semibold text-primary tabular-nums">{sessionNudge.efficiency}%</span>
                 </li>
               </ul>
             </div>
