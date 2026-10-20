@@ -43,6 +43,7 @@ import {
   Users,
   WifiOff,
   X,
+  Megaphone,
 } from 'lucide-react';
 import Overlay from './Overlay';
 import Toggle from './Toggle';
@@ -2461,6 +2462,26 @@ export default function SettingsSheet({
 
             {notifPrefs.publicHub.enabled && (
               <div className="space-y-3 pt-2 border-t border-subtle">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <Megaphone size={13} className="text-primary shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-[11.5px] font-semibold text-content-primary">Board Updates</h4>
+                      <p className="text-[10px] text-content-secondary">When the YouDO team posts news on the Board</p>
+                    </div>
+                  </div>
+                  <Toggle
+                    checked={notifPrefs.publicHub.boardUpdates !== false}
+                    onChange={() =>
+                      updateNotifPrefs((p) => ({
+                        ...p,
+                        publicHub: { ...p.publicHub, boardUpdates: p.publicHub.boardUpdates === false },
+                      }))
+                    }
+                    label="Board update notifications"
+                  />
+                </div>
+
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2 min-w-0 flex-1">
                     <MessageSquare size={13} className="text-primary shrink-0" />

@@ -18,6 +18,7 @@ import {
   removeCommunityMessage,
   reportCommunityMessage,
   reviewCommunityAppeal,
+  notifyCommunityUpdate,
   saveCommunitySettings,
   submitCommunityAppeal,
   type CommunityAuditEntry,
@@ -90,6 +91,8 @@ export default function CommunitySheet({ open, onClose, userId, rows, initialCon
   const [quoteLoadError, setQuoteLoadError] = useState('');
   const [announcement, setAnnouncement] = useState(initialContext.settings.announcement);
   const [announcementExpanded, setAnnouncementExpanded] = useState(false);
+  /** After publishing a new update: ask before pushing it to every Board member. */
+  const [askNotify, setAskNotify] = useState(false);
   const announcementDirty = useRef(false);
   const [pendingBan, setPendingBan] = useState<string | null>(null);
   const [appealDraft, setAppealDraft] = useState('');
@@ -212,9 +215,18 @@ export default function CommunitySheet({ open, onClose, userId, rows, initialCon
   const saveSettings = async () => {
     setBusy(true);
     const next = { ...context.settings, announcement: announcement.trim() };
+    const published = next.announcement !== '' && next.announcement !== context.settings.announcement;
     const ok = await saveCommunitySettings(next);
     setStatus(ok ? 'Community controls saved.' : 'Could not save controls.');
-    if (ok) { hapticSuccess(); announcementDirty.current = false; await refresh(); }
+    if (ok) { hapticSuccess(); announcementDirty.current = false; setAskNotify(published); await refresh(); }
+    setBusy(false);
+  };
+  const sendUpdateNotification = async () => {
+    setBusy(true);
+    const result = await notifyCommunityUpdate();
+    setAskNotify(false);
+    setStatus(!result.ok ? (result.error ?? 'Could not send the notification.')
+      : result.sent ? `Notification sent to ${result.sent} ${result.sent === 1 ? 'member' : 'members'}.` : 'No one to notify yet, or this update was already sent.');
     setBusy(false);
   };
   const setFeature = async (key: 'roomEnabled' | 'appreciationsEnabled', value: boolean) => {
@@ -441,6 +453,16 @@ export default function CommunitySheet({ open, onClose, userId, rows, initialCon
               <Check size={16} /> Publish Broadcast
             </button>
           </div>
+          {askNotify && (
+            <div role="alertdialog" aria-labelledby="notify-everyone-title" className="mt-4 rounded-[16px] border border-primary/25 bg-primary-soft/30 p-3.5">
+              <p id="notify-everyone-title" className="text-[12.5px] font-semibold text-content-primary">Notify everyone?</p>
+              <p className="mt-1 text-[11px] leading-relaxed text-content-secondary">Send this update as a notification to Board members. Skip it for small fixes, so phones only buzz for real news.</p>
+              <div className="mt-3 flex justify-end gap-2">
+                <button type="button" onClick={() => setAskNotify(false)} disabled={busy} className="h-9 rounded-xl px-3.5 text-[11.5px] font-semibold text-content-secondary">Not now</button>
+                <button type="button" onClick={() => void sendUpdateNotification()} disabled={busy} className="h-9 rounded-xl bg-primary px-3.5 text-[11.5px] font-bold text-on-primary disabled:opacity-40">Notify everyone</button>
+              </div>
+            </div>
+          )}
         </section>
         </div>
         <div hidden={adminTab !== 'hashtags' || !adminLoaded} className="animate-in fade-in slide-in-from-bottom-2 duration-300">
