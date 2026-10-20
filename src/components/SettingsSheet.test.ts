@@ -385,7 +385,7 @@ describe('SettingsSheet list (new look)', () => {
     expect(html).not.toContain('role="tablist"');
     expect(html).toContain('settings-home-profile');
     expect(html).toContain('Test Aspirant');
-    for (const row of ['Account and sync', 'Appearance', 'Notifications', 'Focus and streak', 'Board and Hub', 'Backup and data', 'YouDO Updates', 'Support YouDO']) {
+    for (const row of ['Account and sync', 'Appearance', 'Notifications', 'Focus and streak', 'Board and Hub', 'Backup and data', 'About and updates']) {
       expect(html).toContain(row);
     }
     expect(html).not.toContain('Admin Hub');

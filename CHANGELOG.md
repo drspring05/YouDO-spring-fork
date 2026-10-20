@@ -17,6 +17,14 @@ Guidance: keep 3–6 short, user-facing bullets. Group related small fixes under
 
 ---
 
+## [v8.1.2] - 2026-10-20 - Tidier Task Card and Settings
+
+- **A tidier focus card** — The Ambient button sits in the card's Focus strip, the pause button no longer pushes the title away from its path, and the ambient tip appears once as a small pop-up instead of inside the card.
+- **Settings** — A slim back arrow replaces the big round button, and About and updates is a row again, with a dot when an update is waiting.
+- **Android APK** — versionName **8.1.2**, versionCode **82**. Installs over v8.1.1 (81).
+
+---
+
 ## [v8.1.1] - 2026-10-20 - Private Hub Fix
 
 - **Private Hub opens once** — Opening the Private Hub no longer reloads it again and again while the app signs you back in.

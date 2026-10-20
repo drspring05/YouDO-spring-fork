@@ -168,20 +168,39 @@ function ModernTaskCard({
       >
         {/* ── Active Session Pulsing Header Banner (if active) ── */}
         {isSessionTask && (
-          <div className="bg-primary-soft px-4 py-2.5 flex items-center justify-between">
+          <div className="bg-primary-soft px-4 py-2.5 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5">
               <span className={`h-2 w-2 rounded-full ${isPaused ? 'bg-content-muted' : 'bg-primary animate-session-pulse'}`} />
               <span className="text-[13px] font-semibold tabular-nums text-primary">
                 {isPaused ? 'Paused' : 'Focus'} · {tickerText}
               </span>
             </div>
-            {activeSession && (
-              <div className="text-[13px] text-content-secondary tabular-nums" title="Session in progress">
-                {sessionClockLabel(activeSession.startTime, activeSession.wallClockStart)}
-                {' – '}
-                <span className="text-primary">∞</span>
-              </div>
-            )}
+            <div className="flex items-center gap-2.5">
+              {activeSession && (
+                <div className="text-[13px] text-content-secondary tabular-nums" title="Session in progress">
+                  {sessionClockLabel(activeSession.startTime, activeSession.wallClockStart)}
+                  {' – '}
+                  <span className="text-primary">∞</span>
+                </div>
+              )}
+              {onOpenAmbient && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    hapticAmbient();
+                    markAmbientTipSeen();
+                    setAmbientTip(false);
+                    onOpenAmbient();
+                  }}
+                  aria-label="Open the ambient clock"
+                  className="inline-flex h-7 items-center gap-1 rounded-full bg-surface px-2.5 text-[12px] font-semibold text-primary transition-transform active:scale-95"
+                >
+                  <MoonStar size={13} className="shrink-0" />
+                  Ambient
+                </button>
+              )}
+            </div>
           </div>
         )}
 
@@ -205,6 +224,10 @@ function ModernTaskCard({
 
           {/* Content Column */}
           <div className="flex-1 min-w-0">
+            {/* Chip, title and path stack tightly; the play ring sits centred beside
+                them instead of stretching the title row. */}
+            <div className="flex items-center gap-3">
+            <div className="flex-1 min-w-0">
             {/* EYEBROW: where the task lives (first two path items); the rest of
                 the path follows under the title. */}
             {originBadgeNodes.length > 0 ? (
@@ -243,28 +266,28 @@ function ModernTaskCard({
                       <span>Description</span>
                     </button>
                   )}
-                  {/* Ambient clock: a visible way in, styled like Description so it never
-                      sits as a second circle beside the play ring (holding the ring still works). */}
-                  {isSessionTask && onOpenAmbient && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        hapticAmbient();
-                        markAmbientTipSeen();
-                        setAmbientTip(false);
-                        onOpenAmbient();
-                      }}
-                      aria-label="Open the ambient clock"
-                      className="inline-flex items-center gap-1 font-medium text-[13px] text-primary transition-colors shrink-0"
-                    >
-                      <MoonStar size={13} className="shrink-0" />
-                      <span>Ambient</span>
-                    </button>
-                  )}
                 </div>
               </div>
               
+
+            </div>
+
+            {/* SUBTITLE: remaining path context. */}
+            {originNodes && originNodes.length > 0 && (() => {
+              const ctxNodes = originContextNodes;
+              if (ctxNodes.length === 0) return null;
+              return (
+                <div className="mt-1 flex min-w-0 items-center gap-1 whitespace-nowrap text-[13px] text-content-secondary font-normal">
+                  {ctxNodes.map((n, i) => (
+                    <span key={i} className="inline-flex min-w-0 items-center gap-1">
+                      <span className="truncate">{n.title}</span>
+                      {i < ctxNodes.length - 1 && <span className="shrink-0 text-content-muted/60">/</span>}
+                    </span>
+                  ))}
+                </div>
+              );
+            })()}
+            </div>
               {/* Circular Play/Pause "Music Player" Chip (Right Aligned) */}
               {isSessionTask && (
                 <button
@@ -320,40 +343,6 @@ function ModernTaskCard({
               )}
             </div>
 
-            {isSessionTask && onOpenAmbient && ambientTip && (
-              <div className="mt-2 flex items-center gap-2 rounded-xl bg-primary-soft px-3 py-2 text-[12.5px] leading-snug text-content-secondary">
-                <MoonStar size={13} className="shrink-0 text-primary" />
-                <span className="flex-1">Tap Ambient for the big clock, or turn your phone sideways.</span>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    markAmbientTipSeen();
-                    setAmbientTip(false);
-                  }}
-                  className="shrink-0 font-semibold text-primary"
-                >
-                  Got it
-                </button>
-              </div>
-            )}
-
-            {/* SUBTITLE: remaining path context. */}
-            {originNodes && originNodes.length > 0 && (() => {
-              const ctxNodes = originContextNodes;
-              if (ctxNodes.length === 0) return null;
-              return (
-                <div className="mt-1 flex min-w-0 items-center gap-1 whitespace-nowrap text-[13px] text-content-secondary font-normal">
-                  {ctxNodes.map((n, i) => (
-                    <span key={i} className="inline-flex min-w-0 items-center gap-1">
-                      <span className="truncate">{n.title}</span>
-                      {i < ctxNodes.length - 1 && <span className="shrink-0 text-content-muted/60">/</span>}
-                    </span>
-                  ))}
-                </div>
-              );
-            })()}
-
             {!complete && task.resumeNote && (
               <div className="mt-2 flex items-start gap-1.5 rounded-xl bg-primary-soft px-3 py-2 text-[13px] leading-snug text-content-secondary">
                 <StickyNote size={12} className="mt-0.5 shrink-0 text-primary" />
@@ -388,6 +377,36 @@ function ModernTaskCard({
         </div>
         
       </div>
+
+      {isSessionTask && onOpenAmbient && ambientTip && (
+        <Overlay open onClose={() => { markAmbientTipSeen(); setAmbientTip(false); }} align="center">
+          <div className="panel sheet-up w-[min(20rem,calc(100vw-2rem))] p-5 text-center" onClick={(e) => e.stopPropagation()}>
+            <div className="mx-auto mb-3 grid size-12 place-items-center rounded-2xl bg-primary-soft text-primary">
+              <MoonStar size={24} />
+            </div>
+            <h3 className="text-[17px] font-semibold text-content-primary">Meet the ambient clock</h3>
+            <p className="mt-1.5 text-[13.5px] leading-snug text-content-secondary">
+              Turn your phone sideways during a session, or tap <span className="font-semibold text-primary">Ambient</span> at the top of the card, for a big, calm full-screen timer.
+            </p>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => { markAmbientTipSeen(); setAmbientTip(false); }}
+                className="h-11 rounded-xl bg-fill text-[14px] font-semibold text-content-primary"
+              >
+                Got it
+              </button>
+              <button
+                type="button"
+                onClick={() => { markAmbientTipSeen(); setAmbientTip(false); hapticAmbient(); onOpenAmbient(); }}
+                className="h-11 rounded-xl bg-primary text-[14px] font-semibold text-on-primary"
+              >
+                Try it
+              </button>
+            </div>
+          </div>
+        </Overlay>
+      )}
 
       <Overlay open={expanded} onClose={() => setExpanded(false)} align="bottom">
         <div className="ios-sheet sheet-up w-full max-w-md mx-auto p-4 pb-[max(1.25rem,env(safe-area-inset-bottom,0px))] min-h-0 flex flex-col gap-4" onClick={(e) => e.stopPropagation()}>

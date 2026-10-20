@@ -20,6 +20,7 @@ import {
   History,
   Heart,
   Info,
+  ChevronLeft,
   KeyRound,
   LogIn,
   LogOut,
@@ -571,8 +572,7 @@ export default function SettingsSheet({
   if (!open) return null;
 
   const showPanels = legacyStyle || page !== 'home';
-  // The new look shows updates and support open on the home list, not behind a row.
-  const aboutVisible = (showPanels && activeTab === 'about') || (!legacyStyle && page === 'home');
+  const aboutVisible = showPanels && activeTab === 'about';
 
   const handleExport = async () => {
     try {
@@ -626,10 +626,10 @@ export default function SettingsSheet({
                 ? () => openPage('home')
                 : onClose
           }
-          className={legacyStyle ? 'p-2 -ml-1.5 rounded-xl text-content-secondary hover:text-content-primary hover:bg-surface transition-colors active:scale-95 flex items-center justify-center' : 'glass rounded-full transition-opacity active:opacity-60 flex items-center justify-center'}
+          className={legacyStyle ? 'p-2 -ml-1.5 rounded-xl text-content-secondary hover:text-content-primary hover:bg-surface transition-colors active:scale-95 flex items-center justify-center' : 'settings-back transition-opacity active:opacity-50 flex items-center justify-center'}
           aria-label="Back"
         >
-          {legacyStyle ? <ArrowLeft size={20} /> : <ArrowLeft size={21} strokeWidth={2.2} />}
+          {legacyStyle ? <ArrowLeft size={20} /> : <ChevronLeft size={30} strokeWidth={2.2} />}
         </button>
         <div className="min-w-0">
           {legacyStyle && <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-primary">YouDO</p>}
@@ -800,6 +800,8 @@ export default function SettingsSheet({
             [
               ...(onOpenAdminHub ? [{ id: 'admin', label: 'Admin Hub', icon: ShieldCheck, onClick: onOpenAdminHub,
                 badge: adminPending > 0 ? <span className="settings-home-count" aria-label={`${adminPending} waiting`}>{adminPending > 99 ? '99+' : adminPending}</span> : undefined }] : []),
+              { id: 'about', label: 'About and updates', icon: Info, onClick: () => openPage('about'),
+                badge: availableUpdate ? <span className="size-2.5 shrink-0 rounded-full bg-error" aria-label="Update available" /> : undefined },
             ],
           ];
           return (

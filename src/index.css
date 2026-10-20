@@ -1721,6 +1721,8 @@ html[data-native-shell='true'] .auth-scroll-page { height: 100%; }
   border-radius: 999px;
   color: var(--primary);
 }
+/* New look: a plain chevron, iOS-style; the 44px tap target stays. */
+.settings-header > button.settings-back { width: 36px; margin-left: -6px; }
 
 .settings-content section { margin: 0; }
 
