@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Reply, X } from 'lucide-react';
+import { Send, Reply, Target, X } from 'lucide-react';
 import Overlay from './Overlay';
 import { useAuth } from '../contexts/AuthContext';
 import { hapticSuccess } from '../lib/haptics';
@@ -10,6 +10,20 @@ import { HubAvatar, HubNavBar } from './hub/HubParts';
 import './chat/youDoChat.css';
 import ChatActionSheet from './chat/ChatActionSheet';
 import { useChatMessageGestures } from './chat/useChatMessageGestures';
+import ShareGoalSheet from './chat/ShareGoalSheet';
+import GoalShareCard from './chat/GoalShareCard';
+import GoalSharePreview from './chat/GoalSharePreview';
+import { useStore } from '../store';
+import {
+  buildGoalShare,
+  goalShareMessage,
+  goalShareTooBig,
+  markGoalShareSaved,
+  materializeGoalShare,
+  parseGoalShare,
+  readSavedGoalShares,
+  type GoalShare,
+} from '../lib/goalShare';
 
 interface Props {
   open: boolean;
@@ -25,6 +39,8 @@ interface Message {
   text: string;
   time: string;
   replyToId?: string;
+  /** Set when the message carries a goal: the parsed share, or null if it can't be read. */
+  goal?: GoalShare | null;
 }
 
 export default function DmInboxSheet({ open, onClose, friendId, friendName = 'Friend', friendAvatar = '' }: Props) {
@@ -36,6 +52,11 @@ export default function DmInboxSheet({ open, onClose, friendId, friendName = 'Fr
   
   const [messages, setMessages] = useState<Message[]>([]);
   const [sendError, setSendError] = useState('');
+  const { goals, applyGoalTreeChange } = useStore();
+  const [shareOpen, setShareOpen] = useState(false);
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const [savedShares, setSavedShares] = useState(readSavedGoalShares);
+  const [saveError, setSaveError] = useState('');
 
   const loadMessages = useCallback(async () => {
     if (!user || !friendId) return;
@@ -47,6 +68,7 @@ export default function DmInboxSheet({ open, onClose, friendId, friendName = 'Fr
         text: d.content,
         time: new Date(d.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         replyToId: d.reply_to_id || undefined,
+        ...(d.goal_share != null ? { goal: parseGoalShare(d.goal_share) } : {}),
       })),
     );
   }, [user, friendId]);
@@ -110,6 +132,46 @@ export default function DmInboxSheet({ open, onClose, friendId, friendName = 'Fr
     }
   };
 
+  const shareGoal = async (goalId: string, withProgress: boolean) => {
+    const root = goals.find((goal) => goal.id === goalId);
+    if (!root || !user || !friendId) return;
+    const share = buildGoalShare(root, withProgress);
+    if (goalShareTooBig(share)) {
+      setSendError('This goal is too big to share.');
+      setShareOpen(false);
+      return;
+    }
+    const content = goalShareMessage(root.title);
+    setShareOpen(false);
+    setSendError('');
+
+    const tempId = `temp-${Date.now()}`;
+    setMessages((prev) => [...prev, { id: tempId, sender: user.id, text: content, time: 'Sending…', goal: share }]);
+
+    const result = await sendDirectMessage(user.id, friendId, content, undefined, share);
+    setMessages((prev) => prev.filter((m) => m.id !== tempId));
+    if (result.ok) {
+      hapticSuccess();
+      await loadMessages();
+    } else {
+      setSendError(result.error || 'Could not share. Try again.');
+    }
+  };
+
+  const saveGoal = (msg: Message) => {
+    if (!msg.goal) return;
+    setSaveError('');
+    const result = applyGoalTreeChange(goals, [...goals, materializeGoalShare(msg.goal, goals)]);
+    if (!result.ok) {
+      setSaveError('Could not save the goal. Try again.');
+      return;
+    }
+    hapticSuccess();
+    setSavedShares(markGoalShareSaved(msg.id));
+  };
+
+  const previewMsg = previewId ? messages.find((m) => m.id === previewId) : undefined;
+
   const deleteMessage = async (id: string) => {
     setSelectedMessage(null);
     if (!user) return;
@@ -145,7 +207,7 @@ export default function DmInboxSheet({ open, onClose, friendId, friendName = 'Fr
                     <div className="yd-chat-cluster">
                     <div className="yd-chat-clip" data-yd-chat-anchor={msg.id}>
                     <article
-                      className="yd-chat-bubble"
+                      className={`yd-chat-bubble ${msg.goal !== undefined ? 'is-goal' : ''}`}
                       tabIndex={0}
                       aria-label={`${isMe ? 'You' : friendName}: ${msg.text}`}
                       {...getMessageProps(msg)}
@@ -161,7 +223,17 @@ export default function DmInboxSheet({ open, onClose, friendId, friendName = 'Fr
                           <span>{repliedTo.text || 'Message unavailable'}</span>
                         </blockquote>
                       )}
-                      <p className="yd-chat-body">{msg.text}</p>
+                      {msg.goal !== undefined ? (
+                        <GoalShareCard
+                          share={msg.goal}
+                          fromName={isMe ? null : friendName}
+                          saved={savedShares.has(msg.id)}
+                          onView={() => { setSaveError(''); setPreviewId(msg.id); }}
+                          onSave={isMe || msg.id.startsWith('temp-') ? undefined : () => saveGoal(msg)}
+                        />
+                      ) : (
+                        <p className="yd-chat-body">{msg.text}</p>
+                      )}
                     </article>
                     </div>
                     <div className="yd-chat-meta">
@@ -191,6 +263,14 @@ export default function DmInboxSheet({ open, onClose, friendId, friendName = 'Fr
               </div>
             )}
             <div className="yd-chat-compose-row">
+              <button
+                type="button"
+                className="yd-chat-goal-btn"
+                onClick={() => setShareOpen(true)}
+                aria-label="Share a goal"
+              >
+                <Target size={19} />
+              </button>
               <input
                 ref={inputRef}
                 type="text"
@@ -211,12 +291,29 @@ export default function DmInboxSheet({ open, onClose, friendId, friendName = 'Fr
                 <Send size={19} />
               </button>
             </div>
-            {sendError && <p role="alert" className="yd-chat-alert">{sendError}</p>}
+            {(sendError || saveError) && <p role="alert" className="yd-chat-alert">{sendError || saveError}</p>}
             <p className="yd-chat-hint">
               <span>Hold for options · double-tap to reply</span>
             </p>
           </footer>
         </div>
+
+        <ShareGoalSheet
+          open={shareOpen}
+          goals={goals}
+          friendName={friendName}
+          onClose={() => setShareOpen(false)}
+          onShare={(goalId, withProgress) => void shareGoal(goalId, withProgress)}
+        />
+
+        <GoalSharePreview
+          share={previewMsg?.goal ?? null}
+          fromName={previewMsg && previewMsg.sender !== user?.id ? friendName : null}
+          saved={previewMsg ? savedShares.has(previewMsg.id) : false}
+          error={saveError}
+          onClose={() => setPreviewId(null)}
+          onSave={previewMsg && previewMsg.sender !== user?.id && !previewMsg.id.startsWith('temp-') ? () => saveGoal(previewMsg) : undefined}
+        />
 
         <ChatActionSheet
           open={!!selectedMessage}
