@@ -7,6 +7,7 @@ import { ensureNotificationChannels, getNotificationPreferences, scheduleMorning
 import { initPushNotifications } from './lib/pushNotifications';
 import { syncPushPreferences } from './lib/pushPreferences';
 import { OPEN_APP_UPDATES_EVENT } from './lib/boardUpdate';
+import { settingsBackStep } from './lib/settingsBack';
 import type { GoalKind, GoalNode, Task, View, TaskSession } from './types';
 import { useNavigationSync } from './hooks/useNavigationSync';
 import { formatDDMMYYYY, hasGoalExecutionState, isBacklogTask, isGoalEndpoint, isOpenBacklogTask, isTaskComplete, isToday, pathNodes, pathTitles, todayISO, useStore, useSessionStore, findGoal } from './store';
@@ -352,6 +353,17 @@ function AppInner() {
       return true;
     }
     if (settingsOpen) {
+      // A Settings sub-page steps back to the Settings list first.
+      if (settingsBackStep()) {
+        if (!window.history.state?.modal) {
+          try {
+            window.history.pushState({ modal: true }, '', window.location.href);
+          } catch {
+            /* Settings stays open even if the browser blocks history access. */
+          }
+        }
+        return true;
+      }
       setSettingsOpen(false);
       return true;
     }

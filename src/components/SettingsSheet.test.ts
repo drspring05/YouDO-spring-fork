@@ -13,6 +13,12 @@ vi.mock('./Overlay', () => ({
     open ? createElement('div', { 'data-testid': 'mock-overlay' }, children) : null,
 }));
 
+// The tab strip is Classic Look's; the new look opens on a list of rows.
+const uiPrefs = vi.hoisted(() => ({ legacyStyle: true }));
+vi.mock('../hooks/useUiPrefs', () => ({
+  useUiPrefs: () => [{ legacyStyle: uiPrefs.legacyStyle, liquidGlass: true }, vi.fn()],
+}));
+
 vi.mock('./UpdateAction', () => ({
   default: () => createElement('div', { 'data-testid': 'mock-update-action' }, 'Update Action'),
 }));
@@ -120,7 +126,7 @@ vi.mock('../lib/appUpdate', () => ({
   checkAppUpdateStatus: vi.fn().mockResolvedValue({ release: null, checked: true }),
 }));
 
-describe('SettingsSheet Tab Navigation System', () => {
+describe('SettingsSheet Tab Navigation System (Classic Look)', () => {
   const defaultProps = {
     open: true,
     onClose: vi.fn(),
@@ -166,12 +172,10 @@ describe('SettingsSheet Tab Navigation System', () => {
     expect(html).not.toContain('flex-1 min-w-fit');
     expect(html).not.toMatch(/id="settings-tab-account"[^>]*class="[^"]*flex-1[^"]*"/);
 
-    // iOS segmented control: the selected segment is raised (via aria-selected) and semibold
-    expect(html).toMatch(/id="settings-tab-account"[^>]*aria-selected="true"[^>]*class="[^"]*font-semibold[^"]*"/);
-
-    // Unselected segments stay medium weight, never semibold
-    expect(html).toMatch(/id="settings-tab-preferences"[^>]*class="[^"]*font-medium[^"]*"/);
-    expect(html).not.toMatch(/id="settings-tab-preferences"[^>]*class="[^"]*font-semibold[^"]*"/);
+    // Classic tabs: the selected one is filled and bold, the others semibold
+    expect(html).toMatch(/id="settings-tab-account"[^>]*aria-selected="true"[^>]*class="[^"]*font-bold[^"]*"/);
+    expect(html).toMatch(/id="settings-tab-preferences"[^>]*class="[^"]*font-semibold[^"]*"/);
+    expect(html).not.toMatch(/id="settings-tab-preferences"[^>]*class="[^"]*font-bold[^"]*"/);
   });
 
   it('defaults to the Account tab being selected and its panel visible', () => {
@@ -365,3 +369,43 @@ describe('SettingsSheet Tab Navigation System', () => {
   });
 });
 
+describe('SettingsSheet list (new look)', () => {
+  const props = { open: true, onClose: vi.fn(), streakBarHours: 1, onStreakBarHoursChange: vi.fn() };
+  const render = (extra: Record<string, unknown> = {}) => {
+    uiPrefs.legacyStyle = false;
+    try {
+      return renderToStaticMarkup(createElement(SettingsSheet, { ...props, ...extra }));
+    } finally {
+      uiPrefs.legacyStyle = true;
+    }
+  };
+
+  it('opens on the profile header and a plain list of rows, without the tab strip', () => {
+    const html = render();
+    expect(html).not.toContain('role="tablist"');
+    expect(html).toContain('settings-home-profile');
+    expect(html).toContain('Test Aspirant');
+    for (const row of ['Account and sync', 'Appearance', 'Notifications', 'Focus and streak', 'Board and Hub', 'Backup and data', 'About and updates']) {
+      expect(html).toContain(row);
+    }
+    expect(html).not.toContain('Admin Hub');
+  });
+
+  it('shows Admin Hub as a row with its count for admins', () => {
+    const html = render({ onOpenAdminHub: vi.fn(), adminPending: 3 });
+    expect(html).toContain('Admin Hub');
+    expect(html).toContain('settings-home-count');
+  });
+
+  it('opens straight on a page when asked (e.g. About from a Board update)', () => {
+    const html = render({ initialTab: 'about' });
+    expect(html).toContain('About and updates</h1>');
+    expect(html).not.toContain('settings-home-profile');
+  });
+
+  it('opens Board and Hub for the public board shortcut, without the streak card', () => {
+    const html = render({ focusSection: 'public-board' });
+    expect(html).toContain('Board and Hub</h1>');
+    expect(html).toMatch(/hidden=""[^>]*class="settings-card settings-focus-card/);
+  });
+});

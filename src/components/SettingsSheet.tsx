@@ -1,4 +1,5 @@
 import { useUiPrefs } from '../hooks/useUiPrefs';
+import { setSettingsBackHandler } from '../lib/settingsBack';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Browser } from '@capacitor/browser';
 import { Capacitor } from '@capacitor/core';
@@ -44,6 +45,8 @@ import {
   WifiOff,
   X,
   Megaphone,
+  Database,
+  UserRound,
 } from 'lucide-react';
 import Overlay from './Overlay';
 import Toggle from './Toggle';
@@ -90,6 +93,29 @@ import { fetchCommunityContext } from '../lib/community';
 
 export type SettingsTab = 'account' | 'preferences' | 'notifications' | 'board' | 'about';
 
+/** New look: Settings opens on a list of rows (Signal-style); each row is one page. Classic Look keeps the tabs. */
+type SettingsPage = 'home' | 'account' | 'appearance' | 'notifications' | 'focus' | 'board' | 'data' | 'about';
+type SettingsSubPage = Exclude<SettingsPage, 'home'>;
+const PAGE_TAB: Record<SettingsSubPage, SettingsTab> = {
+  account: 'account', appearance: 'preferences', data: 'preferences', notifications: 'notifications',
+  focus: 'board', board: 'board', about: 'about',
+};
+const PAGE_TITLE: Record<SettingsSubPage, string> = {
+  account: 'Account and sync', appearance: 'Appearance', notifications: 'Notifications', focus: 'Focus and streak',
+  board: 'Board and Hub', data: 'Backup and data', about: 'About and updates',
+};
+function initialPage(focus?: 'public-board', tab?: SettingsTab): SettingsPage {
+  if (focus === 'public-board') return 'board';
+  switch (tab) {
+    case 'account': return 'account';
+    case 'preferences': return 'appearance';
+    case 'notifications': return 'notifications';
+    case 'board': return 'focus';
+    case 'about': return 'about';
+    default: return 'home';
+  }
+}
+
 interface TabItem {
   id: SettingsTab;
   label: string;
@@ -114,6 +140,8 @@ interface Props {
 
 function SectionLabel({ children, icon }: { children: React.ReactNode; icon?: React.ReactNode }) {
   const [{ legacyStyle }] = useUiPrefs();
+  // The new look's page title already names the section.
+  if (!legacyStyle) return null;
   return (
     <h2 className={legacyStyle ? 'settings-section-label text-[10px] font-bold uppercase tracking-[0.16em] text-content-muted mb-2.5 px-1 flex items-center gap-1.5' : 'settings-section-label uppercase mb-2 flex items-center gap-1.5'}>
       {icon}
@@ -185,6 +213,7 @@ export default function SettingsSheet({
   const [{ legacyStyle, liquidGlass }, setUiPref] = useUiPrefs();
   const publicBoardRef = useRef<HTMLElement>(null);
   const [activeTab, setActiveTab] = useState<SettingsTab>(focusSection === 'public-board' ? 'board' : (initialTab ?? 'account'));
+  const [page, setPage] = useState<SettingsPage>(() => initialPage(focusSection, initialTab));
   const [highlightBoard, setHighlightBoard] = useState(focusSection === 'public-board');
   const contentRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<Partial<Record<SettingsTab, HTMLButtonElement | null>>>({});
@@ -326,6 +355,7 @@ export default function SettingsSheet({
       setStreakBarHelpOpen(false);
       setHighlightBoard(false);
       setActiveTab(initialTab ?? 'account');
+      setPage(initialPage(undefined, initialTab));
     }
   }, [open, initialTab]);
 
@@ -373,6 +403,7 @@ export default function SettingsSheet({
     }
     if (focusSection === 'public-board') {
       setActiveTab('board');
+      setPage('board');
       setHighlightBoard(true);
       const timer = window.setTimeout(() => setHighlightBoard(false), 2400);
       const frame = window.requestAnimationFrame(() => {
@@ -439,6 +470,27 @@ export default function SettingsSheet({
     setActiveTab(tabId);
     contentRef.current?.scrollTo({ top: 0, behavior: 'instant' });
   };
+
+  const openPage = (next: SettingsPage) => {
+    hapticTick();
+    setPage(next);
+    if (next !== 'home') setActiveTab(PAGE_TAB[next]);
+    contentRef.current?.scrollTo({ top: 0, behavior: 'instant' });
+  };
+
+  // Device Back: Recently Deleted, then a sub-page, step back to the list first.
+  const backStepRef = useRef<() => boolean>(() => false);
+  backStepRef.current = () => {
+    if (legacyStyle) return false;
+    if (trashOpen) { setTrashOpen(false); return true; }
+    if (page !== 'home') { openPage('home'); return true; }
+    return false;
+  };
+  useEffect(() => {
+    if (!open) return;
+    setSettingsBackHandler(() => backStepRef.current());
+    return () => setSettingsBackHandler(null);
+  }, [open]);
 
   const handleTabKeyDown = (e: React.KeyboardEvent, index: number) => {
     let nextIndex: number | null = null;
@@ -518,6 +570,8 @@ export default function SettingsSheet({
 
   if (!open) return null;
 
+  const showPanels = legacyStyle || page !== 'home';
+
   const handleExport = async () => {
     try {
       const status = await exportBackup();
@@ -566,7 +620,9 @@ export default function SettingsSheet({
           onClick={
             trashOpen
               ? () => setTrashOpen(false)
-              : onClose
+              : !legacyStyle && page !== 'home'
+                ? () => openPage('home')
+                : onClose
           }
           className={legacyStyle ? 'p-2 -ml-1.5 rounded-xl text-content-secondary hover:text-content-primary hover:bg-surface transition-colors active:scale-95 flex items-center justify-center' : 'glass rounded-full transition-opacity active:opacity-60 flex items-center justify-center'}
           aria-label="Back"
@@ -576,14 +632,14 @@ export default function SettingsSheet({
         <div className="min-w-0">
           {legacyStyle && <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-primary">YouDO</p>}
           <h1 className={legacyStyle ? 'text-[18px] leading-5 font-bold text-content-primary tracking-tight' : 'font-display text-[28px] leading-[34px] font-bold text-content-primary tracking-tight'}>
-            {trashOpen ? 'Recently Deleted' : 'Settings'}
+            {trashOpen ? 'Recently Deleted' : !legacyStyle && page !== 'home' ? PAGE_TITLE[page] : 'Settings'}
           </h1>
-          {!trashOpen && <p className={legacyStyle ? 'mt-0.5 text-[11px] text-content-muted' : 'text-[13px] text-content-secondary'}>Your workspace, focus rules and privacy</p>}
+          {!trashOpen && (legacyStyle || page === 'home') && <p className={legacyStyle ? 'mt-0.5 text-[11px] text-content-muted' : 'text-[13px] text-content-secondary'}>Your workspace, focus rules and privacy</p>}
         </div>
       </div>
 
       {/* ── 2. Tab Navigation Strip ── */}
-      {!trashOpen && (
+      {!trashOpen && legacyStyle && (
         <div className={legacyStyle ? 'settings-tab-bar shrink-0 px-3 pt-2 pb-2.5 bg-elevated/95 backdrop-blur-md border-b border-subtle' : 'settings-tab-bar shrink-0 px-4 pt-2 pb-3'}>
           <div
             ref={tabBarRef}
@@ -704,9 +760,9 @@ export default function SettingsSheet({
       ) : (
       <div
         ref={contentRef}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-        onTouchCancel={handleTouchCancel}
+        onTouchStart={legacyStyle ? handleTouchStart : undefined}
+        onTouchEnd={legacyStyle ? handleTouchEnd : undefined}
+        onTouchCancel={legacyStyle ? handleTouchCancel : undefined}
         className="settings-content flex-1 overflow-y-auto overscroll-contain no-scrollbar px-4 pt-4 pb-12 space-y-5 touch-pan-y"
       >
         {/* Status Messages */}
@@ -725,16 +781,79 @@ export default function SettingsSheet({
           </div>
         )}
 
+        {!legacyStyle && page === 'home' && (() => {
+          const name = user ? (user.user_metadata?.full_name || user.email?.split('@')[0] || 'Aspirant') : 'Offline workspace';
+          const handle = normalizeUsername(accountProfile?.username);
+          const avatar = user?.user_metadata?.avatar_url;
+          const rows: { id: string; label: string; icon: typeof Bell; onClick: () => void; badge?: React.ReactNode }[][] = [
+            [
+              { id: 'account', label: 'Account and sync', icon: UserRound, onClick: () => openPage('account'),
+                badge: cloudSyncConflict ? <span className="size-2 rounded-full bg-warning" aria-label="Sync conflict requires review" /> : undefined },
+              { id: 'appearance', label: 'Appearance', icon: Palette, onClick: () => openPage('appearance') },
+              { id: 'notifications', label: 'Notifications', icon: Bell, onClick: () => openPage('notifications') },
+              { id: 'focus', label: 'Focus and streak', icon: Flame, onClick: () => openPage('focus') },
+            ],
+            [
+              { id: 'board', label: 'Board and Hub', icon: Users, onClick: () => openPage('board') },
+              { id: 'data', label: 'Backup and data', icon: Database, onClick: () => openPage('data') },
+            ],
+            [
+              ...(onOpenAdminHub ? [{ id: 'admin', label: 'Admin Hub', icon: ShieldCheck, onClick: onOpenAdminHub,
+                badge: adminPending > 0 ? <span className="settings-home-count" aria-label={`${adminPending} waiting`}>{adminPending > 99 ? '99+' : adminPending}</span> : undefined }] : []),
+              { id: 'about', label: 'About and updates', icon: Info, onClick: () => openPage('about'),
+                badge: availableUpdate ? <span className="settings-home-pill">Update</span> : undefined },
+            ],
+          ];
+          return (
+            <nav aria-label="Settings" className="settings-home -mx-4 -mt-1">
+              <button
+                type="button"
+                className="settings-home-profile"
+                onClick={() => { openPage('account'); if (user) setEditProfileOpen(true); }}
+              >
+                <span className="settings-home-avatar" aria-hidden>
+                  {!user ? <WifiOff size={24} />
+                    : avatar && /^https?:/.test(String(avatar)) ? <img src={String(avatar)} alt="" className="size-full object-cover" />
+                      : avatar ? String(avatar)
+                        : name.trim().split(/s+/).slice(0, 2).map((w: string) => w[0]?.toUpperCase() ?? '').join('')}
+                </span>
+                <span className="min-w-0 flex-1 text-left">
+                  <span className="block truncate text-[18px] font-semibold text-content-primary">{name}</span>
+                  <span className="block truncate text-[13px] text-content-secondary">
+                    {!user ? 'Stored on this device' : handle ? `@${handle} · Edit profile` : 'Edit profile'}
+                  </span>
+                </span>
+                <ChevronRight size={18} className="shrink-0 text-content-muted" aria-hidden />
+              </button>
+              {rows.map((group, index) => (
+                <div key={index} className={index ? 'settings-home-group' : undefined}>
+                  {group.map((row) => {
+                    const Icon = row.icon;
+                    return (
+                      <button key={row.id} type="button" className="settings-home-row" onClick={row.onClick}>
+                        <Icon size={21} strokeWidth={1.8} className="shrink-0 text-content-secondary" aria-hidden />
+                        <span className="flex-1 text-left text-[15px] text-content-primary">{row.label}</span>
+                        {row.badge}
+                        <ChevronRight size={17} className="shrink-0 text-content-muted" aria-hidden />
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+            </nav>
+          );
+        })()}
+
         {/* ── TAB PANEL: ACCOUNT ── */}
         <div
           role="tabpanel"
           id="settings-panel-account"
           aria-labelledby="settings-tab-account"
-          hidden={activeTab !== 'account'}
+          hidden={!showPanels || activeTab !== 'account'}
           tabIndex={activeTab === 'account' ? 0 : -1}
-          className={activeTab === 'account' ? 'space-y-5 fade-in outline-none' : 'hidden'}
+          className={showPanels && activeTab === 'account' ? 'space-y-5 fade-in outline-none' : 'hidden'}
         >
-          {onOpenAdminHub && (
+          {onOpenAdminHub && legacyStyle && (
             <section>
               <button
                 type="button"
@@ -1757,12 +1876,12 @@ export default function SettingsSheet({
         role="tabpanel"
         id="settings-panel-preferences"
         aria-labelledby="settings-tab-preferences"
-        hidden={activeTab !== 'preferences'}
+        hidden={!showPanels || activeTab !== 'preferences'}
         tabIndex={activeTab === 'preferences' ? 0 : -1}
-        className={activeTab === 'preferences' ? 'space-y-5 fade-in outline-none' : 'hidden'}
+        className={showPanels && activeTab === 'preferences' ? 'space-y-5 fade-in outline-none' : 'hidden'}
       >
         {/* ── SECTION 4: APPEARANCE & EXPERIENCE ── */}
-        <section>
+        <section hidden={!legacyStyle && page === 'data'}>
           <SectionLabel icon={<Sparkles size={13} className="text-primary" />}>APPEARANCE &amp; EXPERIENCE</SectionLabel>
           <div className="settings-card bg-elevated rounded-2xl border border-subtle overflow-hidden shadow-lg divide-y divide-white/5">
             <div className="settings-data-row p-4 flex items-center justify-between gap-3">
@@ -1912,7 +2031,7 @@ export default function SettingsSheet({
         </section>
 
         {/* ── SECTION 5: DATA & STORAGE ── */}
-        <section>
+        <section hidden={!legacyStyle && page === 'appearance'}>
           <SectionLabel icon={<History size={13} className="text-primary" />}>DATA &amp; STORAGE</SectionLabel>
           <div className="settings-card settings-data-card bg-elevated rounded-2xl border border-subtle overflow-hidden shadow-lg divide-y divide-white/5">
             <button
@@ -2066,9 +2185,9 @@ export default function SettingsSheet({
         role="tabpanel"
         id="settings-panel-notifications"
         aria-labelledby="settings-tab-notifications"
-        hidden={activeTab !== 'notifications'}
+        hidden={!showPanels || activeTab !== 'notifications'}
         tabIndex={activeTab === 'notifications' ? 0 : -1}
-        className={activeTab === 'notifications' ? 'space-y-5 fade-in outline-none' : 'hidden'}
+        className={showPanels && activeTab === 'notifications' ? 'space-y-5 fade-in outline-none' : 'hidden'}
       >
         {/* ── SECTION 3: NOTIFICATIONS & BRIEFINGS ── */}
         <section>
@@ -2640,9 +2759,9 @@ export default function SettingsSheet({
         role="tabpanel"
         id="settings-panel-board"
         aria-labelledby="settings-tab-board"
-        hidden={activeTab !== 'board'}
+        hidden={!showPanels || activeTab !== 'board'}
         tabIndex={activeTab === 'board' ? 0 : -1}
-        className={activeTab === 'board' ? 'space-y-5 fade-in outline-none' : 'hidden'}
+        className={showPanels && activeTab === 'board' ? 'space-y-5 fade-in outline-none' : 'hidden'}
       >
         {/* ── SECTION 2: FOCUS & LEADERBOARD ── */}
         <section
@@ -2656,7 +2775,7 @@ export default function SettingsSheet({
           <SectionLabel icon={<Flame size={13} className="text-primary" />}>FOCUS &amp; LEADERBOARD</SectionLabel>
 
           {/* Daily streak bar card */}
-          <div className="settings-card settings-focus-card bg-elevated rounded-2xl border border-subtle p-4 shadow-lg mb-2.5">
+          <div hidden={!legacyStyle && page === 'board'} className="settings-card settings-focus-card bg-elevated rounded-2xl border border-subtle p-4 shadow-lg mb-2.5">
             <div className="flex items-start gap-3">
               <div className="w-9 h-9 rounded-xl bg-primary-soft flex items-center justify-center text-primary shrink-0">
                 <Flame size={16} />
@@ -2746,7 +2865,7 @@ export default function SettingsSheet({
           </div>
 
           {/* Public Board Participation Card */}
-          <div className="settings-card settings-board-card bg-elevated rounded-2xl border border-subtle p-4 shadow-lg space-y-3">
+          <div hidden={!legacyStyle && page === 'focus'} className="settings-card settings-board-card bg-elevated rounded-2xl border border-subtle p-4 shadow-lg space-y-3">
             <div className="flex items-start gap-3">
               <div className="w-9 h-9 rounded-xl bg-primary-soft flex items-center justify-center text-primary shrink-0">
                 <TrendingUp size={16} />
@@ -2830,9 +2949,9 @@ export default function SettingsSheet({
         role="tabpanel"
         id="settings-panel-about"
         aria-labelledby="settings-tab-about"
-        hidden={activeTab !== 'about'}
+        hidden={!showPanels || activeTab !== 'about'}
         tabIndex={activeTab === 'about' ? 0 : -1}
-        className={activeTab === 'about' ? 'space-y-5 fade-in outline-none' : 'hidden'}
+        className={showPanels && activeTab === 'about' ? 'space-y-5 fade-in outline-none' : 'hidden'}
       >
         {/* ── SECTION 6: UPDATES & COMMUNITY ── */}
         <section>

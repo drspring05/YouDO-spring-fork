@@ -1143,6 +1143,35 @@ input[type='datetime-local'] {
 @media (prefers-reduced-motion: reduce) {
   .admin-hold-ring circle { animation: none; stroke-dashoffset: 0; opacity: 0.6; }
 }
+/* Settings home (new look): a Signal-style profile header and plain rows,
+   no cards; each row opens its own page. */
+.settings-home-profile { display: flex; align-items: center; gap: 14px; width: 100%; padding: 6px 16px 18px; }
+.settings-home-avatar {
+  display: grid; place-items: center; flex: none; width: 64px; height: 64px; overflow: hidden;
+  border-radius: 999px; background: color-mix(in srgb, var(--primary) 18%, var(--bg-surface));
+  color: var(--primary); font-size: 24px; font-weight: 600;
+}
+.settings-home-row { display: flex; align-items: center; gap: 16px; width: 100%; min-height: 54px; padding: 0 16px; }
+.settings-home-row:active, .settings-home-profile:active { background: var(--bg-elevated); }
+@media (hover: hover) {
+  .settings-home-row:hover, .settings-home-profile:hover { background: var(--bg-surface); }
+}
+.settings-home-group { margin-top: 6px; padding-top: 6px; border-top: 0.5px solid var(--separator); }
+.settings-home-count {
+  min-width: 20px; height: 20px; padding: 0 6px; display: grid; place-items: center; border-radius: 999px;
+  background: var(--primary); color: var(--on-primary); font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+/* Settings pages (new look): the groups are plain rows like the list, not cards. */
+.settings-content .settings-card {
+  background: transparent; border-color: transparent; box-shadow: none; border-radius: 0;
+  padding-left: 0; padding-right: 0;
+}
+.settings-content .settings-card + .settings-card { border-top: 0.5px solid var(--separator); }
+.settings-home-pill {
+  padding: 2px 8px; border-radius: 999px; background: var(--primary-soft); color: var(--primary);
+  font-size: 11px; font-weight: 600;
+}
+
 /* Admin items waiting: a small accent count sitting on the orb's rim, top-left
    (clear of the gear, and never mistaken for the sync warning dot top-right). */
 .admin-orb-badge {
