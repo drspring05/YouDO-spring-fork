@@ -41,6 +41,17 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
   const [dayStatsModalDate, setDayStatsModalDate] = useState<string | null>(null);
   const [showDayStatsHelp, setShowDayStatsHelp] = useState(false);
   const [openSessionSummaryId, setOpenSessionSummaryId] = useState<string | null>(null);
+  /** Full stats is two pages in one sheet: the overview, and every session of the day. */
+  const [dayStatsPage, setDayStatsPage] = useState<'overview' | 'sessions'>('overview');
+  const dayStatsScrollRef = useRef<HTMLDivElement>(null);
+  const closeDayStats = () => {
+    setDayStatsModalDate(null);
+    setDayStatsPage('overview');
+  };
+  const showDayStatsPage = (page: 'overview' | 'sessions') => {
+    setDayStatsPage(page);
+    if (dayStatsScrollRef.current) dayStatsScrollRef.current.scrollTop = 0;
+  };
 
   useEffect(() => {
     setOpenSessionSummaryId(null);
@@ -396,21 +407,33 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
 
       {/* ── Daily Focus Stats & Efficiency Modal ── */}
       {dayStatsModalDate && (
-        <Overlay open onClose={() => setDayStatsModalDate(null)} align="center">
+        <Overlay open onClose={closeDayStats} align="center">
           <div className="panel sheet-up p-5 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-subtle">
               <div className="flex items-center gap-2">
+                {dayStatsPage === 'sessions' ? (
+                  <button
+                    type="button"
+                    onClick={() => showDayStatsPage('overview')}
+                    aria-label="Back to daily stats"
+                    className="w-8 h-8 rounded-xl bg-elevated border border-subtle flex items-center justify-center text-content-primary"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                ) : (
                 <div className="w-8 h-8 rounded-xl bg-primary-soft border border-primary/20 flex items-center justify-center text-primary dark:text-primary">
                   <BarChart2 className="w-4 h-4" />
                 </div>
+                )}
                 <div>
-                  <h3 className="text-sm font-bold text-content-primary">Daily Focus Stats</h3>
+                  <h3 className="text-sm font-bold text-content-primary">{dayStatsPage === 'sessions' ? `Sessions (${modalDateSessions.length})` : 'Daily Focus Stats'}</h3>
                   <p className="text-xs text-content-secondary">
                     {new Date(dayStatsModalDate + 'T00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-1 shrink-0">
+                {dayStatsPage === 'overview' && (
                 <button
                   onClick={() => setShowDayStatsHelp((v) => !v)}
                   className={`p-1.5 rounded-lg ${showDayStatsHelp ? 'bg-primary-soft text-primary' : 'text-content-secondary hover:text-content-primary hover:bg-elevated'}`}
@@ -418,8 +441,9 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
                 >
                   <Info className="w-4 h-4" />
                 </button>
+                )}
                 <button
-                  onClick={() => setDayStatsModalDate(null)}
+                  onClick={closeDayStats}
                   aria-label="Close daily statistics"
                   className="p-1.5 rounded-lg text-content-secondary hover:text-content-primary hover:bg-elevated transition"
                 >
@@ -428,7 +452,8 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
               </div>
             </div>
 
-            <div className="space-y-4 max-h-[70vh] overflow-y-auto no-scrollbar pb-2">
+            <div ref={dayStatsScrollRef} className="space-y-4 max-h-[70vh] overflow-y-auto no-scrollbar pb-2">
+              {dayStatsPage === 'overview' && (<>
               {showDayStatsHelp && (
                 <div className="bg-elevated border border-subtle rounded-[12px] p-3.5 space-y-2 text-[12px] text-content-secondary leading-relaxed">
                   <p className="text-[11px] font-semibold uppercase tracking-wider text-content-muted">How stats work</p>
@@ -503,15 +528,28 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
                 </p>
               </div>
 
-              {/* Sessions List */}
-            <div>
-              <h4 className="text-xs font-bold text-content-secondary mb-2">Sessions Run ({modalDateSessions.length})</h4>
+              {/* Sessions: one row here, the full list on its own page. */}
               {modalDateSessions.length === 0 ? (
                 <p className="text-xs text-content-secondary italic py-3 text-center bg-elevated  rounded-xl border border-subtle dark:border-subtle">
                   No focus sessions logged on this date.
                 </p>
               ) : (
-                <div className="space-y-1.5 max-h-72 overflow-y-auto no-scrollbar">
+                <button
+                  type="button"
+                  onClick={() => showDayStatsPage('sessions')}
+                  className="w-full flex items-center justify-between gap-2 bg-surface p-3 rounded-[12px] border border-subtle text-left"
+                >
+                  <span className="text-xs font-bold text-content-primary">Sessions run</span>
+                  <span className="flex items-center gap-1.5 text-xs text-content-secondary tabular-nums">
+                    {modalDateSessions.length} · {formatDuration(dayTotalNFT)}
+                    <ChevronRight className="w-4 h-4 text-content-muted" />
+                  </span>
+                </button>
+              )}
+              </>)}
+
+              {dayStatsPage === 'sessions' && (
+                <div className="space-y-1.5">
                   {[...modalDateSessions]
                     .sort((a, b) => a.session.startTime - b.session.startTime)
                     .map(({ session: s, slice }, index) => {
@@ -647,7 +685,6 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
                   })}
                 </div>
               )}
-            </div>
           </div>
           </div>
         </Overlay>
