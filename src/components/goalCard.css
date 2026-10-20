@@ -9,6 +9,11 @@
   gap: 12px;
   padding: 12px 14px 10px;
 }
+/* Picked in selection mode: a soft accent wash, clear but calm. (bg-primary/10
+   never rendered: Tailwind can't add opacity to a var() colour.) */
+.goal-row.is-selected {
+  background: color-mix(in srgb, var(--primary) 12%, var(--bg-surface));
+}
 .goal-mark {
   position: relative;
   flex: 0 0 auto;

@@ -121,8 +121,10 @@
   cursor: pointer;
 }
 
-.yd-chat-author button:hover {
-  text-decoration: underline;
+@media (hover: hover) {
+  .yd-chat-author button:hover {
+    text-decoration: underline;
+  }
 }
 
 .yd-chat-author-btn {
@@ -140,8 +142,10 @@
   border-radius: 4px;
 }
 
-.yd-chat-author-btn:hover span:not(.yd-chat-author-avatar) {
-  text-decoration: underline;
+@media (hover: hover) {
+  .yd-chat-author-btn:hover span:not(.yd-chat-author-avatar) {
+    text-decoration: underline;
+  }
 }
 
 .yd-chat-author-btn:disabled {
@@ -455,9 +459,11 @@
   transition: background 0.15s ease, color 0.15s ease, transform 0.12s ease;
 }
 
-.yd-chat-reply-dismiss:hover {
-  background: var(--bg-elevated);
-  color: var(--text-primary);
+@media (hover: hover) {
+  .yd-chat-reply-dismiss:hover {
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+  }
 }
 
 .yd-chat-reply-dismiss:active {

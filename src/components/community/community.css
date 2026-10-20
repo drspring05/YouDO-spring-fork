@@ -35,9 +35,11 @@
   transition:all 150ms ease;
   cursor:pointer;
 }
-.c-room-tab:hover {
-  background:color-mix(in srgb,var(--primary-soft) 40%,var(--bg-surface));
-  color:var(--text-primary);
+@media (hover: hover) {
+  .c-room-tab:hover {
+    background:color-mix(in srgb,var(--primary-soft) 40%,var(--bg-surface));
+    color:var(--text-primary);
+  }
 }
 .c-room-tab.is-active {
   border-color:color-mix(in srgb,var(--primary) 45%,var(--border-subtle));

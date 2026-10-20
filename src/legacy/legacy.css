@@ -533,9 +533,13 @@ button {
 .quote-ticker-track-fast {
   animation-duration: 16s;
 }
-.quote-ticker:hover .quote-ticker-track,
 .quote-ticker:active .quote-ticker-track {
   animation-play-state: paused;
+}
+@media (hover: hover) {
+  .quote-ticker:hover .quote-ticker-track {
+    animation-play-state: paused;
+  }
 }
 .quote-ticker-item {
   margin: 0;
@@ -767,8 +771,10 @@ input[type='datetime-local'] {
   font-weight: 600;
   border-radius: 12px;
 }
-.btn-primary:hover {
-  background: var(--primary-glow);
+@media (hover: hover) {
+  .btn-primary:hover {
+    background: var(--primary-glow);
+  }
 }
 
 .progress-track {
@@ -1025,8 +1031,10 @@ html.light-dusky .command-dock-premium {
   min-width: 44px; height: 44px; border-radius: 9px;
   color: var(--text-muted); font-size: 10px; font-variant-numeric: tabular-nums;
 }
-.board-appreciation:not(:disabled):hover,
 .board-appreciation.is-active { color: var(--primary); }
+@media (hover: hover) {
+  .board-appreciation:not(:disabled):hover { color: var(--primary); }
+}
 .board-appreciation:disabled { cursor: default; }
 .board-person-progress { grid-column: 2 / -1; display: grid; grid-template-columns: minmax(0,1fr) 106px; align-items: center; gap: 10px; margin-top: 4px; }
 .board-bar-label { text-align: right; font-size: 10px; line-height: 16px; font-variant-numeric: tabular-nums; }
