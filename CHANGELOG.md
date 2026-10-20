@@ -17,6 +17,18 @@ Guidance: keep 3–6 short, user-facing bullets. Group related small fixes under
 
 ---
 
+## [v8.1.0] - 2026-10-20 - Ambient Clock, Focus Sounds and Goal Sharing
+
+- **Ambient clock** — Turn your phone sideways during a session (or tap Ambient on the task card) for a full-screen clock in big, soft accent-coloured digits on true black. Tap for pause, stop and sounds. The digits drift and dim gently over time to protect OLED screens from burn-in.
+- **Focus sounds** — Pick a calm sound in Settings → Focus and streak or on the ambient clock. It plays with your session, pauses when you pause, and can keep playing with the screen off.
+- **Share a goal with a friend** — Send any goal tree in a direct message. Your friend can view the whole plan and save a fresh copy to their own Goals; showing your progress is optional.
+- **Board updates do more** — Admins can add a poll, private replies, an action button and quick reactions to a Board update, and notify everyone after confirming.
+- **Cleaner Settings and briefing** — Settings opens on your profile and a plain list, with updates and support right on it; every page now shares one tidy layout. Today at a glance shows when your last session was and how it went.
+- **Fixes** — Profile edits no longer fail, password managers stay out of search fields, Blueprint Studio number fields can be cleared, a better layout when the phone is sideways, and in-app updates now verify correctly on Android 9–12.
+- **Android APK** — versionName **8.1.0**, versionCode **80**. Installs over v8.0.0 (79).
+
+---
+
 ## [v8.0.0] - 2026-10-14 - A New Look and the Private Hub
 
 - **A new look, end to end** — YouDO is redesigned around Apple's design language: large titles, borderless cards, a floating Liquid Glass tab bar with springy buttons, and native-style switches and sheets. Six calm accent colours and five app icons to choose from; the start screen, header and notifications follow your accent. Classic Look in Settings brings back the v7 design.
