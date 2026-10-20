@@ -243,27 +243,28 @@ function ModernTaskCard({
                       <span>Description</span>
                     </button>
                   )}
+                  {/* Ambient clock: a visible way in, styled like Description so it never
+                      sits as a second circle beside the play ring (holding the ring still works). */}
+                  {isSessionTask && onOpenAmbient && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        hapticAmbient();
+                        markAmbientTipSeen();
+                        setAmbientTip(false);
+                        onOpenAmbient();
+                      }}
+                      aria-label="Open the ambient clock"
+                      className="inline-flex items-center gap-1 font-medium text-[13px] text-primary transition-colors shrink-0"
+                    >
+                      <MoonStar size={13} className="shrink-0" />
+                      <span>Ambient</span>
+                    </button>
+                  )}
                 </div>
               </div>
               
-              {/* Ambient clock: a visible way in (holding the play chip still works). */}
-              {isSessionTask && onOpenAmbient && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    hapticAmbient();
-                    markAmbientTipSeen();
-                    setAmbientTip(false);
-                    onOpenAmbient();
-                  }}
-                  title="Ambient clock"
-                  aria-label="Open the ambient clock"
-                  className="shrink-0 grid place-items-center w-[34px] h-[34px] rounded-full border border-subtle text-content-secondary transition-transform active:scale-95"
-                >
-                  <MoonStar className="w-4 h-4" />
-                </button>
-              )}
               {/* Circular Play/Pause "Music Player" Chip (Right Aligned) */}
               {isSessionTask && (
                 <button
@@ -322,7 +323,7 @@ function ModernTaskCard({
             {isSessionTask && onOpenAmbient && ambientTip && (
               <div className="mt-2 flex items-center gap-2 rounded-xl bg-primary-soft px-3 py-2 text-[12.5px] leading-snug text-content-secondary">
                 <MoonStar size={13} className="shrink-0 text-primary" />
-                <span className="flex-1">Tap the moon for the ambient clock, or turn your phone sideways.</span>
+                <span className="flex-1">Tap Ambient for the big clock, or turn your phone sideways.</span>
                 <button
                   type="button"
                   onClick={(e) => {

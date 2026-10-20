@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Minimize2, Music, Pause, Play, Square } from 'lucide-react';
 import { KeepAwake } from '@capacitor-community/keep-awake';
+import { Capacitor } from '@capacitor/core';
+import { StatusBar } from '@capacitor/status-bar';
 import type { ActiveSession, Task } from '../types';
 import Overlay from './Overlay';
 import OriginChip from './OriginChip';
@@ -97,6 +99,15 @@ export function AmbientScreen({
       } catch {
         /* ignore */
       }
+    };
+  }, []);
+
+  // Full screen: the phone's status bar hides while the clock shows.
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    StatusBar.hide().catch(() => {});
+    return () => {
+      StatusBar.show().catch(() => {});
     };
   }, []);
 

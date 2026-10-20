@@ -17,9 +17,10 @@ export function StudioBulkAddModal({ controller }: StudioBulkAddModalProps) {
   const [mode, setMode] = useState<AddMode>('list');
   const [singleTitle, setSingleTitle] = useState('');
   const [listText, setListText] = useState('');
-  const [prefix, setPrefix] = useState('Step');
-  const [startNum, setStartNum] = useState(1);
-  const [sequenceCount, setSequenceCount] = useState(5);
+  // Empty until typed; the placeholders show what each field is for.
+  const [prefix, setPrefix] = useState('');
+  const [startNum, setStartNum] = useState('');
+  const [sequenceCount, setSequenceCount] = useState('');
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -50,7 +51,8 @@ export function StudioBulkAddModal({ controller }: StudioBulkAddModalProps) {
       return normalizeBlueprintTitles(lines);
     }
     if (mode === 'numbered') {
-      return numberedBlueprintTitles(prefix, startNum, sequenceCount);
+      if (!Number(sequenceCount)) return [];
+      return numberedBlueprintTitles(prefix, startNum === '' ? 1 : Number(startNum), Number(sequenceCount));
     }
     return [];
   }, [mode, singleTitle, listText, prefix, startNum, sequenceCount]);
@@ -207,11 +209,12 @@ export function StudioBulkAddModal({ controller }: StudioBulkAddModalProps) {
                     Start Number
                   </label>
                   <input
-                    type="number"
-                    min={0}
-                    className="w-full px-3.5 py-2 text-sm bg-base border border-border-subtle rounded-xl text-content-primary focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="1"
+                    className="w-full px-3.5 py-2 text-sm bg-base border border-border-subtle rounded-xl text-content-primary placeholder:text-content-muted focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
                     value={startNum}
-                    onChange={(e) => setStartNum(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                    onChange={(e) => setStartNum(e.target.value.replace(/\D/g, '').slice(0, 4))}
                   />
                 </div>
 
@@ -220,12 +223,15 @@ export function StudioBulkAddModal({ controller }: StudioBulkAddModalProps) {
                     Item Count (max 100)
                   </label>
                   <input
-                    type="number"
-                    min={1}
-                    max={100}
-                    className="w-full px-3.5 py-2 text-sm bg-base border border-border-subtle rounded-xl text-content-primary focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="5"
+                    className="w-full px-3.5 py-2 text-sm bg-base border border-border-subtle rounded-xl text-content-primary placeholder:text-content-muted focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
                     value={sequenceCount}
-                    onChange={(e) => setSequenceCount(Math.min(100, Math.max(1, parseInt(e.target.value, 10) || 1)))}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, '').slice(0, 3);
+                      setSequenceCount(digits && Number(digits) > 100 ? '100' : digits);
+                    }}
                   />
                 </div>
               </div>
