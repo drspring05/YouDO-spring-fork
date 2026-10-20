@@ -33,65 +33,44 @@
   font-variant-numeric: tabular-nums;
 }
 /* The timer: minutes and seconds big in the accent colour, hours small above.
-   Side by side in landscape, minutes over seconds in portrait. Barlow
-   Condensed lets two digits fill the width. Each digit rolls softly to the
-   next: the old one rises and blurs out as the new one settles. */
+   Side by side in landscape, minutes over seconds in portrait, with a thin
+   light line between them. Quicksand: soft, round, calm digits. Each digit
+   rolls softly to the next: the old one rises and fades as the new one settles. */
 .ambient-clock {
-  --digit-size: min(36vw, 56vh);
+  --digit-size: min(33vw, 56vh);
   display: flex;
   flex-direction: column;
   align-items: center;
-  font-family: 'Barlow Condensed', 'SF Pro Display', system-ui, sans-serif;
-  font-weight: 400;
+  font-family: 'Quicksand', 'SF Pro Rounded', system-ui, sans-serif;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
+  color: var(--ambient-ink);
 }
 .ambient-hours {
   min-height: 1.3em;
   font-size: max(14px, calc(var(--digit-size) * 0.085));
   line-height: 1.3;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--ambient-ink);
   opacity: 0.8;
 }
 .ambient-digits {
-  position: relative;
-  isolation: isolate;
   display: flex;
   align-items: center;
   font-size: var(--digit-size);
   transition: opacity 0.6s ease;
-}
-/* A faint glow of the accent behind the digits. */
-.ambient-digits::before {
-  content: '';
-  position: absolute;
-  inset: -12% -18%;
-  z-index: -1;
-  background: radial-gradient(closest-side, color-mix(in srgb, var(--ambient-ink) 14%, transparent), transparent);
-  pointer-events: none;
 }
 .ambient-minutes,
 .ambient-seconds { display: flex; }
 .ambient-seconds { opacity: 0.62; }
 .ambient-digit {
   position: relative;
-  width: 0.5em;
+  width: 0.6em;
   text-align: center;
 }
-/* Line height 1, so the gradient covers the whole digit. */
 .ambient-digit > span {
   display: block;
   line-height: 1;
-  color: transparent;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--ambient-ink) 70%, #fff) 8%,
-    var(--ambient-ink) 55%,
-    color-mix(in srgb, var(--ambient-ink) 78%, #000) 100%
-  );
-  -webkit-background-clip: text;
-  background-clip: text;
 }
 .ambient-digit-in { animation: ambient-roll-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both; }
 .ambient-digit > .ambient-digit-out {
@@ -100,36 +79,31 @@
   animation: ambient-roll-out 0.5s cubic-bezier(0.4, 0, 0.2, 1) both;
 }
 @keyframes ambient-roll-in {
-  from { opacity: 0; transform: translateY(0.24em) scale(0.97); filter: blur(0.05em); }
+  from { opacity: 0; transform: translateY(0.22em) scale(0.97); filter: blur(0.04em); }
   to { opacity: 1; transform: none; filter: none; }
 }
 @keyframes ambient-roll-out {
-  to { opacity: 0; transform: translateY(-0.24em) scale(0.97); filter: blur(0.05em); }
+  to { opacity: 0; transform: translateY(-0.22em) scale(0.97); filter: blur(0.04em); }
 }
 @media (prefers-reduced-motion: reduce) {
   .ambient-digit-in { animation: none; }
   .ambient-digit > .ambient-digit-out { display: none; }
 }
-/* The colon: two still dots (vertical between the pairs, level between the rows). */
-.ambient-colon {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2em;
-  margin: 0 0.05em;
-}
-.ambient-colon i {
-  width: 0.06em;
-  height: 0.06em;
-  border-radius: 50%;
-  background: var(--ambient-ink);
-  opacity: 0.55;
+/* The divider: a thin, light line in the accent (upright between the pairs, level between the rows). */
+.ambient-divider {
+  flex: none;
+  width: max(2px, 0.012em);
+  height: 0.56em;
+  margin: 0 0.16em;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ambient-ink) 38%, transparent);
 }
 @media (orientation: portrait) {
-  .ambient-clock { --digit-size: min(74vw, 32vh); }
+  .ambient-clock { --digit-size: min(66vw, 30vh); }
   .ambient-digits { flex-direction: column; }
   .ambient-minutes,
-  .ambient-seconds { margin: -0.07em 0; }
-  .ambient-colon { flex-direction: row; gap: 0.16em; margin: 0.03em 0; }
+  .ambient-seconds { margin: -0.05em 0; }
+  .ambient-divider { width: 0.72em; height: max(2px, 0.012em); margin: 0.08em 0; }
 }
 .ambient-screen.is-paused .ambient-digits { opacity: 0.4; }
 .ambient-task {
@@ -196,18 +170,28 @@
   color: #f2f2f7;
 }
 .ambient-controls button[aria-pressed='true'] { background: rgba(255, 255, 255, 0.22); }
-/* Night: everything turns dim red, kind to eyes in the dark. */
-.ambient-screen.is-night { --ambient-ink: #a3261c; }
-.ambient-screen.is-night .ambient-digit > span { background: var(--ambient-ink); -webkit-background-clip: text; background-clip: text; }
-.ambient-screen.is-night .ambient-digits::before { display: none; }
-.ambient-screen.is-night .ambient-top,
-.ambient-screen.is-night .ambient-title { color: #7a1c14; }
-.ambient-screen.is-night .ambient-task > :not(.ambient-title),
-.ambient-screen.is-night .ambient-log,
-.ambient-screen.is-night .ambient-controls {
-  filter: grayscale(1) brightness(0.45) sepia(1) hue-rotate(-50deg) saturate(9);
-}
 @media (prefers-reduced-motion: reduce) {
   .ambient-face { transition: none; }
 }
-html:not(.dark) .ambient-screen:not(.is-night) { --ambient-ink: color-mix(in srgb, var(--primary, #8c6a3a) 80%, #fff); }
+html:not(.dark) .ambient-screen { --ambient-ink: color-mix(in srgb, var(--primary, #8c6a3a) 80%, #fff); }
+/* Focus sound panel, opened by the music note. */
+.ambient-sounds {
+  position: absolute;
+  left: 50%;
+  bottom: calc(max(22px, env(safe-area-inset-bottom, 0px)) + 66px);
+  width: min(420px, calc(100% - 24px));
+  max-height: calc(100% - max(22px, env(safe-area-inset-bottom, 0px)) - 80px);
+  overflow-y: auto;
+  transform: translateX(-50%);
+  padding: 16px;
+  z-index: 2;
+  border-radius: 22px;
+  background: #141414;
+  color: #f2f2f7;
+  animation: ambient-panel-in 0.25s ease both;
+}
+@keyframes ambient-panel-in {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+  to { opacity: 1; transform: translateX(-50%); }
+}
+.ambient-screen.sounds-on .ambient-log { opacity: 0; }

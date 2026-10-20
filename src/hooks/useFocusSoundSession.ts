@@ -31,7 +31,8 @@ export function useFocusSoundSession(activeSession: ActiveSession | null) {
   useEffect(() => {
     if (action === 'play' && prefs.sound) void focusSoundPlayer.play(prefs.sound);
     else if (action === 'pause') void focusSoundPlayer.pause();
-    else void focusSoundPlayer.stop();
+    // No session: leave a Settings preview to finish on its own.
+    else if (!focusSoundPlayer.previewing) void focusSoundPlayer.stop();
   }, [action, prefs.sound]);
 
   const keepAlive = action === 'play' && prefs.keepPlaying;

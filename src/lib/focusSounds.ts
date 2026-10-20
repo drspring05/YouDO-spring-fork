@@ -114,6 +114,8 @@ export function generateNoise(kind: 'brown' | 'pink', length: number, random: ()
 
 const FADE_S = 1.5;
 const CROSSFADE_S = 4;
+/** Settings plays this much of a sound when you pick it outside a session. */
+const PREVIEW_MS = 5000;
 
 /** One player for the whole app. Web Audio, so loops are gapless and fades are smooth. */
 class FocusSoundPlayer {
@@ -123,6 +125,7 @@ class FocusSoundPlayer {
   private current: { id: FocusSoundId; stop: () => void } | null = null;
   private volume = DEFAULT_FOCUS_SOUND_PREFS.volume;
   private token = 0;
+  private previewTimer = 0;
 
   private context(): AudioContext | null {
     if (this.ctx) return this.ctx;
@@ -166,8 +169,44 @@ class FocusSoundPlayer {
     this.master.gain.linearRampToValueAtTime(to, now + seconds);
   }
 
-  /** Start (or switch to) a sound, fading in. */
-  async play(id: FocusSoundId): Promise<void> {
+  /** Start (or switch to) a sound for the session, fading in. Ends any preview. */
+  play(id: FocusSoundId): Promise<void> {
+    this.clearPreview();
+    return this.start(id);
+  }
+
+  /** True while a Settings preview plays (no session owns the sound). */
+  get previewing(): boolean {
+    return this.previewTimer !== 0;
+  }
+
+  /** A preview may play only when no session is using the player. */
+  get canPreview(): boolean {
+    return this.current === null || this.previewing;
+  }
+
+  /** Play a few seconds of a sound, then fade it out. */
+  preview(id: FocusSoundId) {
+    this.clearPreview();
+    this.previewTimer = window.setTimeout(() => {
+      this.previewTimer = 0;
+      void this.stop();
+    }, PREVIEW_MS);
+    void this.start(id);
+  }
+
+  endPreview() {
+    if (!this.previewing) return;
+    this.clearPreview();
+    void this.stop();
+  }
+
+  private clearPreview() {
+    window.clearTimeout(this.previewTimer);
+    this.previewTimer = 0;
+  }
+
+  private async start(id: FocusSoundId): Promise<void> {
     const sound = FOCUS_SOUNDS.find((s) => s.id === id);
     const ctx = this.context();
     if (!sound || !ctx || !this.master) return;

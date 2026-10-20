@@ -19,11 +19,6 @@ export function ambientDigits(totalSeconds: number): { hours: number; minutes: s
   };
 }
 
-/** Night mode turns on by itself from 21:00 to 06:00. */
-export function isNightHour(hour: number): boolean {
-  return hour >= 21 || hour < 6;
-}
-
 /** Largest drift from centre, in px: enough to spare pixels, too little to notice. */
 export const DRIFT_RANGE = 8;
 

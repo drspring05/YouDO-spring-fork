@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { DRIFT_RANGE, ambientAutoOpenEnabled, ambientDigits, ambientDrift, formatAmbientTimer, ambientTipSeen, isNightHour, markAmbientTipSeen, setAmbientAutoOpen } from './ambient';
+import { DRIFT_RANGE, ambientAutoOpenEnabled, ambientDigits, ambientDrift, formatAmbientTimer, ambientTipSeen, markAmbientTipSeen, setAmbientAutoOpen } from './ambient';
 
 const store = new Map<string, string>();
 vi.stubGlobal('localStorage', {
@@ -18,10 +18,6 @@ describe('ambient clock', () => {
 
   it('reads the timer as 00:00, with hours only past an hour', () => {
     expect([0, 598, 2398, 5998, 36000].map(formatAmbientTimer)).toEqual(['00:00', '09:58', '39:58', '1:39:58', '10:00:00']);
-  });
-
-  it('turns night mode on from 21:00 to 06:00', () => {
-    expect([20, 21, 23, 0, 5, 6].map(isNightHour)).toEqual([false, true, true, true, true, false]);
   });
 
   it('drifts within a few pixels and keeps moving', () => {

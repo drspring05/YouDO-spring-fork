@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Minimize2, Moon, Pause, Play, Square } from 'lucide-react';
+import { Minimize2, Music, Pause, Play, Square } from 'lucide-react';
 import { KeepAwake } from '@capacitor-community/keep-awake';
 import type { ActiveSession, Task } from '../types';
 import Overlay from './Overlay';
 import OriginChip from './OriginChip';
 import { computeNetFocusMs } from '../lib/sessionStats';
 import { sessionClockLabel } from '../lib/sessionClock';
-import { ambientDigits, ambientDrift, formatAmbientTimer, isNightHour } from '../lib/ambient';
-import '@fontsource/barlow-condensed/400.css';
+import FocusSoundPicker from './FocusSoundPicker';
+import { ambientDigits, ambientDrift, formatAmbientTimer } from '../lib/ambient';
+import '@fontsource/quicksand/600.css';
 import './ambient.css';
 
 /** One digit that rolls softly to its next value: the old one rises and blurs away as the new one settles in. */
@@ -63,8 +64,9 @@ const DRIFT_MS = 60_000;
 
 /**
  * StandBy-style ambient clock: the session timer in huge accent-coloured digits
- * on true black, the clock and the task small around it. Tap to show the controls. Dim red
- * after dark, and a slow drift against screen burn-in.
+ * on true black, the clock and the task small around it. Tap to show the
+ * controls and the session log; the music note opens the focus sound picker.
+ * A slow drift guards against screen burn-in.
  */
 export function AmbientScreen({
   activeSession,
@@ -79,7 +81,7 @@ export function AmbientScreen({
   const [elapsed, setElapsed] = useState(0);
   const [now, setNow] = useState(() => new Date());
   const [controls, setControls] = useState(true);
-  const [nightOverride, setNightOverride] = useState<boolean | null>(null);
+  const [soundsOpen, setSoundsOpen] = useState(false);
   const [drift, setDrift] = useState({ x: 0, y: 0 });
   const hideTimer = useRef(0);
 
@@ -123,8 +125,11 @@ export function AmbientScreen({
     showControls();
     return () => window.clearTimeout(hideTimer.current);
   }, [showControls]);
+  // The controls stay while the sound panel is open.
+  useEffect(() => {
+    if (soundsOpen) window.clearTimeout(hideTimer.current);
+  }, [soundsOpen]);
 
-  const night = nightOverride ?? isNightHour(now.getHours());
   const timer = formatAmbientTimer(elapsed);
   const digits = ambientDigits(elapsed);
   const clock = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
@@ -139,8 +144,11 @@ export function AmbientScreen({
   return (
     <Overlay open scrim={false} align="full" fullWidth="bleed">
       <div
-        className={`ambient-screen ${night ? 'is-night' : ''} ${paused ? 'is-paused' : ''} ${controls ? 'controls-on' : ''}`}
-        onClick={showControls}
+        className={`ambient-screen ${paused ? 'is-paused' : ''} ${controls ? 'controls-on' : ''} ${soundsOpen ? 'sounds-on' : ''}`}
+        onClick={() => {
+          setSoundsOpen(false);
+          showControls();
+        }}
         role="presentation"
       >
         <div
@@ -162,7 +170,7 @@ export function AmbientScreen({
             </span>
             <span className="ambient-digits" aria-hidden>
               <RollNumber value={digits.minutes} className="ambient-minutes" />
-              <span className="ambient-colon"><i /><i /></span>
+              <span className="ambient-divider" />
               <RollNumber value={digits.seconds} className="ambient-seconds" />
             </span>
           </div>
@@ -195,6 +203,12 @@ export function AmbientScreen({
           </div>
         )}
 
+        {soundsOpen && controls && (
+          <div className="ambient-sounds" onClick={(e) => e.stopPropagation()} role="presentation">
+            <FocusSoundPicker variant="ambient" />
+          </div>
+        )}
+
         <div className={`ambient-controls ${controls ? 'is-visible' : ''}`} aria-hidden={!controls}>
           <button type="button" tabIndex={controls ? 0 : -1} onClick={(e) => control(e, paused ? onResume : onPause)} aria-label={paused ? 'Resume' : 'Pause'}>
             {paused ? <Play size={20} className="fill-current" /> : <Pause size={20} />}
@@ -205,11 +219,12 @@ export function AmbientScreen({
           <button
             type="button"
             tabIndex={controls ? 0 : -1}
-            onClick={(e) => control(e, () => setNightOverride(!night))}
-            aria-label={night ? 'Turn off night mode' : 'Turn on night mode'}
-            aria-pressed={night}
+            onClick={(e) => control(e, () => setSoundsOpen(!soundsOpen))}
+            aria-label="Focus sound"
+            aria-expanded={soundsOpen}
+            aria-pressed={soundsOpen}
           >
-            <Moon size={19} />
+            <Music size={19} />
           </button>
           <button type="button" tabIndex={controls ? 0 : -1} onClick={(e) => control(e, onMinimize)} aria-label="Minimize">
             <Minimize2 size={19} />

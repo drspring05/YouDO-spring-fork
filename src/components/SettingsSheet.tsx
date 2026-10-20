@@ -29,6 +29,7 @@ import {
   MessageSquare,
   MonitorSmartphone,
   Moon,
+  Music,
   Palette,
   Droplets,
   Undo2,
@@ -51,6 +52,7 @@ import {
 } from 'lucide-react';
 import Overlay from './Overlay';
 import Toggle from './Toggle';
+import FocusSoundPicker from './FocusSoundPicker';
 import {
   getNotificationPreferences,
   saveNotificationPreferences,
@@ -2863,6 +2865,24 @@ export default function SettingsSheet({
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Focus sound: calm sound during a session */}
+          <div hidden={!legacyStyle && page === 'board'} className="settings-card settings-focus-card bg-elevated rounded-2xl border border-subtle p-4 shadow-lg mb-2.5">
+            <div className="flex items-start gap-3 mb-3">
+              <div className="w-9 h-9 rounded-xl bg-primary-soft flex items-center justify-center text-primary shrink-0 mt-0.5">
+                <Music size={16} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-xs font-semibold text-content-primary">Focus sound</h3>
+                <p className="text-[10.5px] text-content-secondary font-medium mt-0.5 leading-snug">
+                  Plays during a focus session. Tap a sound to hear a short preview.
+                </p>
+              </div>
+            </div>
+            <div className="text-content-primary">
+              <FocusSoundPicker variant="settings" />
             </div>
           </div>
 
