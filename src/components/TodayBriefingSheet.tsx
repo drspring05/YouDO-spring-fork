@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { CalendarDays, CheckCircle2, ListTodo, Flame, ChevronRight, Repeat } from 'lucide-react';
+import { CalendarDays, CheckCircle2, ListTodo, Flame, ChevronRight, Repeat, History } from 'lucide-react';
 import Overlay from './Overlay';
 import type { Task, TaskSession } from '../types';
 import { formatCountdownHm, formatDuration } from '../lib/format';
@@ -10,6 +10,7 @@ import { springStep } from '../lib/liquidMotion';
 import { localISODate, msUntilEndOfLocalISODate, shiftLocalISO } from '../lib/dates';
 import { useReviveTimeLeftSub } from '../hooks/useReviveCountdown';
 import type { StreakView } from '../lib/focusTrends';
+import { lastSessionEnd, lastSessionNudge } from '../lib/lastSessionNudge';
 
 interface Props {
   open: boolean;
@@ -181,6 +182,9 @@ export default function TodayBriefingSheet({
       return acc + (slice?.netFocusMs ?? 0);
     }, 0);
   }, [sessionHistory, yesterdayStr]);
+
+  const lastEnd = useMemo(() => lastSessionEnd(sessionHistory), [sessionHistory]);
+  const sessionNudge = lastSessionNudge(lastEnd, now);
 
   const scheduledTotal = todayTasks.length;
   const remainingToday = openTodayCount;
@@ -388,6 +392,20 @@ export default function TodayBriefingSheet({
             {dayLeftMs <= 0 ? 'Day ended' : `${formatCountdownHm(dayLeftMs)} left today`}
           </p>
           <p className="text-[13px] text-content-secondary leading-relaxed mt-1.5">{headline}</p>
+          {sessionNudge && (
+            <p
+              className={`mt-2 flex items-start gap-1.5 text-[12px] leading-snug ${
+                sessionNudge.tone === 'good'
+                  ? 'text-secondary'
+                  : sessionNudge.tone === 'long'
+                    ? 'text-warning'
+                    : 'text-content-secondary'
+              }`}
+            >
+              <History className="w-3.5 h-3.5 mt-px shrink-0" aria-hidden />
+              <span>{sessionNudge.text}</span>
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-2">
