@@ -46,6 +46,11 @@
   .ambient-digits-line { display: none; }
   .ambient-digits-stack { display: flex; flex-direction: column; font-size: min(44vw, 30vh); }
 }
+/* Past an hour the timer gets wider (01:32:17), so it steps down a size. */
+.ambient-digits.has-hours .ambient-digits-line { font-size: min(19vw, 50vh); }
+@media (orientation: portrait) {
+  .ambient-digits.has-hours .ambient-digits-stack { font-size: min(27vw, 24vh); }
+}
 .ambient-screen.is-paused .ambient-digits { opacity: 0.4; }
 .ambient-task {
   display: flex;
@@ -63,6 +68,30 @@
   text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* Session log: the pauses of this sitting, shown with the controls. Above the
+   controls in portrait; under the top line in landscape, clear of the digits. */
+.ambient-log {
+  position: absolute;
+  left: 50%;
+  bottom: calc(max(22px, env(safe-area-inset-bottom, 0px)) + 68px);
+  width: min(320px, 86%);
+  transform: translateX(-50%);
+  font-size: 12.5px;
+  color: #aeaeb2;
+  font-variant-numeric: tabular-nums;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+.ambient-log.is-visible { opacity: 1; }
+.ambient-log-title { margin-bottom: 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #8e8e93; }
+.ambient-log-row { display: flex; justify-content: space-between; gap: 12px; line-height: 1.6; }
+.ambient-log-time { color: var(--primary); }
+@media (orientation: landscape) {
+  .ambient-log { top: calc(max(18px, var(--safe-area-top, 0px)) + 26px); bottom: auto; width: auto; max-width: 86%; display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 16px; }
+  .ambient-log-title { margin: 0; line-height: 1.6; }
+  .ambient-log-row { gap: 6px; }
 }
 .ambient-controls {
   position: absolute;
@@ -92,6 +121,7 @@
 .ambient-screen.is-night .ambient-top,
 .ambient-screen.is-night .ambient-title { color: #7a1c14; }
 .ambient-screen.is-night .ambient-task > :not(.ambient-title),
+.ambient-screen.is-night .ambient-log,
 .ambient-screen.is-night .ambient-controls {
   filter: grayscale(1) brightness(0.45) sepia(1) hue-rotate(-50deg) saturate(9);
 }

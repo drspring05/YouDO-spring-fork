@@ -6,8 +6,15 @@ import Overlay from './Overlay';
 import OriginChip from './OriginChip';
 import { formatElapsed } from '../lib/format';
 import { computeNetFocusMs } from '../lib/sessionStats';
+import { sessionClockLabel } from '../lib/sessionClock';
 import { ambientDrift, isNightHour } from '../lib/ambient';
 import './ambient.css';
+
+function formatPauseDuration(ms: number) {
+  const mins = Math.floor(ms / 60000);
+  const hrs = Math.floor(mins / 60);
+  return hrs > 0 ? `${hrs}h ${mins % 60}m` : `${mins}m`;
+}
 
 interface Props {
   activeSession: ActiveSession;
@@ -116,10 +123,13 @@ export function AmbientScreen({
         >
           <div className="ambient-top">
             <span>{clock}</span>
-            <span>{paused ? 'Paused' : 'Focus'}{activeSession.pauses.length > 0 ? ` · ${activeSession.pauses.length} ${activeSession.pauses.length === 1 ? 'pause' : 'pauses'}` : ''}</span>
+            <span>
+              {paused ? 'Paused · ' : ''}Started {sessionClockLabel(activeSession.startTime, activeSession.wallClockStart)}
+              {activeSession.pauses.length > 0 ? ` · ${activeSession.pauses.length} ${activeSession.pauses.length === 1 ? 'pause' : 'pauses'}` : ''}
+            </span>
           </div>
 
-          <div className="ambient-digits" aria-live="off" aria-label={`Focused ${formatElapsed(elapsed)}`}>
+          <div className={`ambient-digits ${parts.length > 2 ? 'has-hours' : ''}`} aria-live="off" aria-label={`Focused ${formatElapsed(elapsed)}`}>
             <span className="ambient-digits-line">{formatElapsed(elapsed)}</span>
             <span className="ambient-digits-stack" aria-hidden>
               <span>{head}</span>
@@ -134,6 +144,26 @@ export function AmbientScreen({
             )}
           </div>
         </div>
+
+        {/* Session log: every pause of this sitting, shown with the controls. */}
+        {activeSession.pauses.length > 0 && (
+          <div className={`ambient-log ${controls ? 'is-visible' : ''}`} aria-hidden={!controls}>
+            <p className="ambient-log-title">
+              Pauses{activeSession.pauses.length > 4 ? ` · last 4 of ${activeSession.pauses.length}` : ''}
+            </p>
+            {activeSession.pauses.slice(-4).map((p, idx) => {
+              const start = sessionClockLabel(p.start, p.wallClockStart);
+              const end = p.end ? sessionClockLabel(p.end, p.wallClockEnd) : 'now';
+              const ms = p.end ? (p.durationMs || p.end - p.start) : activeSession.pauseStart ? now.getTime() - activeSession.pauseStart : 0;
+              return (
+                <p key={idx} className="ambient-log-row">
+                  <span>{start} – {end}</span>
+                  <span className="ambient-log-time">{formatPauseDuration(ms)}</span>
+                </p>
+              );
+            })}
+          </div>
+        )}
 
         <div className={`ambient-controls ${controls ? 'is-visible' : ''}`} aria-hidden={!controls}>
           <button type="button" tabIndex={controls ? 0 : -1} onClick={(e) => control(e, paused ? onResume : onPause)} aria-label={paused ? 'Resume' : 'Pause'}>
