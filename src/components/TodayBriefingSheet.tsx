@@ -388,12 +388,22 @@ export default function TodayBriefingSheet({
         onClick={(e) => e.stopPropagation()}
       >
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">{dateLabel}</p>
-          <h3 className="text-[17px] font-semibold text-content-primary mt-1">Today at a glance</h3>
-          <p className={`text-[12px] font-semibold tabular-nums mt-1 ${dayLeftClass}`}>
-            {dayLeftMs <= 0 ? 'Day ended' : `${formatCountdownHm(dayLeftMs)} left today`}
-          </p>
-          <p className="text-[13px] text-content-secondary leading-relaxed mt-1.5">{headline}</p>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-primary">{dateLabel}</p>
+              <h3 className="text-[17px] font-semibold text-content-primary mt-1">Today at a glance</h3>
+            </div>
+            {/* The countdown sits beside the title so the header stays two lines tall. */}
+            <div className="shrink-0 text-right">
+              <p className={`text-[17px] font-semibold tabular-nums leading-tight ${dayLeftClass}`}>
+                {dayLeftMs <= 0 ? 'Day ended' : formatCountdownHm(dayLeftMs)}
+              </p>
+              {dayLeftMs > 0 && (
+                <p className="text-[10.5px] font-semibold uppercase tracking-wider text-content-muted mt-0.5">left today</p>
+              )}
+            </div>
+          </div>
+          <p className="text-[13px] text-content-secondary leading-relaxed mt-2">{headline}</p>
         </div>
 
         <div className="grid grid-cols-2 gap-2">
