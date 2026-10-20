@@ -23,7 +23,7 @@ Guidance: keep 3–6 short, user-facing bullets. Group related small fixes under
 - **Focus sounds** — Pick a calm sound in Settings → Focus and streak or on the ambient clock. It plays with your session, pauses when you pause, and can keep playing with the screen off.
 - **Share a goal with a friend** — Send any goal tree in a direct message. Your friend can view the whole plan and save a fresh copy to their own Goals; showing your progress is optional.
 - **Board updates do more** — Admins can add a poll, private replies, an action button and quick reactions to a Board update, and notify everyone after confirming.
-- **Cleaner Settings and briefing** — Settings opens on your profile and a plain list, with updates and support right on it; every page now shares one tidy layout. Today at a glance shows when your last session was and how it went.
+- **Clearer glass, cleaner Settings** — The tab bar's Liquid Glass is clearer, with a brighter edge and a frosted selected tab. Settings opens on your profile and a plain list, with updates and support right on it; every page now shares one tidy layout. Today at a glance shows when your last session was and how it went.
 - **Fixes** — Profile edits no longer fail, password managers stay out of search fields, Blueprint Studio number fields can be cleared, a better layout when the phone is sideways, and in-app updates now verify correctly on Android 9–12.
 - **Android APK** — versionName **8.1.0**, versionCode **80**. Installs over v8.0.0 (79).
 
