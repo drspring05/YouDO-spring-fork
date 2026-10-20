@@ -3,10 +3,11 @@
  * The redesign lives in components/TaskCard.tsx, which hands over to this one.
  */
 import { useState, useEffect, useRef } from 'react';
-import { Calendar, Clock, FileText, GripVertical, Link2, Play, Pause, Square, StickyNote, Trash2, CheckCircle2, Check } from 'lucide-react';
+import { Calendar, Clock, FileText, GripVertical, Link2, Play, Pause, Square, StickyNote, Trash2, CheckCircle2, Check, MoonStar } from 'lucide-react';
 import type { Priority, Task, ActiveSession, TaskSession } from '../types';
 import { isBacklogTask, isTaskComplete } from '../store';
 import { hapticSessionStart, hapticSessionPause, hapticAmbient } from '../lib/haptics';
+import { ambientTipSeen, markAmbientTipSeen } from '../lib/ambient';
 import Overlay from '../components/Overlay';
 import { computeNetFocusMs } from '../lib/sessionStats';
 import { sessionClockLabel, sessionClockRange } from '../lib/sessionClock';
@@ -77,6 +78,8 @@ export default function LegacyTaskCard({
   const skipClickAfterAmbient = useRef(false);
 
   const isSessionTask = activeSession?.taskId === task.id;
+  /** One-time pointer to the ambient clock, shown on the first running session. */
+  const [ambientTip, setAmbientTip] = useState(() => !ambientTipSeen());
   const isPaused = isSessionTask && activeSession?.isPaused;
 
   // Live timer for active session
@@ -262,6 +265,24 @@ export default function LegacyTaskCard({
                 </div>
               </div>
               
+              {/* Ambient clock: a visible way in (holding the play chip still works). */}
+              {isSessionTask && onOpenAmbient && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    hapticAmbient();
+                    markAmbientTipSeen();
+                    setAmbientTip(false);
+                    onOpenAmbient();
+                  }}
+                  title="Ambient clock"
+                  aria-label="Open the ambient clock"
+                  className="shrink-0 grid place-items-center w-[34px] h-[34px] rounded-full border border-subtle text-content-secondary transition-transform active:scale-95"
+                >
+                  <MoonStar className="w-4 h-4" />
+                </button>
+              )}
               {/* Circular Play/Pause "Music Player" Chip (Right Aligned) */}
               {isSessionTask && (
                 <button
@@ -316,6 +337,24 @@ export default function LegacyTaskCard({
                 </button>
               )}
             </div>
+
+            {isSessionTask && onOpenAmbient && ambientTip && (
+              <div className="mt-2 flex items-center gap-2 rounded-xl bg-primary-soft px-3 py-2 text-[12.5px] leading-snug text-content-secondary">
+                <MoonStar size={13} className="shrink-0 text-primary" />
+                <span className="flex-1">Tap the moon for the ambient clock, or turn your phone sideways.</span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    markAmbientTipSeen();
+                    setAmbientTip(false);
+                  }}
+                  className="shrink-0 font-semibold text-primary"
+                >
+                  Got it
+                </button>
+              </div>
+            )}
 
             {/* SUBTITLE: remaining path context. */}
             {originNodes && originNodes.length > 0 && (() => {

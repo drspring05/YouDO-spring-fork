@@ -1,0 +1,5 @@
+v8.1.0: Ambient clock, focus sounds and goal sharing
+- Turn your phone sideways in a session for a calm full-screen clock, with burn-in protection.
+- Focus sounds that play with your session, even with the screen off.
+- Share a goal tree with a friend in a direct message.
+- Board updates with polls and replies, cleaner Settings, and many fixes.

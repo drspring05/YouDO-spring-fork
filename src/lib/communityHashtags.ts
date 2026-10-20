@@ -71,6 +71,11 @@ export async function requestCommunityHashtag(examName:string,details:string): P
   const {error}=await supabase.rpc('request_community_hashtag',{requested_exam:examName,request_details:details});
   if(error)throw new Error(error.message||'Could not send your request.');
 }
+/** Cancel your own pending request, or clear a declined one (supabase/hashtag_request_cleanup.sql). */
+export async function withdrawCommunityHashtagRequest(id:string): Promise<void> {
+  const {error}=await supabase.rpc('withdraw_community_hashtag_request',{target_request:id});
+  if(error)throw new Error(error.code==='PGRST202'?'This needs an update on our side. Please try again later.':error.message||'Could not remove this request.');
+}
 export async function fetchAdminHashtagRequests(): Promise<CommunityHashtagRequest[]> {
   const {data,error}=await supabase.rpc('admin_community_hashtag_requests');
   if(error)throw new Error(error.message||'Could not load hashtag requests.');

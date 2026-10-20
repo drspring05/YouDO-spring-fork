@@ -1,5 +1,5 @@
-export const DEFAULT_AUTH_REDIRECT_URL = 'https://tu-do-psi.vercel.app/auth-confirm.html';
-export const DEFAULT_AUTH_RECOVERY_URL = 'https://tu-do-psi.vercel.app/?auth=recovery';
+export const DEFAULT_AUTH_REDIRECT_URL = 'https://youdo-app.vercel.app/auth-confirm.html';
+export const DEFAULT_AUTH_RECOVERY_URL = 'https://youdo-app.vercel.app/?auth=recovery';
 
 function requirePublicHttps(url: URL, purpose: string): void {
   if (url.protocol !== 'https:' || url.username || url.password || url.hash ||

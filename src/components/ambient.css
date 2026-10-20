@@ -1,0 +1,200 @@
+/* Ambient clock (StandBy-style). Loaded with its component, so it applies under
+   both the new look and Classic Look. True black keeps an OLED screen dark. */
+.ambient-screen {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  color: #f2f2f7;
+  /* The accent of the app; the brighter dark-theme shade on light themes too. */
+  --ambient-ink: var(--primary, #c9a46e);
+  user-select: none;
+  touch-action: manipulation;
+}
+.ambient-face {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 100%;
+  padding: max(18px, var(--safe-area-top, 0px)) 28px max(18px, env(safe-area-inset-bottom, 0px));
+  /* The minute-by-minute drift glides, so it is never noticed. */
+  transition: transform 2s ease;
+}
+.ambient-top {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  font-size: 13px;
+  color: #8e8e93;
+  font-variant-numeric: tabular-nums;
+}
+/* The timer: minutes and seconds big in the accent colour, hours small above.
+   Side by side in landscape, minutes over seconds in portrait, with a thin
+   light line between them. Quicksand: soft, round, calm digits. Each digit
+   rolls softly to the next: the old one rises and fades as the new one settles. */
+.ambient-clock {
+  --digit-size: min(33vw, 56vh);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-family: 'Quicksand', 'SF Pro Rounded', system-ui, sans-serif;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ambient-ink);
+  /* Its own, wider drift glides like the face's; the rest dim fades in slowly. */
+  transition: transform 2s ease, opacity 4s ease;
+}
+.ambient-screen.is-resting .ambient-clock { opacity: 0.72; }
+.ambient-hours {
+  min-height: 1.3em;
+  font-size: max(14px, calc(var(--digit-size) * 0.085));
+  line-height: 1.3;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+.ambient-digits {
+  display: flex;
+  align-items: center;
+  font-size: var(--digit-size);
+  transition: opacity 0.6s ease;
+}
+.ambient-minutes,
+.ambient-seconds { display: flex; }
+.ambient-seconds { opacity: 0.62; }
+.ambient-digit {
+  position: relative;
+  width: 0.6em;
+  text-align: center;
+}
+.ambient-digit > span {
+  display: block;
+  line-height: 1;
+}
+.ambient-digit-in { animation: ambient-roll-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.ambient-digit > .ambient-digit-out {
+  position: absolute;
+  inset: 0;
+  animation: ambient-roll-out 0.5s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+@keyframes ambient-roll-in {
+  from { opacity: 0; transform: translateY(0.22em) scale(0.97); filter: blur(0.04em); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+@keyframes ambient-roll-out {
+  to { opacity: 0; transform: translateY(-0.22em) scale(0.97); filter: blur(0.04em); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ambient-digit-in { animation: none; }
+  .ambient-digit > .ambient-digit-out { display: none; }
+}
+/* The divider: a thin, light line in the accent (upright between the pairs, level between the rows). */
+.ambient-divider {
+  flex: none;
+  width: max(2px, 0.012em);
+  height: 0.56em;
+  margin: 0 0.16em;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ambient-ink) 38%, transparent);
+}
+@media (orientation: portrait) {
+  .ambient-clock { --digit-size: min(66vw, 30vh); }
+  .ambient-digits { flex-direction: column; }
+  .ambient-minutes,
+  .ambient-seconds { margin: -0.05em 0; }
+  .ambient-divider { width: 0.72em; height: max(2px, 0.012em); margin: 0.08em 0; }
+}
+.ambient-screen.is-paused .ambient-digits { opacity: 0.4; }
+.ambient-task {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 92%;
+  transition: opacity 0.3s ease;
+}
+.ambient-title {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 15px;
+  color: #d1d1d6;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Session log: the pauses of this sitting, shown with the controls. Above the
+   controls in portrait; under the top line in landscape, clear of the digits. */
+.ambient-log {
+  position: absolute;
+  left: 50%;
+  bottom: calc(max(22px, env(safe-area-inset-bottom, 0px)) + 68px);
+  width: min(320px, 86%);
+  transform: translateX(-50%);
+  font-size: 12.5px;
+  color: #aeaeb2;
+  font-variant-numeric: tabular-nums;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+.ambient-log.is-visible { opacity: 1; }
+.ambient-log-title { margin-bottom: 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #8e8e93; }
+.ambient-log-row { display: flex; justify-content: space-between; gap: 12px; line-height: 1.6; }
+.ambient-log-time { color: var(--primary); }
+@media (orientation: landscape) {
+  .ambient-log { top: calc(max(18px, var(--safe-area-top, 0px)) + 26px); bottom: auto; width: auto; max-width: 86%; display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 16px; }
+  .ambient-log-title { margin: 0; line-height: 1.6; }
+  .ambient-log-row { gap: 6px; }
+}
+.ambient-controls {
+  position: absolute;
+  left: 50%;
+  bottom: max(22px, env(safe-area-inset-bottom, 0px));
+  display: flex;
+  gap: 14px;
+  transform: translateX(-50%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+.ambient-controls.is-visible { opacity: 1; pointer-events: auto; }
+.ambient-screen.controls-on .ambient-task { opacity: 0; }
+.ambient-controls button {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #f2f2f7;
+}
+.ambient-controls button[aria-pressed='true'] { background: rgba(255, 255, 255, 0.22); }
+@media (prefers-reduced-motion: reduce) {
+  .ambient-face { transition: none; }
+}
+html:not(.dark) .ambient-screen { --ambient-ink: color-mix(in srgb, var(--primary, #8c6a3a) 80%, #fff); }
+/* Focus sound panel, opened by the music note. */
+.ambient-sounds {
+  position: absolute;
+  left: 50%;
+  bottom: calc(max(22px, env(safe-area-inset-bottom, 0px)) + 66px);
+  width: min(420px, calc(100% - 24px));
+  max-height: calc(100% - max(22px, env(safe-area-inset-bottom, 0px)) - 80px);
+  overflow-y: auto;
+  transform: translateX(-50%);
+  padding: 16px;
+  z-index: 2;
+  border-radius: 22px;
+  background: #141414;
+  color: #f2f2f7;
+  animation: ambient-panel-in 0.25s ease both;
+}
+@keyframes ambient-panel-in {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+  to { opacity: 1; transform: translateX(-50%); }
+}
+.ambient-screen.sounds-on .ambient-log { opacity: 0; }

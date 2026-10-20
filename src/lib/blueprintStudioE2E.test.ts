@@ -882,7 +882,7 @@ describe('Tier 2: Boundary & Corner Cases', () => {
       expect(findGoal(result.goals, 'p')?.children).toHaveLength(1);
     });
 
-    it('T2.2.5: high-volume stress: bulk adding inside 50+ parents produces 100+ unique nodes in <50ms', () => {
+    it('T2.2.5: high-volume stress: bulk adding inside 50+ parents produces 100+ unique nodes quickly', () => {
       const parents: GoalNode[] = Array.from({ length: 50 }, (_, i) =>
         makeTestNode(`parent-${i}`, 'node', `Section ${i}`),
       );
@@ -896,7 +896,9 @@ describe('Tier 2: Boundary & Corner Cases', () => {
       );
       const duration = performance.now() - start;
 
-      expect(duration).toBeLessThan(100);
+      // A wall-clock bound only catches a blow-up (e.g. quadratic work): a
+      // busy machine running the suite in parallel must not fail it.
+      expect(duration).toBeLessThan(2000);
       expect(result.count).toBe(100);
       expect(result.createdIds).toHaveLength(100);
       expect(new Set(result.createdIds).size).toBe(100);

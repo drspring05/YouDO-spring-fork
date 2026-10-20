@@ -19,6 +19,8 @@ export interface DirectMessage {
   reply_to_id?: string | null;
   read_at?: string | null;
   created_at: string;
+  /** A shared goal tree (see goalShare.ts); read it with parseGoalShare. */
+  goal_share?: unknown;
 }
 
 // -- SQUAD MESSAGES --
@@ -207,16 +209,22 @@ export async function sendDirectMessage(
   receiverId: string,
   content: string,
   replyToId?: string | null,
+  goalShare?: unknown,
 ): Promise<{ ok: boolean; error?: string }> {
   const { error } = await supabase.from('direct_messages').insert({
     sender_id: senderId,
     receiver_id: receiverId,
     content,
     reply_to_id: replyToId || null,
+    ...(goalShare ? { goal_share: goalShare } : {}),
   });
 
   if (error) {
     console.error('sendDirectMessage error:', error);
+    // The goal_share column comes with supabase/dm_goal_share.sql.
+    if (goalShare && /goal_share/i.test(error.message)) {
+      return { ok: false, error: 'Goal sharing needs the latest server update.' };
+    }
     return { ok: false, error: error.message };
   }
   return { ok: true };

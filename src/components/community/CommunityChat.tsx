@@ -8,6 +8,10 @@ import { dismissCommunityNotification } from '../../lib/notifications';
 import { fetchCommunityRooms, type CommunityHashtagContext, type CommunityHashtagRequest } from '../../lib/communityHashtags';
 import { activeChatMessages, chatCacheGeneration, CHAT_HISTORY_LIMIT, CHAT_PAGE_SIZE, clearChatCache, deleteChatMessage, editChatMessage, fetchChatPage, mergeChatPage, pendingChatMessage, readChatCache, saveChatCache, sendChatMessage, type ChatMessage } from '../../lib/communityChat';
 import CommunityHashtagBar from './CommunityHashtagBar';
+import UpdateExtras from './UpdateExtras';
+
+/** The Board top bar's My Reports button opens the chat's reports sheet. */
+export const OPEN_COMMUNITY_REPORTS_EVENT = 'youdo-community-open-reports';
 import CommunityHashtagSupportChat from './CommunityHashtagSupportChat';
 import Overlay from '../Overlay';
 import ChatActionSheet from '../chat/ChatActionSheet';
@@ -70,6 +74,12 @@ export default function CommunityChat({ userId, context, names, onProfile, onOpe
       setLoadingReports(false);
     }
   }, [userId]);
+
+  useEffect(() => {
+    const open = () => void openReports();
+    window.addEventListener(OPEN_COMMUNITY_REPORTS_EVENT, open);
+    return () => window.removeEventListener(OPEN_COMMUNITY_REPORTS_EVENT, open);
+  }, [openReports]);
 
   const [dismissedWaitingBannerIds, setDismissedWaitingBannerIds] = useState<Set<string>>(new Set());
 
@@ -406,35 +416,6 @@ export default function CommunityChat({ userId, context, names, onProfile, onOpe
         </aside>
       )}
 
-      <details className="c-guidance">
-        <summary className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5 flex-1 min-w-0">
-            <ShieldCheck size={16}/>
-            <span className="truncate">A little encouragement goes a long way</span>
-          </div>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              void openReports();
-            }}
-            className="text-[10px] font-bold text-secondary hover:underline px-2 py-0.5 rounded-md bg-secondary-soft/50 border border-secondary/25 mr-1 shrink-0"
-          >
-            My Reports
-          </button>
-        </summary>
-        <p>
-          Be respectful. No spam, links or personal details. Use replies to keep conversations clear. Chat disappears after 24 hours.
-          <button
-            type="button"
-            onClick={() => void openReports()}
-            className="block mt-1.5 text-[10.5px] font-semibold text-secondary hover:underline"
-          >
-            View status of your submitted reports &rarr;
-          </button>
-        </p>
-      </details>
       {context.settings.announcement && <section className={`c-update-event ${context.unread?.updates?'is-new':''} ${updateOpen?'is-open':''}`}>
         <button type="button" aria-expanded={updateOpen} onClick={toggleUpdate}>
           <span className="c-update-icon"><Megaphone size={15}/></span>
@@ -442,11 +423,11 @@ export default function CommunityChat({ userId, context, names, onProfile, onOpe
           {!!context.unread?.updates && <span className="c-update-new">New</span>}
           <ChevronDown className="c-update-chevron" size={15}/>
         </button>
-        {updateOpen && <div className="c-update-body"><p>{context.settings.announcement}</p>{context.settings.announcementUpdatedAt && <time dateTime={context.settings.announcementUpdatedAt}>{new Date(context.settings.announcementUpdatedAt).toLocaleString()}</time>}</div>}
+        {updateOpen && <div className="c-update-body"><p>{context.settings.announcement}</p>{context.settings.announcementUpdatedAt && <time dateTime={context.settings.announcementUpdatedAt}>{new Date(context.settings.announcementUpdatedAt).toLocaleString()}</time>}<UpdateExtras refreshKey={`${context.settings.announcement}|${context.settings.announcementUpdatedAt ?? ''}`}/></div>}
       </section>}
       {hasOlder && <button className="c-text-button c-load" disabled={loading} onClick={()=>void loadOlder()}>{loading?'Loading…':'Earlier messages'}</button>}
       {loading && messages.length===0 ? <div className="c-skeleton" role="status" aria-label="Loading chat"><i/><i/><i/></div>
-        : messages.length===0 && !error ? <div className="c-empty"><Heart size={28}/><h3>A quiet room. A shared ambition.</h3><p>{selectedHashtag ? `Welcome to #${currentHashtagObj?.label ?? 'your room'}. Share questions and tips!` : 'Share a useful thought or encourage a fellow aspirant.'}</p></div>:null}
+        : messages.length===0 && !error ? <div className="c-empty"><Heart size={28}/><h3>A quiet room. A shared ambition.</h3><p>{selectedHashtag ? `Welcome to #${currentHashtagObj?.label ?? 'your room'}. Share questions and tips!` : 'Share a useful thought or encourage a fellow aspirant.'}</p><p className="c-empty-rules">Be respectful. No spam, links or personal details. Use replies to keep conversations clear. Chat disappears after 24 hours.</p></div>:null}
       <ol className="yd-chat-list">{messages.map(message=>{
         const mine=message.authorId===userId;
         const parent=message.replyToId?map.get(message.replyToId):undefined;
@@ -597,6 +578,7 @@ export default function CommunityChat({ userId, context, names, onProfile, onOpe
           <div>
             <h3 className="text-sm font-bold text-content-primary">Your Reported Messages</h3>
             <p className="text-[11px] text-content-muted">Track review status of messages you flagged</p>
+            <p className="mt-2 flex gap-1.5 text-[11px] leading-relaxed text-content-secondary"><ShieldCheck size={13} className="mt-0.5 shrink-0 text-secondary" />Be respectful. No spam, links or personal details. Use replies to keep conversations clear. Chat disappears after 24 hours.</p>
           </div>
           <button
             type="button"

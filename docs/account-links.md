@@ -1,12 +1,14 @@
 # YouDO account confirmation — deployment checklist
 
-This setup uses the existing website, **https://tu-do-psi.vercel.app**. It does not require another account, domain, or mobile reinstall to open a confirmation email.
+This setup uses the existing website, **https://youdo-app.vercel.app**. It does not require another account, domain, or mobile reinstall to open a confirmation email.
+
+Keep the old address **https://tu-do-psi.vercel.app** attached to the same Vercel project forever, and keep its two URLs in **Redirect URLs**: older app versions still send confirmation and reset links there, and offline web data saved on that address stays there.
 
 ## 1. Deploy the page first
 
 Deploy the reviewed branch to the production Vercel site using your normal release process. The Vite build now produces both the app and `/auth-confirm.html`.
 
-Open **https://tu-do-psi.vercel.app/auth-confirm.html** on a phone. Without a confirmation link, it should say “Check your account in YouDO”, not show the sign-in screen or a connection error. Do not send new test links until this page is reachable.
+Open **https://youdo-app.vercel.app/auth-confirm.html** on a phone. Without a confirmation link, it should say “Check your account in YouDO”, not show the sign-in screen or a connection error. Do not send new test links until this page is reachable.
 
 If the project has a custom Vercel catch-all rewrite, make sure it does not replace this real HTML file with the app’s index page. A normal Vite deployment serves the generated file directly.
 
@@ -14,9 +16,9 @@ If the project has a custom Vercel catch-all rewrite, make sure it does not repl
 
 Open **Authentication → URL Configuration**:
 
-1. Set **Site URL** to `https://tu-do-psi.vercel.app/auth-confirm.html`. This also gives older clients that do not specify a redirect a reachable destination.
+1. Set **Site URL** to `https://youdo-app.vercel.app/auth-confirm.html`. This also gives older clients that do not specify a redirect a reachable destination.
 2. Add that **exact same URL** to **Redirect URLs**.
-3. Also add `https://tu-do-psi.vercel.app/?auth=recovery` to **Redirect URLs**. This route opens YouDO’s new-password screen; it should not replace the Site URL.
+3. Also add `https://youdo-app.vercel.app/?auth=recovery` to **Redirect URLs**. This route opens YouDO’s new-password screen; it should not replace the Site URL.
 4. Save changes. Do not use localhost as the production Site URL.
 
 Keep **Confirm email** enabled under the signup configuration, and **Secure email change** enabled under the Email provider. Email-template editors change message wording; they are not these switches. Keep the standard `{{ .ConfirmationURL }}` verification link in signup and change-email templates: do not replace it with a plain website link.
@@ -40,7 +42,7 @@ Test signup confirmation separately with an account you control. Passwordless si
 ## 4. Test password recovery
 
 1. Sign out, choose **Forgot password?**, and enter the account email once.
-2. Open the latest reset email. It must open `https://tu-do-psi.vercel.app/?auth=recovery`, never localhost.
+2. Open the latest reset email. It must open `https://youdo-app.vercel.app/?auth=recovery`, never localhost.
 3. Wait for the verified recovery session. A manually entered `?auth=recovery` URL must leave **Change password** disabled.
 4. Enter and confirm a new password of at least 10 characters.
 5. Continue into YouDO and verify the correct workspace appears. The normal device/cloud safety choice still applies if that browser already contains another workspace.

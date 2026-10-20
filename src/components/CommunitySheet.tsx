@@ -18,6 +18,7 @@ import {
   removeCommunityMessage,
   reportCommunityMessage,
   reviewCommunityAppeal,
+  notifyCommunityUpdate,
   saveCommunitySettings,
   submitCommunityAppeal,
   type CommunityAuditEntry,
@@ -29,9 +30,23 @@ import {
 } from '../lib/community';
 import Overlay from './Overlay';
 import Toggle from './Toggle';
+import { BroadcastExtrasEditor, BroadcastResults } from './community/BroadcastComposer';
+import {
+  closeUpdatePoll,
+  draftFromState,
+  draftSignature,
+  fetchUpdateReplies,
+  fetchUpdateState,
+  publishCommunityUpdate,
+  validateDraft,
+  type UpdateExtrasDraft,
+  type UpdateReply,
+  type UpdateState,
+} from '../lib/boardUpdate';
 import { hapticSuccess, hapticTick, hapticWarn } from '../lib/haptics';
 import CommunityChat from './community/CommunityChat';
 import CommunityHashtagAdmin from './community/CommunityHashtagAdmin';
+import { OPEN_COMMUNITY_REPORTS_EVENT } from './community/CommunityChat';
 import CommunityHashtagManager from './community/CommunityHashtagManager';
 import CommunityQuoteAdmin from './community/CommunityQuoteAdmin';
 import { clearChatCache } from '../lib/communityChat';
@@ -89,6 +104,12 @@ export default function CommunitySheet({ open, onClose, userId, rows, initialCon
   const [quoteLoadError, setQuoteLoadError] = useState('');
   const [announcement, setAnnouncement] = useState(initialContext.settings.announcement);
   const [announcementExpanded, setAnnouncementExpanded] = useState(false);
+  /** After publishing a new update: ask before pushing it to every Board member. */
+  const [askNotify, setAskNotify] = useState(false);
+  /** The poll, replies and action button going out with the update, and how the live one is doing. */
+  const [updateDraft, setUpdateDraft] = useState<UpdateExtrasDraft>({ pollOptions: [], allowReplies: false, action: null });
+  const [liveUpdate, setLiveUpdate] = useState<UpdateState | null>(null);
+  const [updateReplies, setUpdateReplies] = useState<UpdateReply[]>([]);
   const announcementDirty = useRef(false);
   const [pendingBan, setPendingBan] = useState<string | null>(null);
   const [appealDraft, setAppealDraft] = useState('');
@@ -127,10 +148,11 @@ export default function CommunitySheet({ open, onClose, userId, rows, initialCon
       setMessages(nextMessages);
     }
     if (mode === 'admin' && nextContext.isAdmin) {
-      const [admin, nextActivity, nextHashtagRequests, quoteResult, hashtagResult] = await Promise.all([
+      const [admin, nextActivity, nextHashtagRequests, quoteResult, hashtagResult, nextUpdate, nextReplies] = await Promise.all([
         fetchAdminCommunity(nextContext.dayKey), fetchCommunityActivity(), fetchAdminHashtagRequests(),
         fetchAdminAppQuotes().then((value) => ({ value, error: '' })).catch((error: unknown) => ({ value: [] as AdminAppQuote[], error: error instanceof Error ? error.message : 'Managed quotes are unavailable.' })),
         fetchAdminCommunityHashtags().then((value) => ({ value, error: '' })).catch((error: unknown) => ({ value: [] as AdminCommunityHashtag[], error: error instanceof Error ? error.message : 'Hashtag management is unavailable.' })),
+        fetchUpdateState(), fetchUpdateReplies(),
       ]);
       const reported = await fetchReportedMessages(admin.reports.map((report) => report.messageId));
       if (!current()) return;
@@ -138,6 +160,9 @@ export default function CommunitySheet({ open, onClose, userId, rows, initialCon
       setActivity(nextActivity);
       setReports(admin.reports); setMembers(admin.members); setAppeals(admin.appeals); setAudit(admin.audit);
       setHashtagRequests(nextHashtagRequests);
+      setLiveUpdate(nextUpdate);
+      setUpdateReplies(nextReplies);
+      if (!announcementDirty.current) setUpdateDraft(draftFromState(nextUpdate));
       setManagedHashtags(hashtagResult.value);
       setHashtagLoadError(hashtagResult.error);
       setQuotes(quoteResult.value);
@@ -208,12 +233,37 @@ export default function CommunitySheet({ open, onClose, userId, rows, initialCon
     setReplyToId(messageId);
     requestAnimationFrame(() => composerRef.current?.focus());
   };
+  const publishedSignature = draftSignature(context.settings.announcement, draftFromState(liveUpdate));
+  const draftChanged = draftSignature(announcement, updateDraft) !== publishedSignature;
+  const editDraft = (next: UpdateExtrasDraft) => { announcementDirty.current = true; setUpdateDraft(next); };
   const saveSettings = async () => {
+    const problem = validateDraft(announcement, updateDraft);
+    if (problem) { setStatus(problem); return; }
     setBusy(true);
-    const next = { ...context.settings, announcement: announcement.trim() };
-    const ok = await saveCommunitySettings(next);
-    setStatus(ok ? 'Community controls saved.' : 'Could not save controls.');
-    if (ok) { hapticSuccess(); announcementDirty.current = false; await refresh(); }
+    const text = announcement.trim();
+    const hasExtras = updateDraft.pollOptions.some((o) => o.trim()) || updateDraft.allowReplies || !!updateDraft.action;
+    let result = await publishCommunityUpdate(text, updateDraft);
+    // A server without board_update_extras.sql can still publish plain text.
+    if (!result.ok && !hasExtras && result.error === 'Polls and replies need a server update first.') {
+      result = (await saveCommunitySettings({ ...context.settings, announcement: text })) ? { ok: true } : { ok: false, error: 'Could not save controls.' };
+    }
+    setStatus(result.ok ? (text ? 'Update published.' : 'Update cleared.') : (result.error ?? 'Could not publish the update.'));
+    if (result.ok) { hapticSuccess(); announcementDirty.current = false; setAskNotify(text !== ''); await refresh(); }
+    setBusy(false);
+  };
+  const endPoll = async () => {
+    setBusy(true);
+    const result = await closeUpdatePoll();
+    setStatus(result.ok ? 'Poll ended.' : (result.error ?? 'Could not end the poll.'));
+    await refresh();
+    setBusy(false);
+  };
+  const sendUpdateNotification = async () => {
+    setBusy(true);
+    const result = await notifyCommunityUpdate();
+    setAskNotify(false);
+    setStatus(!result.ok ? (result.error ?? 'Could not send the notification.')
+      : result.sent ? `Notification sent to ${result.sent} ${result.sent === 1 ? 'member' : 'members'}.` : 'No one to notify yet, or this update was already sent.');
     setBusy(false);
   };
   const setFeature = async (key: 'roomEnabled' | 'appreciationsEnabled', value: boolean) => {
@@ -276,6 +326,9 @@ export default function CommunitySheet({ open, onClose, userId, rows, initialCon
           <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-primary">Board community</p>
           <h2 className="text-[16px] font-bold text-content-primary truncate">Community</h2>
         </div>
+        {mode === 'room' && context.chatV2 && (
+          <button type="button" onClick={() => window.dispatchEvent(new Event(OPEN_COMMUNITY_REPORTS_EVENT))} className="grid size-9 place-items-center rounded-xl text-content-muted" aria-label="My reports" title="My reports"><Flag size={15} /></button>
+        )}
         <button type="button" disabled={refreshing} onClick={() => void refresh()} className="grid size-9 place-items-center rounded-xl text-content-muted" aria-label="Refresh"><RefreshCw size={15} /></button>
       </header>
       )}
@@ -432,11 +485,23 @@ export default function CommunitySheet({ open, onClose, userId, rows, initialCon
           </label>
           <textarea id="community-announcement" value={announcement} onChange={(event) => { announcementDirty.current = true; setAnnouncement(event.target.value); }} rows={4} placeholder="Optional message shown above the community room" className="w-full resize-y rounded-[16px] border border-subtle bg-base p-3.5 text-[12.5px] text-content-primary outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all" />
           <p className="mt-2.5 text-[10.5px] text-content-muted">Long broadcasts stay folded in the room until a member opens them.</p>
+          {announcement.trim() && <BroadcastExtrasEditor draft={updateDraft} disabled={busy || savingFeature} onChange={editDraft} />}
           <div className="mt-5 flex justify-end">
-            <button type="button" onClick={() => void saveSettings()} disabled={busy || savingFeature || announcement.trim() === context.settings.announcement} className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-5 text-[12px] font-bold text-on-primary shadow-sm disabled:opacity-40 transition-transform active:scale-95">
+            <button type="button" onClick={() => void saveSettings()} disabled={busy || savingFeature || !draftChanged} className="inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-5 text-[12px] font-bold text-on-primary shadow-sm disabled:opacity-40 transition-transform active:scale-95">
               <Check size={16} /> Publish Broadcast
             </button>
           </div>
+          {askNotify && (
+            <div role="alertdialog" aria-labelledby="notify-everyone-title" className="mt-4 rounded-[16px] border border-primary/25 bg-primary-soft/30 p-3.5">
+              <p id="notify-everyone-title" className="text-[12.5px] font-semibold text-content-primary">Notify everyone?</p>
+              <p className="mt-1 text-[11px] leading-relaxed text-content-secondary">Send this update as a notification to Board members. Skip it for small fixes, so phones only buzz for real news.</p>
+              <div className="mt-3 flex justify-end gap-2">
+                <button type="button" onClick={() => setAskNotify(false)} disabled={busy} className="h-9 rounded-xl px-3.5 text-[11.5px] font-semibold text-content-secondary">Not now</button>
+                <button type="button" onClick={() => void sendUpdateNotification()} disabled={busy} className="h-9 rounded-xl bg-primary px-3.5 text-[11.5px] font-bold text-on-primary disabled:opacity-40">Notify everyone</button>
+              </div>
+            </div>
+          )}
+          <BroadcastResults state={liveUpdate} replies={updateReplies} names={names} busy={busy} onEndPoll={() => void endPoll()} />
         </section>
         </div>
         <div hidden={adminTab !== 'hashtags' || !adminLoaded} className="animate-in fade-in slide-in-from-bottom-2 duration-300">

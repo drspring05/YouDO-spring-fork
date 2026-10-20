@@ -121,6 +121,11 @@ create table if not exists public.direct_messages (
 
 -- Older projects made this table before unread counts existed.
 alter table public.direct_messages add column if not exists read_at timestamptz;
+-- A shared goal tree, kept small (same as dm_goal_share.sql).
+alter table public.direct_messages add column if not exists goal_share jsonb;
+alter table public.direct_messages drop constraint if exists direct_messages_goal_share_size;
+alter table public.direct_messages add constraint direct_messages_goal_share_size
+  check (goal_share is null or (pg_catalog.jsonb_typeof(goal_share) = 'object' and pg_catalog.pg_column_size(goal_share) <= 262144));
 
 grant select, insert, update, delete on table public.direct_messages to authenticated;
 

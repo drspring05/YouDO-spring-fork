@@ -144,6 +144,7 @@ export function describeCommunityAudit(entry: CommunityAuditEntry, targetName?: 
     'settings.kudos.disabled': { category: 'Settings', title: 'Kudos paused', detail: 'New recognition is temporarily unavailable.' },
     'settings.announcement.published': { category: 'Settings', title: 'Board announcement published', detail: 'The room announcement was added or replaced.' },
     'settings.announcement.cleared': { category: 'Settings', title: 'Board announcement cleared', detail: 'The room announcement was removed.' },
+    'settings.announcement.pushed': { category: 'Settings', title: 'Board update sent as a notification', detail: entry.reason || 'Board members were notified.' },
     'settings.private_hub.enabled': { category: 'Settings', title: 'Private Hub opened', detail: 'Members can open friends, rooms and DMs.' },
     'settings.private_hub.disabled': { category: 'Settings', title: 'Private Hub closed', detail: 'Members see the under-development page; admins can still preview it.' },
     'settings.updated': { category: 'Settings', title: 'Community settings updated', detail: 'An earlier app version recorded this change without field details.' },
@@ -407,6 +408,18 @@ export async function saveCommunitySettings(settings: CommunitySettings): Promis
     next_announcement: settings.announcement,
   });
   return !error;
+}
+
+/**
+ * Push the current Board update to every Board member (supabase/board_update_push.sql).
+ * The server sends each published version at most once.
+ */
+export async function notifyCommunityUpdate(): Promise<{ ok: boolean; sent?: number; error?: string }> {
+  const { data, error } = await supabase.rpc('notify_community_update');
+  if (error) {
+    return { ok: false, error: error.code === 'PGRST202' ? 'Notifications for updates need a server update first.' : error.message };
+  }
+  return { ok: true, sent: typeof data === 'number' ? data : 0 };
 }
 
 export async function moderateCommunityMember(userId: string, action: 'mute_24h' | 'mute_7d' | 'ban' | 'restore', note = ''): Promise<boolean> {

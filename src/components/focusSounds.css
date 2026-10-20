@@ -1,0 +1,56 @@
+/* Focus sound picker: pills, a volume slider and the Keep playing switch.
+   Loaded with its component, so it applies under both looks. Colours follow
+   the surrounding text (currentColor), so it fits a Settings card and the
+   black ambient panel alike. */
+.fs-picker-title {
+  margin-bottom: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+.fs-picker-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.fs-picker-pill {
+  padding: 8px 13px;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 9%, transparent);
+  font-size: 13.5px;
+  line-height: 1.2;
+  color: inherit;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+.fs-picker-pill.is-on {
+  background: var(--primary);
+  color: var(--on-primary, #fff);
+  font-weight: 600;
+}
+.fs-picker-volume {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 2px 2px;
+  opacity: 0.9;
+}
+.fs-picker-volume input {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--primary);
+}
+.fs-picker-keep {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid color-mix(in srgb, currentColor 10%, transparent);
+}
+.fs-picker-keep-label { font-size: 14px; font-weight: 500; }
+.fs-picker-keep-hint { margin-top: 2px; font-size: 12px; opacity: 0.6; }
+.fs-picker.is-settings .fs-picker-keep-label { font-size: 12px; font-weight: 600; }
+.fs-picker.is-settings .fs-picker-keep-hint { font-size: 10.5px; }

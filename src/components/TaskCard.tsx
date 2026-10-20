@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState, useEffect, useRef } from 'react';
-import { Calendar, Clock, FileText, Play, Pause, Square, StickyNote, Trash2, CheckCircle2, Check } from 'lucide-react';
+import { Calendar, Clock, FileText, Play, Pause, Square, StickyNote, Trash2, CheckCircle2, Check, MoonStar } from 'lucide-react';
 import { useUiPrefs } from '../hooks/useUiPrefs';
 import type { Priority, Task, ActiveSession, TaskSession } from '../types';
 import { isBacklogTask, isTaskComplete } from '../store';
@@ -9,6 +9,7 @@ import { computeNetFocusMs } from '../lib/sessionStats';
 import { sessionClockLabel, sessionClockRange } from '../lib/sessionClock';
 import ActivityRing from './ActivityRing';
 import OriginChip from './OriginChip';
+import { ambientTipSeen, markAmbientTipSeen } from '../lib/ambient';
 
 // The v7 TaskCard is only fetched when Classic Look is on, to keep it out of the initial bundle.
 const LegacyTaskCard = lazy(() => import('../legacy/LegacyTaskCard'));
@@ -79,6 +80,8 @@ function ModernTaskCard({
   const skipClickAfterAmbient = useRef(false);
 
   const isSessionTask = activeSession?.taskId === task.id;
+  /** One-time pointer to the ambient clock, shown on the first running session. */
+  const [ambientTip, setAmbientTip] = useState(() => !ambientTipSeen());
   const isPaused = isSessionTask && activeSession?.isPaused;
 
   // Live timer for active session
@@ -240,6 +243,25 @@ function ModernTaskCard({
                       <span>Description</span>
                     </button>
                   )}
+                  {/* Ambient clock: a visible way in, styled like Description so it never
+                      sits as a second circle beside the play ring (holding the ring still works). */}
+                  {isSessionTask && onOpenAmbient && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        hapticAmbient();
+                        markAmbientTipSeen();
+                        setAmbientTip(false);
+                        onOpenAmbient();
+                      }}
+                      aria-label="Open the ambient clock"
+                      className="inline-flex items-center gap-1 font-medium text-[13px] text-primary transition-colors shrink-0"
+                    >
+                      <MoonStar size={13} className="shrink-0" />
+                      <span>Ambient</span>
+                    </button>
+                  )}
                 </div>
               </div>
               
@@ -297,6 +319,24 @@ function ModernTaskCard({
                 </button>
               )}
             </div>
+
+            {isSessionTask && onOpenAmbient && ambientTip && (
+              <div className="mt-2 flex items-center gap-2 rounded-xl bg-primary-soft px-3 py-2 text-[12.5px] leading-snug text-content-secondary">
+                <MoonStar size={13} className="shrink-0 text-primary" />
+                <span className="flex-1">Tap Ambient for the big clock, or turn your phone sideways.</span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    markAmbientTipSeen();
+                    setAmbientTip(false);
+                  }}
+                  className="shrink-0 font-semibold text-primary"
+                >
+                  Got it
+                </button>
+              </div>
+            )}
 
             {/* SUBTITLE: remaining path context. */}
             {originNodes && originNodes.length > 0 && (() => {

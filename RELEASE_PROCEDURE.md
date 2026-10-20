@@ -55,6 +55,7 @@ All five locations must be identical before tagging:
 - [ ] **Branch Cleanup:** Delete merged or abandoned feature/fix branches locally and remotely (e.g., `git push origin --delete <branch>`). Ensure work is on `main`.
 - [ ] **Commit:** Commit all staged files with clear message (e.g., `chore: prepare vX.Y.Z release`).
 - [ ] **Push to Main:** Push `main` to `origin/main`.
+- [ ] **Vercel Production Deploy:** Open the Vercel project ➔ Deployments and confirm a **Production** deployment exists for the merge commit on `main` (Vercel can miss a push). If none appears within a few minutes: Create Deployment ➔ `main`. Then open `https://youdo-app.vercel.app` and check Settings ➔ About shows the new version.
 
 ---
 

@@ -42,6 +42,8 @@ export interface NotificationPreferences {
     enabled: boolean;
     communityMessages: boolean;
     hashtagMentions: boolean;
+    /** Push when an admin sends a Board update (server side, push_preferences.board_updates). */
+    boardUpdates: boolean;
   };
   adminHub?: AdminHubNotificationPreferences;
   sound: boolean;
@@ -71,6 +73,7 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
     enabled: true,
     communityMessages: false,
     hashtagMentions: true,
+    boardUpdates: true,
   },
   adminHub: {
     enabled: true,

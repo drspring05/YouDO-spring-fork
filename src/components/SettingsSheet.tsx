@@ -1,4 +1,6 @@
 import { useUiPrefs } from '../hooks/useUiPrefs';
+import { setSettingsBackHandler } from '../lib/settingsBack';
+import { ambientAutoOpenEnabled, setAmbientAutoOpen } from '../lib/ambient';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Browser } from '@capacitor/browser';
 import { Capacitor } from '@capacitor/core';
@@ -15,7 +17,6 @@ import {
   Download,
   Edit2,
   Flame,
-  Hash,
   History,
   Heart,
   Info,
@@ -27,6 +28,7 @@ import {
   MessageSquare,
   MonitorSmartphone,
   Moon,
+  Music,
   Palette,
   Droplets,
   Undo2,
@@ -36,16 +38,17 @@ import {
   Smartphone,
   Sparkles,
   Sun,
-  Target,
   Trash2,
   TrendingUp,
   Upload,
   Users,
   WifiOff,
   X,
+  Database,
 } from 'lucide-react';
 import Overlay from './Overlay';
 import Toggle from './Toggle';
+import FocusSoundPicker from './FocusSoundPicker';
 import {
   getNotificationPreferences,
   saveNotificationPreferences,
@@ -89,6 +92,29 @@ import { fetchCommunityContext } from '../lib/community';
 
 export type SettingsTab = 'account' | 'preferences' | 'notifications' | 'board' | 'about';
 
+/** New look: Settings opens on a list of rows (Signal-style); each row is one page. Classic Look keeps the tabs. */
+type SettingsPage = 'home' | 'account' | 'appearance' | 'notifications' | 'focus' | 'board' | 'data' | 'about';
+type SettingsSubPage = Exclude<SettingsPage, 'home'>;
+const PAGE_TAB: Record<SettingsSubPage, SettingsTab> = {
+  account: 'account', appearance: 'preferences', data: 'preferences', notifications: 'notifications',
+  focus: 'board', board: 'board', about: 'about',
+};
+const PAGE_TITLE: Record<SettingsSubPage, string> = {
+  account: 'Account and sync', appearance: 'Appearance', notifications: 'Notifications', focus: 'Focus and streak',
+  board: 'Board and Hub', data: 'Backup and data', about: 'About and updates',
+};
+function initialPage(focus?: 'public-board', tab?: SettingsTab): SettingsPage {
+  if (focus === 'public-board') return 'board';
+  switch (tab) {
+    case 'account': return 'account';
+    case 'preferences': return 'appearance';
+    case 'notifications': return 'notifications';
+    case 'board': return 'focus';
+    case 'about': return 'about';
+    default: return 'home';
+  }
+}
+
 interface TabItem {
   id: SettingsTab;
   label: string;
@@ -113,6 +139,8 @@ interface Props {
 
 function SectionLabel({ children, icon }: { children: React.ReactNode; icon?: React.ReactNode }) {
   const [{ legacyStyle }] = useUiPrefs();
+  // The new look's page title already names the section.
+  if (!legacyStyle) return null;
   return (
     <h2 className={legacyStyle ? 'settings-section-label text-[10px] font-bold uppercase tracking-[0.16em] text-content-muted mb-2.5 px-1 flex items-center gap-1.5' : 'settings-section-label uppercase mb-2 flex items-center gap-1.5'}>
       {icon}
@@ -184,6 +212,8 @@ export default function SettingsSheet({
   const [{ legacyStyle, liquidGlass }, setUiPref] = useUiPrefs();
   const publicBoardRef = useRef<HTMLElement>(null);
   const [activeTab, setActiveTab] = useState<SettingsTab>(focusSection === 'public-board' ? 'board' : (initialTab ?? 'account'));
+  const [page, setPage] = useState<SettingsPage>(() => initialPage(focusSection, initialTab));
+  const [ambientAutoOpen, setAmbientAutoOpenState] = useState(ambientAutoOpenEnabled);
   const [highlightBoard, setHighlightBoard] = useState(focusSection === 'public-board');
   const contentRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<Partial<Record<SettingsTab, HTMLButtonElement | null>>>({});
@@ -325,6 +355,7 @@ export default function SettingsSheet({
       setStreakBarHelpOpen(false);
       setHighlightBoard(false);
       setActiveTab(initialTab ?? 'account');
+      setPage(initialPage(undefined, initialTab));
     }
   }, [open, initialTab]);
 
@@ -372,6 +403,7 @@ export default function SettingsSheet({
     }
     if (focusSection === 'public-board') {
       setActiveTab('board');
+      setPage('board');
       setHighlightBoard(true);
       const timer = window.setTimeout(() => setHighlightBoard(false), 2400);
       const frame = window.requestAnimationFrame(() => {
@@ -438,6 +470,27 @@ export default function SettingsSheet({
     setActiveTab(tabId);
     contentRef.current?.scrollTo({ top: 0, behavior: 'instant' });
   };
+
+  const openPage = (next: SettingsPage) => {
+    hapticTick();
+    setPage(next);
+    if (next !== 'home') setActiveTab(PAGE_TAB[next]);
+    contentRef.current?.scrollTo({ top: 0, behavior: 'instant' });
+  };
+
+  // Device Back: Recently Deleted, then a sub-page, step back to the list first.
+  const backStepRef = useRef<() => boolean>(() => false);
+  backStepRef.current = () => {
+    if (legacyStyle) return false;
+    if (trashOpen) { setTrashOpen(false); return true; }
+    if (page !== 'home') { openPage('home'); return true; }
+    return false;
+  };
+  useEffect(() => {
+    if (!open) return;
+    setSettingsBackHandler(() => backStepRef.current());
+    return () => setSettingsBackHandler(null);
+  }, [open]);
 
   const handleTabKeyDown = (e: React.KeyboardEvent, index: number) => {
     let nextIndex: number | null = null;
@@ -517,6 +570,10 @@ export default function SettingsSheet({
 
   if (!open) return null;
 
+  const showPanels = legacyStyle || page !== 'home';
+  // The new look shows updates and support open on the home list, not behind a row.
+  const aboutVisible = (showPanels && activeTab === 'about') || (!legacyStyle && page === 'home');
+
   const handleExport = async () => {
     try {
       const status = await exportBackup();
@@ -565,7 +622,9 @@ export default function SettingsSheet({
           onClick={
             trashOpen
               ? () => setTrashOpen(false)
-              : onClose
+              : !legacyStyle && page !== 'home'
+                ? () => openPage('home')
+                : onClose
           }
           className={legacyStyle ? 'p-2 -ml-1.5 rounded-xl text-content-secondary hover:text-content-primary hover:bg-surface transition-colors active:scale-95 flex items-center justify-center' : 'glass rounded-full transition-opacity active:opacity-60 flex items-center justify-center'}
           aria-label="Back"
@@ -575,14 +634,14 @@ export default function SettingsSheet({
         <div className="min-w-0">
           {legacyStyle && <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-primary">YouDO</p>}
           <h1 className={legacyStyle ? 'text-[18px] leading-5 font-bold text-content-primary tracking-tight' : 'font-display text-[28px] leading-[34px] font-bold text-content-primary tracking-tight'}>
-            {trashOpen ? 'Recently Deleted' : 'Settings'}
+            {trashOpen ? 'Recently Deleted' : !legacyStyle && page !== 'home' ? PAGE_TITLE[page] : 'Settings'}
           </h1>
-          {!trashOpen && <p className={legacyStyle ? 'mt-0.5 text-[11px] text-content-muted' : 'text-[13px] text-content-secondary'}>Your workspace, focus rules and privacy</p>}
+          {!trashOpen && (legacyStyle || page === 'home') && <p className={legacyStyle ? 'mt-0.5 text-[11px] text-content-muted' : 'text-[13px] text-content-secondary'}>Your workspace, focus rules and privacy</p>}
         </div>
       </div>
 
       {/* ── 2. Tab Navigation Strip ── */}
-      {!trashOpen && (
+      {!trashOpen && legacyStyle && (
         <div className={legacyStyle ? 'settings-tab-bar shrink-0 px-3 pt-2 pb-2.5 bg-elevated/95 backdrop-blur-md border-b border-subtle' : 'settings-tab-bar shrink-0 px-4 pt-2 pb-3'}>
           <div
             ref={tabBarRef}
@@ -703,9 +762,9 @@ export default function SettingsSheet({
       ) : (
       <div
         ref={contentRef}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-        onTouchCancel={handleTouchCancel}
+        onTouchStart={legacyStyle ? handleTouchStart : undefined}
+        onTouchEnd={legacyStyle ? handleTouchEnd : undefined}
+        onTouchCancel={legacyStyle ? handleTouchCancel : undefined}
         className="settings-content flex-1 overflow-y-auto overscroll-contain no-scrollbar px-4 pt-4 pb-12 space-y-5 touch-pan-y"
       >
         {/* Status Messages */}
@@ -724,16 +783,76 @@ export default function SettingsSheet({
           </div>
         )}
 
+        {!legacyStyle && page === 'home' && (() => {
+          const name = user ? (user.user_metadata?.full_name || user.email?.split('@')[0] || 'Aspirant') : 'Offline workspace';
+          const handle = normalizeUsername(accountProfile?.username);
+          const avatar = user?.user_metadata?.avatar_url;
+          const rows: { id: string; label: string; icon: typeof Bell; onClick: () => void; badge?: React.ReactNode }[][] = [
+            [
+              { id: 'appearance', label: 'Appearance', icon: Palette, onClick: () => openPage('appearance') },
+              { id: 'notifications', label: 'Notifications', icon: Bell, onClick: () => openPage('notifications') },
+              { id: 'focus', label: 'Focus and streak', icon: Flame, onClick: () => openPage('focus') },
+            ],
+            [
+              { id: 'board', label: 'Board and Hub', icon: Users, onClick: () => openPage('board') },
+              { id: 'data', label: 'Backup and data', icon: Database, onClick: () => openPage('data') },
+            ],
+            [
+              ...(onOpenAdminHub ? [{ id: 'admin', label: 'Admin Hub', icon: ShieldCheck, onClick: onOpenAdminHub,
+                badge: adminPending > 0 ? <span className="settings-home-count" aria-label={`${adminPending} waiting`}>{adminPending > 99 ? '99+' : adminPending}</span> : undefined }] : []),
+            ],
+          ];
+          return (
+            <nav aria-label="Settings" className="settings-home -mx-4 -mt-1">
+              <button
+                type="button"
+                className="settings-home-profile"
+                onClick={() => openPage('account')}
+              >
+                <span className="settings-home-avatar" aria-hidden>
+                  {!user ? <WifiOff size={24} />
+                    : avatar && /^https?:/.test(String(avatar)) ? <img src={String(avatar)} alt="" className="size-full object-cover" />
+                      : avatar ? String(avatar)
+                        : name.trim().split(/s+/).slice(0, 2).map((w: string) => w[0]?.toUpperCase() ?? '').join('')}
+                </span>
+                <span className="min-w-0 flex-1 text-left">
+                  <span className="block truncate text-[18px] font-semibold text-content-primary">{name}</span>
+                  <span className="block truncate text-[13px] text-content-secondary">
+                    {!user ? 'Stored on this device' : handle ? `@${handle} · Account and sync` : 'Account and sync'}
+                  </span>
+                </span>
+                {cloudSyncConflict && <span className="size-2 shrink-0 rounded-full bg-warning" aria-label="Sync conflict requires review" />}
+                <ChevronRight size={18} className="shrink-0 text-content-muted" aria-hidden />
+              </button>
+              {rows.map((group, index) => (
+                <div key={index} className={index ? 'settings-home-group' : undefined}>
+                  {group.map((row) => {
+                    const Icon = row.icon;
+                    return (
+                      <button key={row.id} type="button" className="settings-home-row" onClick={row.onClick}>
+                        <Icon size={21} strokeWidth={1.8} className="shrink-0 text-content-secondary" aria-hidden />
+                        <span className="flex-1 text-left text-[15px] text-content-primary">{row.label}</span>
+                        {row.badge}
+                        <ChevronRight size={17} className="shrink-0 text-content-muted" aria-hidden />
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+            </nav>
+          );
+        })()}
+
         {/* ── TAB PANEL: ACCOUNT ── */}
         <div
           role="tabpanel"
           id="settings-panel-account"
           aria-labelledby="settings-tab-account"
-          hidden={activeTab !== 'account'}
+          hidden={!showPanels || activeTab !== 'account'}
           tabIndex={activeTab === 'account' ? 0 : -1}
-          className={activeTab === 'account' ? 'space-y-5 fade-in outline-none' : 'hidden'}
+          className={showPanels && activeTab === 'account' ? 'space-y-5 fade-in outline-none' : 'hidden'}
         >
-          {onOpenAdminHub && (
+          {onOpenAdminHub && legacyStyle && (
             <section>
               <button
                 type="button"
@@ -1107,6 +1226,18 @@ export default function SettingsSheet({
                             </label>
                             <input
                               type="text"
+                              name="profile_handle"
+                              id="profile_handle_field"
+                              autoComplete="off"
+                              autoCapitalize="none"
+                              autoCorrect="off"
+                              spellCheck={false}
+                              data-protonpass-ignore="true"
+                              data-1p-ignore="true"
+                              data-lpignore="true"
+                              data-bwignore="true"
+                              data-form-type="other"
+                              aria-label="Handle"
                               value={editUsername}
                               onChange={(e) => setEditUsername(e.target.value.toLowerCase())}
                               placeholder="@username"
@@ -1119,6 +1250,14 @@ export default function SettingsSheet({
                             </label>
                             <input
                               type="text"
+                              name="profile_display_name"
+                              id="profile_display_name_field"
+                              autoComplete="off"
+                              data-protonpass-ignore="true"
+                              data-1p-ignore="true"
+                              data-lpignore="true"
+                              data-bwignore="true"
+                              data-form-type="other"
                               value={editName}
                               onChange={(e) => setEditName(e.target.value)}
                               placeholder="Your name"
@@ -1736,12 +1875,12 @@ export default function SettingsSheet({
         role="tabpanel"
         id="settings-panel-preferences"
         aria-labelledby="settings-tab-preferences"
-        hidden={activeTab !== 'preferences'}
+        hidden={!showPanels || activeTab !== 'preferences'}
         tabIndex={activeTab === 'preferences' ? 0 : -1}
-        className={activeTab === 'preferences' ? 'space-y-5 fade-in outline-none' : 'hidden'}
+        className={showPanels && activeTab === 'preferences' ? 'space-y-5 fade-in outline-none' : 'hidden'}
       >
         {/* ── SECTION 4: APPEARANCE & EXPERIENCE ── */}
-        <section>
+        <section hidden={!legacyStyle && page === 'data'}>
           <SectionLabel icon={<Sparkles size={13} className="text-primary" />}>APPEARANCE &amp; EXPERIENCE</SectionLabel>
           <div className="settings-card bg-elevated rounded-2xl border border-subtle overflow-hidden shadow-lg divide-y divide-white/5">
             <div className="settings-data-row p-4 flex items-center justify-between gap-3">
@@ -1891,7 +2030,7 @@ export default function SettingsSheet({
         </section>
 
         {/* ── SECTION 5: DATA & STORAGE ── */}
-        <section>
+        <section hidden={!legacyStyle && page === 'appearance'}>
           <SectionLabel icon={<History size={13} className="text-primary" />}>DATA &amp; STORAGE</SectionLabel>
           <div className="settings-card settings-data-card bg-elevated rounded-2xl border border-subtle overflow-hidden shadow-lg divide-y divide-white/5">
             <button
@@ -2045,9 +2184,9 @@ export default function SettingsSheet({
         role="tabpanel"
         id="settings-panel-notifications"
         aria-labelledby="settings-tab-notifications"
-        hidden={activeTab !== 'notifications'}
+        hidden={!showPanels || activeTab !== 'notifications'}
         tabIndex={activeTab === 'notifications' ? 0 : -1}
-        className={activeTab === 'notifications' ? 'space-y-5 fade-in outline-none' : 'hidden'}
+        className={showPanels && activeTab === 'notifications' ? 'space-y-5 fade-in outline-none' : 'hidden'}
       >
         {/* ── SECTION 3: NOTIFICATIONS & BRIEFINGS ── */}
         <section>
@@ -2158,15 +2297,14 @@ export default function SettingsSheet({
                 </div>
 
                 {/* Sub-toggles for content */}
-                <div className="bg-base/60 rounded-xl p-3 border border-subtle/80 space-y-2.5">
+                <div className="pt-3 border-t border-subtle space-y-2.5">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-content-muted block mb-1">
                     Include in Morning Summary
                   </span>
                   
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <Target size={13} className="text-primary shrink-0" />
-                      <span className="text-xs text-content-primary truncate">Goal countdowns (days remaining)</span>
+                      <h4 className="text-[11.5px] font-semibold text-content-primary truncate">Goal countdowns (days remaining)</h4>
                     </div>
                     <Toggle
                       checked={notifPrefs.morningBriefing.includeGoals}
@@ -2216,8 +2354,7 @@ export default function SettingsSheet({
 
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <Check size={13} className="text-secondary shrink-0" />
-                      <span className="text-xs text-content-primary truncate">Today's planned schedule &amp; focus</span>
+                      <h4 className="text-[11.5px] font-semibold text-content-primary truncate">Today's planned schedule &amp; focus</h4>
                     </div>
                     <Toggle
                       checked={notifPrefs.morningBriefing.includeTodayPlan}
@@ -2233,8 +2370,7 @@ export default function SettingsSheet({
 
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <AlertTriangle size={13} className="text-amber-400 shrink-0" />
-                      <span className="text-xs text-content-primary truncate">Uncompleted backlog tasks alert</span>
+                      <h4 className="text-[11.5px] font-semibold text-content-primary truncate">Uncompleted backlog tasks alert</h4>
                     </div>
                     <Toggle
                       checked={notifPrefs.morningBriefing.includeBacklog}
@@ -2250,8 +2386,7 @@ export default function SettingsSheet({
 
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <Flame size={13} className="text-orange-400 shrink-0" />
-                      <span className="text-xs text-content-primary truncate">Streak counter &amp; momentum</span>
+                      <h4 className="text-[11.5px] font-semibold text-content-primary truncate">Streak counter &amp; momentum</h4>
                     </div>
                     <Toggle
                       checked={notifPrefs.morningBriefing.includeStreak}
@@ -2294,7 +2429,7 @@ export default function SettingsSheet({
                     <div className="text-[12px] font-bold text-content-primary flex items-center gap-1.5">
                       {briefingPreview.title}
                     </div>
-                    <div className="mt-1 text-[11px] text-content-secondary leading-relaxed whitespace-pre-line font-mono bg-elevated/80 p-2 rounded-lg border border-subtle">
+                    <div className="mt-1 text-[11px] text-content-secondary leading-relaxed whitespace-pre-line bg-elevated/80 p-2 rounded-lg border border-subtle">
                       {briefingPreview.body}
                     </div>
                   </div>
@@ -2443,7 +2578,25 @@ export default function SettingsSheet({
               <div className="space-y-3 pt-2 border-t border-subtle">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <MessageSquare size={13} className="text-primary shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-[11.5px] font-semibold text-content-primary">Board Updates</h4>
+                      <p className="text-[10px] text-content-secondary">When the YouDO team posts news on the Board</p>
+                    </div>
+                  </div>
+                  <Toggle
+                    checked={notifPrefs.publicHub.boardUpdates !== false}
+                    onChange={() =>
+                      updateNotifPrefs((p) => ({
+                        ...p,
+                        publicHub: { ...p.publicHub, boardUpdates: p.publicHub.boardUpdates === false },
+                      }))
+                    }
+                    label="Board update notifications"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
                     <div className="min-w-0 flex-1">
                       <h4 className="text-[11.5px] font-semibold text-content-primary">Community Chat Messages</h4>
                       <p className="text-[10px] text-content-secondary">Alerts for new messages in public chat</p>
@@ -2463,7 +2616,6 @@ export default function SettingsSheet({
 
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <Hash size={13} className="text-primary shrink-0" />
                     <div className="min-w-0 flex-1">
                       <h4 className="text-[11.5px] font-semibold text-content-primary">Hashtag Community Updates</h4>
                       <p className="text-[10px] text-content-secondary">Alerts for your selected exam hashtag</p>
@@ -2519,7 +2671,6 @@ export default function SettingsSheet({
                   {/* New Hashtag Requests */}
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <Hash size={13} className="text-primary shrink-0" />
                       <div className="min-w-0 flex-1">
                         <h4 className="text-[11.5px] font-semibold text-content-primary">New Hashtag Requests</h4>
                         <p className="text-[10px] text-content-secondary">Alerts when users submit new exam room requests</p>
@@ -2543,7 +2694,6 @@ export default function SettingsSheet({
                   {/* Reported Messages */}
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <AlertTriangle size={13} className="text-warning shrink-0" />
                       <div className="min-w-0 flex-1">
                         <h4 className="text-[11.5px] font-semibold text-content-primary">Reported Messages</h4>
                         <p className="text-[10px] text-content-secondary">Alerts when members flag chat messages for moderation</p>
@@ -2567,7 +2717,6 @@ export default function SettingsSheet({
                   {/* Support Chat Replies */}
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <MessageSquare size={13} className="text-primary shrink-0" />
                       <div className="min-w-0 flex-1">
                         <h4 className="text-[11.5px] font-semibold text-content-primary">Support Chat Replies</h4>
                         <p className="text-[10px] text-content-secondary">Alerts when a requester answers your note in Support Chat</p>
@@ -2599,9 +2748,9 @@ export default function SettingsSheet({
         role="tabpanel"
         id="settings-panel-board"
         aria-labelledby="settings-tab-board"
-        hidden={activeTab !== 'board'}
+        hidden={!showPanels || activeTab !== 'board'}
         tabIndex={activeTab === 'board' ? 0 : -1}
-        className={activeTab === 'board' ? 'space-y-5 fade-in outline-none' : 'hidden'}
+        className={showPanels && activeTab === 'board' ? 'space-y-5 fade-in outline-none' : 'hidden'}
       >
         {/* ── SECTION 2: FOCUS & LEADERBOARD ── */}
         <section
@@ -2615,7 +2764,7 @@ export default function SettingsSheet({
           <SectionLabel icon={<Flame size={13} className="text-primary" />}>FOCUS &amp; LEADERBOARD</SectionLabel>
 
           {/* Daily streak bar card */}
-          <div className="settings-card settings-focus-card bg-elevated rounded-2xl border border-subtle p-4 shadow-lg mb-2.5">
+          <div hidden={!legacyStyle && page === 'board'} className="settings-card settings-focus-card bg-elevated rounded-2xl border border-subtle p-4 shadow-lg mb-2.5">
             <div className="flex items-start gap-3">
               <div className="w-9 h-9 rounded-xl bg-primary-soft flex items-center justify-center text-primary shrink-0">
                 <Flame size={16} />
@@ -2704,8 +2853,52 @@ export default function SettingsSheet({
             </div>
           </div>
 
+          {/* Focus sound: calm sound during a session */}
+          <div hidden={!legacyStyle && page === 'board'} className="settings-card settings-focus-card bg-elevated rounded-2xl border border-subtle p-4 shadow-lg mb-2.5">
+            <div className="flex items-start gap-3 mb-3">
+              <div className="w-9 h-9 rounded-xl bg-primary-soft flex items-center justify-center text-primary shrink-0 mt-0.5">
+                <Music size={16} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-xs font-semibold text-content-primary">Focus sound</h3>
+                <p className="text-[10.5px] text-content-secondary font-medium mt-0.5 leading-snug">
+                  Plays during a focus session. Tap a sound to hear a short preview.
+                </p>
+              </div>
+            </div>
+            <div className="text-content-primary">
+              <FocusSoundPicker variant="settings" />
+            </div>
+          </div>
+
+          {/* Ambient clock: open it when the phone turns sideways during a session */}
+          <div hidden={!legacyStyle && page === 'board'} className="settings-card settings-focus-card bg-elevated rounded-2xl border border-subtle p-4 shadow-lg mb-2.5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3 min-w-0 flex-1">
+                <div className="w-9 h-9 rounded-xl bg-primary-soft flex items-center justify-center text-primary shrink-0 mt-0.5">
+                  <Moon size={16} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-xs font-semibold text-content-primary">Ambient clock when sideways</h3>
+                  <p className="text-[10.5px] text-content-secondary font-medium mt-0.5 leading-snug">
+                    Turn your phone sideways during a session to see a big, calm timer.
+                  </p>
+                </div>
+              </div>
+              <Toggle
+                checked={ambientAutoOpen}
+                onChange={() => {
+                  const next = !ambientAutoOpen;
+                  setAmbientAutoOpen(next);
+                  setAmbientAutoOpenState(next);
+                }}
+                label="Open the ambient clock when the phone turns sideways"
+              />
+            </div>
+          </div>
+
           {/* Public Board Participation Card */}
-          <div className="settings-card settings-board-card bg-elevated rounded-2xl border border-subtle p-4 shadow-lg space-y-3">
+          <div hidden={!legacyStyle && page === 'focus'} className="settings-card settings-board-card bg-elevated rounded-2xl border border-subtle p-4 shadow-lg space-y-3">
             <div className="flex items-start gap-3">
               <div className="w-9 h-9 rounded-xl bg-primary-soft flex items-center justify-center text-primary shrink-0">
                 <TrendingUp size={16} />
@@ -2789,9 +2982,9 @@ export default function SettingsSheet({
         role="tabpanel"
         id="settings-panel-about"
         aria-labelledby="settings-tab-about"
-        hidden={activeTab !== 'about'}
-        tabIndex={activeTab === 'about' ? 0 : -1}
-        className={activeTab === 'about' ? 'space-y-5 fade-in outline-none' : 'hidden'}
+        hidden={!aboutVisible}
+        tabIndex={aboutVisible ? 0 : -1}
+        className={aboutVisible ? 'space-y-5 fade-in outline-none' : 'hidden'}
       >
         {/* ── SECTION 6: UPDATES & COMMUNITY ── */}
         <section>

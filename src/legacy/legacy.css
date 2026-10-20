@@ -533,9 +533,13 @@ button {
 .quote-ticker-track-fast {
   animation-duration: 16s;
 }
-.quote-ticker:hover .quote-ticker-track,
 .quote-ticker:active .quote-ticker-track {
   animation-play-state: paused;
+}
+@media (hover: hover) {
+  .quote-ticker:hover .quote-ticker-track {
+    animation-play-state: paused;
+  }
 }
 .quote-ticker-item {
   margin: 0;
@@ -577,24 +581,12 @@ button {
   touch-action: none;
 }
 
-.briefing-slider-knob--snap {
-  transition: transform 520ms cubic-bezier(0.22, 1.25, 0.36, 1);
-}
-
 .briefing-slider-knob--drag {
   cursor: grabbing;
 }
 
-.briefing-slider-knob--done {
-  transition: transform 420ms cubic-bezier(0.22, 1.2, 0.36, 1);
-}
-
-.briefing-slider-fill--snap {
-  transition: width 520ms cubic-bezier(0.22, 1.25, 0.36, 1), opacity 320ms ease;
-}
-
 .briefing-slider-label {
-  transition: color 220ms ease, opacity 180ms ease, text-shadow 220ms ease;
+  transition: color 220ms ease;
 }
 
 .briefing-slider-sheen {
@@ -628,10 +620,6 @@ button {
 .briefing-sheet--exit {
   animation: briefing-sheet-exit 0.45s cubic-bezier(0.33, 1, 0.68, 1) forwards;
   pointer-events: none;
-}
-
-.briefing-slider--done {
-  animation: briefing-done-pulse 420ms ease-out;
 }
 
 @keyframes briefing-sheen {
@@ -673,34 +661,15 @@ button {
   }
 }
 
-@keyframes briefing-done-pulse {
-  0% {
-    transform: scale(1);
-  }
-  40% {
-    transform: scale(1.015);
-  }
-  100% {
-    transform: scale(1);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .briefing-slider-sheen,
   .briefing-slider-label--idle,
-  .briefing-slider--done,
   .briefing-sheet--exit {
     animation: none !important;
   }
 
   .briefing-sheet--exit {
     opacity: 0;
-  }
-
-  .briefing-slider-knob--snap,
-  .briefing-slider-knob--done,
-  .briefing-slider-fill--snap {
-    transition-duration: 160ms !important;
   }
 }
 
@@ -767,8 +736,10 @@ input[type='datetime-local'] {
   font-weight: 600;
   border-radius: 12px;
 }
-.btn-primary:hover {
-  background: var(--primary-glow);
+@media (hover: hover) {
+  .btn-primary:hover {
+    background: var(--primary-glow);
+  }
 }
 
 .progress-track {
@@ -1025,8 +996,10 @@ html.light-dusky .command-dock-premium {
   min-width: 44px; height: 44px; border-radius: 9px;
   color: var(--text-muted); font-size: 10px; font-variant-numeric: tabular-nums;
 }
-.board-appreciation:not(:disabled):hover,
 .board-appreciation.is-active { color: var(--primary); }
+@media (hover: hover) {
+  .board-appreciation:not(:disabled):hover { color: var(--primary); }
+}
 .board-appreciation:disabled { cursor: default; }
 .board-person-progress { grid-column: 2 / -1; display: grid; grid-template-columns: minmax(0,1fr) 106px; align-items: center; gap: 10px; margin-top: 4px; }
 .board-bar-label { text-align: right; font-size: 10px; line-height: 16px; font-variant-numeric: tabular-nums; }

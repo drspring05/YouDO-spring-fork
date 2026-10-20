@@ -111,7 +111,8 @@ YouDO records both total session duration and net focus.
 - Pause and resume from the app or Android notification.
 - Keep the session accessible from the lock screen.
 - Return directly to the running task after reopening the app.
-- Use Ambient mode as a full-screen desk timer.
+- Turn the phone sideways (or tap **Ambient** on the task card) for a full-screen desk clock: big, soft digits on true black that drift and dim slowly to protect OLED screens.
+- Play a calm **focus sound** with the session. It pauses when you pause and can keep playing with the screen off (**Settings → Focus and streak**).
 - Recover an interrupted or forgotten session safely.
 - Split overnight sessions correctly at midnight.
 
@@ -142,6 +143,7 @@ Selection uses a light tick; session start, pause, completion, and warnings have
 - Acknowledgements share the focus row, only on the top three. **Community** and **Admin** have separate matching controls. Each new acknowledgement posts one short system note while the room is enabled; retries do not duplicate it.
 - Use the short encouragement room with familiar left/right chat bubbles and replies, without links, private messages, or permanent user-facing history. Kudos appear as compact room events rather than ordinary messages.
 - Turn Board participation off to remove your public row.
+- Read **Board updates** from the YouDO team; some carry a poll, an action button, quick reactions or a private reply.
 
 The Board is private by default and runs on an honour system. Community access is limited to opted-in Board members, with rate limits and private reporting. The admin console separates **Review**, **Controls**, and **Safety log** without exposing private workspaces through those tools. Padded hours only cheat the person who still has to sit the exam.
 
@@ -156,6 +158,7 @@ Session completion now waits for a successful local history write; storage failu
 Signed-in users get a private space next to the public Board:
 
 - **Friends and direct messages**: add people by @username and chat one to one.
+- **Share a goal**: send any goal tree in a direct message. Your friend can view the whole plan and save a fresh copy; showing your progress is optional.
 - **Study rooms** of up to four: see who is focusing right now and move a shared progress bar together.
 - **Room chat with @mentions**: type @ to pick a member, or @all for the whole room.
 - **Notifications that respect your attention**: messages, requests, invites and @mentions arrive even when the app is closed; ordinary room chat stays quiet unless you choose **All messages**. Each kind can be switched off in **Settings → Notifications**.
@@ -174,7 +177,7 @@ v8 brings a new look: large titles, borderless cards and a floating **Liquid Gla
 
 ## Your data remains yours
 
-YouDO requires an account for a real workspace so signed-out and cross-account data can never be mixed accidentally.
+Use YouDO without an account (**Continue offline**), or sign in for cloud backup and multi-device sync. Offline and account workspaces are kept apart, so data from different accounts can never be mixed accidentally.
 
 - **Local-first workspace:** your phone saves each change immediately; the signed-in cloud copy provides backup and multi-device continuity.
 - **Offline continuity:** after signing in, keep working through temporary network loss. YouDO retries when connectivity returns, and **Sync now** remains available before signing out or changing phones.

@@ -100,7 +100,7 @@ export function initPushNotifications(
 
       if (type === 'morning_briefing') {
         callbacks?.onNavigate?.('today');
-      } else if (type === 'community' || type === 'admin_hub' || type === 'hashtag_reply') {
+      } else if (type === 'community' || type === 'admin_hub' || type === 'hashtag_reply' || type === 'board_update') {
         callbacks?.onNavigate?.('social');
       } else if (type === 'dm' || type === 'friend_request' || type === 'room_invite' || type === 'room_request' || type === 'room') {
         callbacks?.onNavigate?.('private');

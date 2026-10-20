@@ -6,6 +6,9 @@ import { LocalNotifications } from '@capacitor/local-notifications';
 import { ensureNotificationChannels, getNotificationPreferences, scheduleMorningBriefing } from './lib/notifications';
 import { initPushNotifications } from './lib/pushNotifications';
 import { syncPushPreferences } from './lib/pushPreferences';
+import { OPEN_APP_UPDATES_EVENT } from './lib/boardUpdate';
+import { settingsBackStep } from './lib/settingsBack';
+import { PHONE_LANDSCAPE_QUERY, ambientAutoOpenEnabled } from './lib/ambient';
 import type { GoalKind, GoalNode, Task, View, TaskSession } from './types';
 import { useNavigationSync } from './hooks/useNavigationSync';
 import { formatDDMMYYYY, hasGoalExecutionState, isBacklogTask, isGoalEndpoint, isOpenBacklogTask, isTaskComplete, isToday, pathNodes, pathTitles, todayISO, useStore, useSessionStore, findGoal } from './store';
@@ -17,7 +20,6 @@ import AddTaskSheet from './components/AddTaskSheet';
 import CommandBar from './components/CommandBar';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { useReviveDeadlineLabel } from './hooks/useReviveCountdown';
-import HelpCenterSheet from './components/HelpCenterSheet';
 import TodayBriefingSheet from './components/TodayBriefingSheet';
 import UndoToast from './components/UndoToast';
 import { STORAGE_KEYS } from './lib/storageKeys';
@@ -28,7 +30,6 @@ import {
 } from './lib/focusTrends';
 import AddGoalSheet from './components/AddGoalSheet';
 import StepSliceSheet from './components/StepSliceSheet';
-import { AmbientScreen } from './components/AmbientScreen';
 import { SessionStopDialog } from './components/SessionStopDialog';
 import { useTheme } from './hooks/useTheme';
 import { useClockIntegrity } from './hooks/useClockIntegrity';
@@ -38,6 +39,7 @@ import { useCommunityActivity } from './hooks/useCommunityActivity';
 import { useHubAttention } from './hooks/useHubAttention';
 import { useIsCommunityAdmin } from './hooks/useIsCommunityAdmin';
 import { useFocusStatusShare } from './hooks/useFocusStatusShare';
+import { useFocusSoundSession } from './hooks/useFocusSoundSession';
 import { ADMIN_QUEUE_EVENT, useAdminHubCounts } from './hooks/useAdminHubCounts';
 import { useAuth } from './contexts/AuthContext';
 import { closeTopOverlay } from './lib/overlayNavigation';
@@ -55,6 +57,9 @@ const CalendarView = lazy(() => import('./components/CalendarView'));
 const HubView = lazy(() => import('./components/HubView'));
 const SettingsSheet = lazy(() => import('./components/SettingsSheet'));
 const AdminHubSheet = lazy(() => import('./components/AdminHubSheet'));
+// Only shown during a session; keeps its font and sound picker out of the first load.
+const HelpCenterSheet = lazy(() => import('./components/HelpCenterSheet'));
+const AmbientScreen = lazy(() => import('./components/AmbientScreen').then((m) => ({ default: m.AmbientScreen })));
 
 const pickQuote = (quotes: AppQuote[]): AppQuote | null => quotes.length
   ? quotes[Math.floor(Math.random() * quotes.length)]
@@ -184,6 +189,7 @@ function AppInner() {
   const isCommunityAdmin = useIsCommunityAdmin(activityUser?.id);
   // Room-mates see when you are focusing (never what on).
   useFocusStatusShare(activityUser?.id, activeSession);
+  useFocusSoundSession(activeSession);
   const {
     privatePending: hubPrivatePending,
     communityUnread: hubCommunityUnread,
@@ -206,6 +212,8 @@ function AppInner() {
   const [sheetInitialDate, setSheetInitialDate] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsFocus, setSettingsFocus] = useState<'public-board' | null>(null);
+  /** Opens Settings on a given tab (e.g. About, from a Board update's "Check for updates"). */
+  const [settingsTab, setSettingsTab] = useState<'about' | undefined>(undefined);
   const [goalSheetOpen, setGoalSheetOpen] = useState(false);
   const [blueprintStudioOpen, setBlueprintStudioOpen] = useState(false);
   const [blueprintUndo, setBlueprintUndo] = useState<{ token: string; title: string } | null>(null);
@@ -222,6 +230,9 @@ function AppInner() {
   const [sessionSaveError, setSessionSaveError] = useState('');
   useEffect(() => { setSessionSaveError(''); }, [stopDialogTask]);
   const [helpOpen, setHelpOpen] = useState(false);
+  // Help loads on first open, then stays mounted so it can animate closed.
+  const [helpMounted, setHelpMounted] = useState(false);
+  if (helpOpen && !helpMounted) setHelpMounted(true);
   const [hasSeenHelp, setHasSeenHelp] = useLocalStorage(STORAGE_KEYS.helpSeen, false);
   const firstHelpRef = useRef(false);
   const [briefingOpen, setBriefingOpen] = useState(false);
@@ -349,6 +360,17 @@ function AppInner() {
       return true;
     }
     if (settingsOpen) {
+      // A Settings sub-page steps back to the Settings list first.
+      if (settingsBackStep()) {
+        if (!window.history.state?.modal) {
+          try {
+            window.history.pushState({ modal: true }, '', window.location.href);
+          } catch {
+            /* Settings stays open even if the browser blocks history access. */
+          }
+        }
+        return true;
+      }
       setSettingsOpen(false);
       return true;
     }
@@ -460,6 +482,29 @@ function AppInner() {
     setSettingsOpen(true);
   };
 
+  useEffect(() => {
+    const openUpdates = () => {
+      setSettingsFocus(null);
+      setSettingsTab('about');
+      pushModalState();
+      setSettingsOpen(true);
+    };
+    window.addEventListener(OPEN_APP_UPDATES_EVENT, openUpdates);
+    return () => window.removeEventListener(OPEN_APP_UPDATES_EVENT, openUpdates);
+  }, [pushModalState]);
+
+  // StandBy-style: turning the phone sideways during a session opens the ambient clock.
+  const hasActiveSession = !!activeSession;
+  useEffect(() => {
+    if (!hasActiveSession || typeof window.matchMedia !== 'function') return;
+    const sideways = window.matchMedia(PHONE_LANDSCAPE_QUERY);
+    const onChange = (event: MediaQueryListEvent) => {
+      if (event.matches && ambientAutoOpenEnabled()) setShowAmbient(true);
+    };
+    sideways.addEventListener('change', onChange);
+    return () => sideways.removeEventListener('change', onChange);
+  }, [hasActiveSession]);
+
   const openBoardSettings = () => {
     setSettingsFocus('public-board');
     pushModalState();
@@ -563,6 +608,7 @@ function AppInner() {
   const closeSettings = useCallback(() => {
     setSettingsOpen(false);
     setSettingsFocus(null);
+    setSettingsTab(undefined);
     if (window.history.state?.modal) window.history.back();
   }, []);
 
@@ -1893,6 +1939,7 @@ function AppInner() {
             open={settingsOpen}
             onClose={closeSettings}
             focusSection={settingsFocus ?? undefined}
+            initialTab={settingsTab}
             streakBarHours={streakMeta.barHours}
             onStreakBarHoursChange={setStreakBarHours}
             briefingStreak={{ current: streakStatus.current, best: streakStatus.best }}
@@ -1948,16 +1995,16 @@ function AppInner() {
 
       {/* ── Ambient Screen Component ── */}
       {showAmbient && activeSession && activeTask && (
-        <AmbientScreen
+        <Suspense fallback={null}><AmbientScreen
           activeSession={activeSession}
           task={activeTask}
-          origin={originNodesFor(activeTask.id)?.map(n => n.title).join(' / ')}
+          originNames={originNodesFor(activeTask.id)?.slice(0, 2).map(n => n.title)}
           onPause={pauseSession}
           onResume={resumeSession}
           onStop={() => { setShowAmbient(false); setStopDialogTask(activeTask); }}
           onMinimize={() => setShowAmbient(false)}
           onJumpToGoal={activeTask.goalNodeId ? () => jumpToGoalTask(activeTask.goalNodeId) : undefined}
-        />
+        /></Suspense>
       )}
 
       {/* ── Session Stop Dialog ── */}
@@ -2078,13 +2125,13 @@ function AppInner() {
       )}
 
       {/* ── Help Center Sheet ── */}
-      <HelpCenterSheet
+      {helpMounted && <Suspense fallback={null}><HelpCenterSheet
         open={helpOpen}
         onClose={() => {
           setHasSeenHelp(true);
           setHelpOpen(false);
         }}
-      />
+      /></Suspense>}
       <TodayBriefingSheet
         open={briefingOpen}
         todayTasks={todayTasks}

@@ -164,7 +164,7 @@ export default function AddFriendSheet({ open, onClose, onOpenProfile }: Props) 
                   enterKeyHint="search"
                   autoFocus
                   placeholder="Search by @username"
-                  aria-label="Search by username"
+                  aria-label="Search people"
                   value={query}
                   onChange={(e) => {
                     setQuery(e.target.value);

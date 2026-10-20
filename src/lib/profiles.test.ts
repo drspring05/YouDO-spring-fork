@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { supabase } from './supabase';
 import {
   ensureProfileFromAuth,
+  upsertProfile,
   hasPrivateHubUsername,
   normalizeUsername,
   resolvePrivateHubUsername,
@@ -299,5 +300,38 @@ describe('searchProfilesByUsernamePrefix', () => {
     // Search for a non-existent or query in mock/sandbox environment
     const rows = await searchProfilesByUsernamePrefix('valid_prefix', { onError });
     expect(Array.isArray(rows)).toBe(true);
+  });
+});
+
+describe('upsertProfile', () => {
+  function mockProfilesTable() {
+    const eq = vi.fn().mockResolvedValue({ error: null });
+    const table = {
+      upsert: vi.fn().mockResolvedValue({ error: null }),
+      update: vi.fn().mockReturnValue({ eq }),
+    };
+    vi.spyOn(supabase, 'from').mockReturnValue(table as unknown as ReturnType<typeof supabase.from>);
+    vi.spyOn(supabase.auth, 'updateUser').mockResolvedValue({
+      data: { user: null },
+      error: null,
+    } as unknown as Awaited<ReturnType<typeof supabase.auth.updateUser>>);
+    return { table, eq };
+  }
+
+  it('updates the existing row for a partial patch so NOT NULL columns are not required', async () => {
+    const { table, eq } = mockProfilesTable();
+    const res = await upsertProfile({ id: 'user-b', avatar_url: 'https://example.com/a.png' });
+    expect(res.ok).toBe(true);
+    expect(table.upsert).not.toHaveBeenCalled();
+    expect(table.update).toHaveBeenCalledWith(expect.objectContaining({ avatar_url: 'https://example.com/a.png' }));
+    expect(eq).toHaveBeenCalledWith('id', 'user-b');
+  });
+
+  it('upserts a full row with username and display name', async () => {
+    const { table } = mockProfilesTable();
+    const res = await upsertProfile({ id: 'user-b', username: 'Tester_B', display_name: 'Tester B' });
+    expect(res.ok).toBe(true);
+    expect(table.update).not.toHaveBeenCalled();
+    expect(table.upsert).toHaveBeenCalledWith(expect.objectContaining({ username: 'tester_b', display_name: 'Tester B' }));
   });
 });
