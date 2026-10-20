@@ -307,8 +307,17 @@ export default function TodayBriefingSheet({
       measure();
       paint(progressRef.current);
     };
+    // The card can settle wider after it opens (its content fills in), which
+    // left the resting trail poking out past the knob. Re-measure on any change
+    // to the track's own size, not only window resizes.
+    const track = trackRef.current;
+    const observer = typeof ResizeObserver !== 'undefined' && track ? new ResizeObserver(onResize) : null;
+    if (observer && track) observer.observe(track);
     window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', onResize);
+    };
   }, [open, measure, paint, stopLoop]);
 
   useEffect(() => stopLoop, [stopLoop]);
