@@ -10,7 +10,7 @@ import { springStep } from '../lib/liquidMotion';
 import { localISODate, msUntilEndOfLocalISODate, shiftLocalISO } from '../lib/dates';
 import { useReviveTimeLeftSub } from '../hooks/useReviveCountdown';
 import type { StreakView } from '../lib/focusTrends';
-import { lastSessionEnd, lastSessionNudge } from '../lib/lastSessionNudge';
+import { lastSession, lastSessionNudge } from '../lib/lastSessionNudge';
 
 interface Props {
   open: boolean;
@@ -183,8 +183,8 @@ export default function TodayBriefingSheet({
     }, 0);
   }, [sessionHistory, yesterdayStr]);
 
-  const lastEnd = useMemo(() => lastSessionEnd(sessionHistory), [sessionHistory]);
-  const sessionNudge = lastSessionNudge(lastEnd, now);
+  const previousSession = useMemo(() => lastSession(sessionHistory), [sessionHistory]);
+  const sessionNudge = lastSessionNudge(previousSession, now);
   const nudgeClass =
     sessionNudge?.tone === 'good' ? 'text-secondary' : sessionNudge?.tone === 'long' ? 'text-warning' : 'text-content-primary';
 
@@ -461,18 +461,28 @@ export default function TodayBriefingSheet({
               />
             </>
           )}
-          {/* When the last session ended, as one wide card under the four. The
-              time and the advice sit side by side so it keeps their height. */}
+          {/* The last session, as one wide card under the four: when it was on
+              the left, how it went on the right, split by a light divider. */}
           {sessionNudge && (
-            <div className="col-span-2 bg-surface border border-subtle rounded-[12px] p-3 min-w-0">
-              <div className="flex items-center gap-1.5 text-content-muted mb-1.5">
-                <History className={`w-3.5 h-3.5 shrink-0 ${nudgeClass}`} />
-                <span className="text-[10px] font-semibold uppercase tracking-wider">Last session</span>
+            <div className="col-span-2 flex bg-surface border border-subtle rounded-[12px] p-3 min-w-0">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 text-content-muted mb-1.5">
+                  <History className={`w-3.5 h-3.5 shrink-0 ${nudgeClass}`} />
+                  <span className="text-[10px] font-semibold uppercase tracking-wider">Last session</span>
+                </div>
+                <p className={`text-[18px] font-semibold tabular-nums leading-none ${nudgeClass}`}>{sessionNudge.ago}</p>
+                <p className="text-[11px] text-content-secondary mt-1">{sessionNudge.hint}</p>
               </div>
-              <div className="flex items-center gap-3 min-w-0">
-                <p className={`shrink-0 text-[18px] font-semibold tabular-nums leading-none ${nudgeClass}`}>{sessionNudge.ago}</p>
-                <p className="min-w-0 text-[11px] leading-snug text-content-secondary line-clamp-2">{sessionNudge.advice}</p>
-              </div>
+              <ul className="flex-1 min-w-0 flex flex-col justify-center gap-1.5 border-l border-subtle pl-3 ml-3 text-[11.5px] text-content-secondary">
+                <li className="flex items-center gap-1.5 min-w-0">
+                  <span className="size-1 shrink-0 rounded-full bg-[color:var(--text-muted)]" aria-hidden />
+                  <span className="truncate">Length <span className="font-semibold text-content-primary tabular-nums">{formatDuration(sessionNudge.lengthMs)}</span></span>
+                </li>
+                <li className="flex items-center gap-1.5 min-w-0">
+                  <span className="size-1 shrink-0 rounded-full bg-[color:var(--text-muted)]" aria-hidden />
+                  <span className="truncate">Efficiency <span className="font-semibold text-primary tabular-nums">{sessionNudge.efficiency}%</span></span>
+                </li>
+              </ul>
             </div>
           )}
         </div>

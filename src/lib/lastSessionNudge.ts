@@ -13,16 +13,21 @@ export interface LastSessionNudge {
   tone: 'good' | 'ok' | 'long';
   /** e.g. "2 days ago" */
   ago: string;
-  advice: string;
+  /** A few words on what the gap means, e.g. "long break". */
+  hint: string;
+  /** Start to stop, pauses included. */
+  lengthMs: number;
+  /** Net focus ÷ length, 0–100. */
+  efficiency: number;
 }
 
-/** When the most recent real focus session ended (manual ticks and sub-15s runs don't count). */
-export function lastSessionEnd(sessionHistory: Record<string, TaskSession[]>): number | null {
-  let latest: number | null = null;
+/** The most recent real focus session (manual ticks and sub-15s runs don't count). */
+export function lastSession(sessionHistory: Record<string, TaskSession[]>): TaskSession | null {
+  let latest: TaskSession | null = null;
   for (const sessions of Object.values(sessionHistory)) {
     for (const s of sessions) {
       if (!isCountableSession(s) || isManualSession(s) || !Number.isFinite(s.endTime)) continue;
-      if (latest === null || s.endTime > latest) latest = s.endTime;
+      if (latest === null || s.endTime > latest.endTime) latest = s;
     }
   }
   return latest;
@@ -39,12 +44,14 @@ export function formatAgo(gapMs: number): string {
   return days === 1 ? '1 day ago' : `${days} days ago`;
 }
 
-/** A gentle line for Today at a glance: how long since the last session, and what to do about it. */
-export function lastSessionNudge(lastEnd: number | null, now: number): LastSessionNudge | null {
-  if (lastEnd === null) return null;
-  const gap = Math.max(0, now - lastEnd);
-  const ago = formatAgo(gap);
-  if (gap < GOOD_GAP_MS) return { tone: 'good', ago, advice: 'Nice rhythm, keep it going.' };
-  if (gap < LONG_GAP_MS) return { tone: 'ok', ago, advice: 'Start one soon to keep your rhythm.' };
-  return { tone: 'long', ago, advice: 'Long breaks break your rhythm. Start one today.' };
+/** Today at a glance: how long since the last session, how it went, and what the gap means. */
+export function lastSessionNudge(session: TaskSession | null, now: number): LastSessionNudge | null {
+  if (session === null) return null;
+  const gap = Math.max(0, now - session.endTime);
+  const lengthMs = Math.max(0, session.endTime - session.startTime);
+  const efficiency = lengthMs > 0 ? Math.min(100, Math.max(0, Math.round((session.netFocusMs / lengthMs) * 100))) : 0;
+  const base = { ago: formatAgo(gap), lengthMs, efficiency };
+  if (gap < GOOD_GAP_MS) return { ...base, tone: 'good', hint: 'nice rhythm' };
+  if (gap < LONG_GAP_MS) return { ...base, tone: 'ok', hint: 'start one soon' };
+  return { ...base, tone: 'long', hint: 'long break' };
 }
