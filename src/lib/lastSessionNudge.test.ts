@@ -29,15 +29,15 @@ describe('lastSessionNudge', () => {
     expect(lastSessionNudge(null, now)).toBeNull();
   });
   it('praises a short gap', () => {
-    expect(lastSessionNudge(now - 45 * MIN, now)).toEqual({ tone: 'good', text: 'Last session 45 min ago. Nice rhythm, keep it going.' });
+    expect(lastSessionNudge(now - 45 * MIN, now)).toEqual({ tone: 'good', ago: '45 min ago', advice: 'Nice rhythm, keep it going.' });
   });
   it('nudges after a night or a long day', () => {
     expect(lastSessionNudge(now - 9 * HOUR, now)?.tone).toBe('ok');
-    expect(lastSessionNudge(now - 9 * HOUR, now)?.text).toBe('Last session 9h ago. Start one soon to keep your rhythm.');
+    expect(lastSessionNudge(now - 9 * HOUR, now)).toMatchObject({ ago: '9h ago', advice: 'Start one soon to keep your rhythm.' });
   });
   it('warns about a long break', () => {
     expect(lastSessionNudge(now - 50 * HOUR, now)).toEqual({
-      tone: 'long', text: 'Last session 2 days ago. Long breaks break your rhythm. Start a short session today.',
+      tone: 'long', ago: '2 days ago', advice: 'Long breaks break your rhythm. Start a short session today.',
     });
   });
 });

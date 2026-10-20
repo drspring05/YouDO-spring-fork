@@ -11,7 +11,9 @@ const LONG_GAP_MS = DAY;
 
 export interface LastSessionNudge {
   tone: 'good' | 'ok' | 'long';
-  text: string;
+  /** e.g. "2 days ago" */
+  ago: string;
+  advice: string;
 }
 
 /** When the most recent real focus session ended (manual ticks and sub-15s runs don't count). */
@@ -42,7 +44,7 @@ export function lastSessionNudge(lastEnd: number | null, now: number): LastSessi
   if (lastEnd === null) return null;
   const gap = Math.max(0, now - lastEnd);
   const ago = formatAgo(gap);
-  if (gap < GOOD_GAP_MS) return { tone: 'good', text: `Last session ${ago}. Nice rhythm, keep it going.` };
-  if (gap < LONG_GAP_MS) return { tone: 'ok', text: `Last session ${ago}. Start one soon to keep your rhythm.` };
-  return { tone: 'long', text: `Last session ${ago}. Long breaks break your rhythm. Start a short session today.` };
+  if (gap < GOOD_GAP_MS) return { tone: 'good', ago, advice: 'Nice rhythm, keep it going.' };
+  if (gap < LONG_GAP_MS) return { tone: 'ok', ago, advice: 'Start one soon to keep your rhythm.' };
+  return { tone: 'long', ago, advice: 'Long breaks break your rhythm. Start a short session today.' };
 }
