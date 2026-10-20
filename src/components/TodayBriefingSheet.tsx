@@ -461,16 +461,18 @@ export default function TodayBriefingSheet({
               />
             </>
           )}
-          {/* When the last session ended, as one wide card under the four. */}
+          {/* When the last session ended, as one wide card under the four. The
+              time and the advice sit side by side so it keeps their height. */}
           {sessionNudge && (
-            <div className="col-span-2">
-              <StatCard
-                icon={<History className={`w-3.5 h-3.5 shrink-0 ${nudgeClass}`} />}
-                label="Last session"
-                value={sessionNudge.ago}
-                sub={sessionNudge.advice}
-                valueClass={nudgeClass}
-              />
+            <div className="col-span-2 bg-surface border border-subtle rounded-[12px] p-3 min-w-0">
+              <div className="flex items-center gap-1.5 text-content-muted mb-1.5">
+                <History className={`w-3.5 h-3.5 shrink-0 ${nudgeClass}`} />
+                <span className="text-[10px] font-semibold uppercase tracking-wider">Last session</span>
+              </div>
+              <div className="flex items-center gap-3 min-w-0">
+                <p className={`shrink-0 text-[18px] font-semibold tabular-nums leading-none ${nudgeClass}`}>{sessionNudge.ago}</p>
+                <p className="min-w-0 text-[11px] leading-snug text-content-secondary line-clamp-2">{sessionNudge.advice}</p>
+              </div>
             </div>
           )}
         </div>

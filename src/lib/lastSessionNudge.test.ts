@@ -37,7 +37,7 @@ describe('lastSessionNudge', () => {
   });
   it('warns about a long break', () => {
     expect(lastSessionNudge(now - 50 * HOUR, now)).toEqual({
-      tone: 'long', ago: '2 days ago', advice: 'Long breaks break your rhythm. Start a short session today.',
+      tone: 'long', ago: '2 days ago', advice: 'Long breaks break your rhythm. Start one today.',
     });
   });
 });

@@ -46,5 +46,5 @@ export function lastSessionNudge(lastEnd: number | null, now: number): LastSessi
   const ago = formatAgo(gap);
   if (gap < GOOD_GAP_MS) return { tone: 'good', ago, advice: 'Nice rhythm, keep it going.' };
   if (gap < LONG_GAP_MS) return { tone: 'ok', ago, advice: 'Start one soon to keep your rhythm.' };
-  return { tone: 'long', ago, advice: 'Long breaks break your rhythm. Start a short session today.' };
+  return { tone: 'long', ago, advice: 'Long breaks break your rhythm. Start one today.' };
 }
