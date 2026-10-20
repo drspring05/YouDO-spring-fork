@@ -53,8 +53,7 @@ public class YouDoAppUpdatePlugin extends Plugin {
     }
     private static Set<String> signers(PackageInfo info) throws Exception {
         Signature[] signatures;
-        if (Build.VERSION.SDK_INT >= 28) {
-            if (info.signingInfo == null) throw new Exception("APK signing information is missing.");
+        if (Build.VERSION.SDK_INT >= 28 && info.signingInfo != null) {
             Signature[] contents = info.signingInfo.getApkContentsSigners();
             // Fall back to signing certificate history (covers v3 rotated signers)
             signatures = (contents != null && contents.length > 0)
@@ -81,6 +80,11 @@ public class YouDoAppUpdatePlugin extends Plugin {
         if (candidate != null && candidate.applicationInfo != null && Build.VERSION.SDK_INT >= 28) {
             candidate.applicationInfo.sourceDir = file.getAbsolutePath();
             candidate.applicationInfo.publicSourceDir = file.getAbsolutePath();
+        }
+        // Android 9-12 return no signingInfo for a downloaded APK; compare legacy signatures on both sides instead
+        if (candidate != null && Build.VERSION.SDK_INT >= 28 && candidate.signingInfo == null) {
+            flags = PackageManager.GET_SIGNATURES;
+            candidate = pm.getPackageArchiveInfo(file.getAbsolutePath(), flags);
         }
         PackageInfo installed = pm.getPackageInfo(getContext().getPackageName(), flags);
         if (candidate == null || !installed.packageName.equals(candidate.packageName)
