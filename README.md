@@ -202,6 +202,10 @@ v6 establishes YouDO's permanent Android signing identity. Because the private k
 
 Only the latest GitHub Release is supported. From v6 onward, YouDO periodically checks for a newer stable release and shows a dismissible notice with brief highlights; updates are always opened from the official GitHub Release page and are never installed silently.
 
+## More from YouDO
+
+**[CalCU](https://calcu-youdo.vercel.app)** brings the GATE virtual scientific calculator to Windows. Press `Alt + C` over your PDFs, test series, or lectures to show it, and press it again to hide it. Free and open source, with [the code on GitHub](https://github.com/mattedhairr/CalCU).
+
 ## Community
 
 - [Telegram updates channel](https://t.me/YouDO_Updates) - releases, improvements, known issues, and upcoming work.
