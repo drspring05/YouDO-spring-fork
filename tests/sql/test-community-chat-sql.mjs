@@ -33,8 +33,8 @@ try {
     updated_at timestamptz not null default now(),
     constraint user_backups_user_id_key unique(user_id)
   );`);
-  for (const file of ['user_backups','public_pace','community']) await db.exec((await readFile(new URL(`../supabase/${file}.sql`,import.meta.url),'utf8')).replace('create extension if not exists pgcrypto;',''));
-  await db.exec(await readFile(new URL('../supabase/user_backups.sql',import.meta.url),'utf8'));
+  for (const file of ['user_backups','public_pace','community']) await db.exec((await readFile(new URL(`../../supabase/${file}.sql`,import.meta.url),'utf8')).replace('create extension if not exists pgcrypto;',''));
+  await db.exec(await readFile(new URL('../../supabase/user_backups.sql',import.meta.url),'utf8'));
   const backupUniqueIndexes=await rows(`select count(*)::int n
     from pg_catalog.pg_index i
     join pg_catalog.pg_class t on t.oid=i.indrelid
@@ -53,13 +53,13 @@ try {
   await asSystem();
   const fanout=(await rows('select count(*)::int n from public.community_deliveries'))[0].n;
   check(fanout===14,'baseline allocates fourteen delivery rows per message');
-  const sql=await readFile(new URL('../supabase/community_chat.sql',import.meta.url),'utf8');
+  const sql=await readFile(new URL('../../supabase/community_chat.sql',import.meta.url),'utf8');
   await db.exec(sql);
   check((await rows("select has_function_privilege('authenticated','public.is_community_admin(uuid)','execute') as allowed"))[0].allowed===true,
     'authenticated message reads retain permission to evaluate the admin-aware RLS policy');
-  await db.exec(await readFile(new URL('../supabase/operations/manage_community_staff.sql',import.meta.url),'utf8'));
+  await db.exec(await readFile(new URL('../../supabase/operations/manage_community_staff.sql',import.meta.url),'utf8'));
   check(true,'private staff-management query parses without changing its default inspect target');
-  const usage=await rows(await readFile(new URL('../supabase/operations/inspect_app_usage.sql',import.meta.url),'utf8'));
+  const usage=await rows(await readFile(new URL('../../supabase/operations/inspect_app_usage.sql',import.meta.url),'utf8'));
   check(usage.length===15 && usage[0].row_type==='SUMMARY' && usage[0].total_accounts==='14' && usage[0].accounts_with_cloud_backup==='1' &&
     usage[1].row_type==='ACCOUNT' && usage[1].email==='member2@example.com' && usage[1].total_accounts==='' &&
     usage.every(row=>Object.values(row).every(value=>value!==null)),

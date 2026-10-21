@@ -20,7 +20,7 @@ try{
     alter default privileges in schema public grant all on tables to authenticated;
     alter default privileges in schema public grant usage,select on sequences to authenticated;`);
   for(const name of ['user_backups','cloud_backup_revisions','public_pace','community','community_chat','community_hashtags','community_hashtag_admin','app_quotes','board_evidence']){
-    await db.exec((await readFile(new URL(`../supabase/${name}.sql`,import.meta.url),'utf8')).replace('create extension if not exists pgcrypto;',''));
+    await db.exec((await readFile(new URL(`../../supabase/${name}.sql`,import.meta.url),'utf8')).replace('create extension if not exists pgcrypto;',''));
   }
   for(let n=1;n<=4;n++){
     await rows('insert into auth.users(id,email) values($1,$2)',[id(n),`rooms${n}@example.com`]);
@@ -34,7 +34,7 @@ try{
   await rows('select public.set_community_hashtag($1)',[a]);
   await rows("select public.send_community_message($1,'Historical General')",[id(101)]);
   await as(null);
-  const migration=await readFile(new URL('../supabase/community_rooms.sql',import.meta.url),'utf8');
+  const migration=await readFile(new URL('../../supabase/community_rooms.sql',import.meta.url),'utf8');
   await db.exec(migration);await db.exec(migration);check(true,'migration is rerunnable');
   await as(1);
   check((await page()).some(m=>m.id===id(101)),'historical messages stay General');

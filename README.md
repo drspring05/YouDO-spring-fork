@@ -151,7 +151,7 @@ Admin opens with a compact **Community pulse**: **Active recently** (a foregroun
 
 Each room message remains visible for exactly 24 hours from its send time, regardless of when it is opened or whether midnight passes. Removed content never resurfaces. Expired messages may remain briefly as protected moderation records, while reports, appeals, restrictions, and the safety log persist. See [community setup and verification](docs/community-setup.md) before deploying the new build.
 
-Session completion now waits for a successful local history write; storage failures leave the sitting open with an error. Manual completion controls cannot bypass a running sitting. These safeguards do not establish the cause of the reported v6.3.0 lost-session/frozen-phone incident; see [investigation status](docs/focus-session-investigation.md).
+Session completion now waits for a successful local history write; storage failures leave the sitting open with an error. Manual completion controls cannot bypass a running sitting. These safeguards do not establish the cause of the reported v6.3.0 lost-session/frozen-phone incident; see [investigation status](docs/history/focus-session-investigation.md).
 
 ### Study with friends: the Private Hub
 
@@ -269,7 +269,7 @@ npm run verify:build
 `npm run test:sql` runs isolated PostgreSQL permission/migration suites using
 the locked PGlite dependency. It does not connect to Supabase or need credentials.
 `npm run benchmark` measures a synthetic workspace with 5,510 goal nodes,
-500 tasks and 5,000 sittings. See [Batch 9 verification](docs/performance-handoff.md)
+500 tasks and 5,000 sittings. See [Batch 9 verification](docs/history/performance-handoff.md)
 for measurements, Advisor decisions, and the remaining manual release gates.
 
 ### Android project

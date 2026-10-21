@@ -1,5 +1,5 @@
 // Isolated PostgreSQL verification. No network or production credentials.
-// Run: node scripts/test-board-evidence-sql.mjs
+// Run: node tests/sql/test-board-evidence-sql.mjs
 import { PGlite } from '@electric-sql/pglite';
 import { readFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 const db = new PGlite();
 const uid = (n) => `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`;
 const query = async (sql, args = []) => (await db.query(sql, args)).rows;
-const file = (name) => readFile(new URL(`../supabase/${name}`, import.meta.url), 'utf8');
+const file = (name) => readFile(new URL(`../../supabase/${name}`, import.meta.url), 'utf8');
 const as = async (n) => {
   await db.exec('reset role');
   await db.query("select set_config('request.jwt.claim.sub', $1, false)", [n ? uid(n) : '']);

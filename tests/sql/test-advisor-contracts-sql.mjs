@@ -15,7 +15,7 @@ try {
     alter default privileges in schema public grant usage,select on sequences to authenticated;
   `);
   for (const name of ['user_backups', 'cloud_backup_revisions', 'public_pace', 'community', 'community_chat', 'community_hashtags', 'community_hashtag_admin', 'app_quotes', 'board_evidence', 'community_rooms']) {
-    const sql = await readFile(new URL(`../supabase/${name}.sql`, import.meta.url), 'utf8');
+    const sql = await readFile(new URL(`../../supabase/${name}.sql`, import.meta.url), 'utf8');
     await db.exec(sql.replace('create extension if not exists pgcrypto;', ''));
   }
   const exposed = await rows(`select p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace

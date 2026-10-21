@@ -111,7 +111,7 @@ function inspectComponent(Component: any, props: any): any {
   return tree;
 }
 
-describe('Milestone 4 Empirical Challenge: User Profile Card & Interactive DPs (R4)', () => {
+describe('User profile card and interactive avatars', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockCurrentUser = { id: 'user-viewer-1' };

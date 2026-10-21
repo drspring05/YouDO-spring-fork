@@ -36,9 +36,9 @@ try {
     create publication supabase_realtime;
   `);
   for (const name of ['user_backups', 'cloud_backup_revisions', 'public_pace', 'board_evidence', 'full_hub_rooms_setup']) {
-    await db.exec((await readFile(new URL(`../supabase/${name}.sql`, import.meta.url), 'utf8')).replace('create extension if not exists pgcrypto;', ''));
+    await db.exec((await readFile(new URL(`../../supabase/${name}.sql`, import.meta.url), 'utf8')).replace('create extension if not exists pgcrypto;', ''));
   }
-  const migration = await readFile(new URL('../supabase/hub_room_membership.sql', import.meta.url), 'utf8');
+  const migration = await readFile(new URL('../../supabase/hub_room_membership.sql', import.meta.url), 'utf8');
   await db.exec(migration); await db.exec(migration);
   check(true, 'membership migration is rerunnable');
 

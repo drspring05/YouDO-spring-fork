@@ -30,9 +30,9 @@ try {
     create publication supabase_realtime;
   `);
   for (const name of ['user_backups', 'cloud_backup_revisions', 'public_pace', 'board_evidence', 'full_hub_rooms_setup', 'hub_room_membership']) {
-    await db.exec((await readFile(new URL(`../supabase/${name}.sql`, import.meta.url), 'utf8')).replace('create extension if not exists pgcrypto;', ''));
+    await db.exec((await readFile(new URL(`../../supabase/${name}.sql`, import.meta.url), 'utf8')).replace('create extension if not exists pgcrypto;', ''));
   }
-  const migration = await readFile(new URL('../supabase/hub_focus_status.sql', import.meta.url), 'utf8');
+  const migration = await readFile(new URL('../../supabase/hub_focus_status.sql', import.meta.url), 'utf8');
   await db.exec(migration); await db.exec(migration);
   check(true, 'focus status migration is rerunnable');
   check((await rows("select 1 from pg_publication_tables where pubname='supabase_realtime' and tablename='focus_status'")).length === 1, 'focus status streams over Realtime');

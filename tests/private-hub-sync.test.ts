@@ -7,7 +7,7 @@ import {
 } from '../src/lib/privateHubSync';
 import { supabase } from '../src/lib/supabase';
 
-describe('Auditor Forensic Verification: privateHubSync', () => {
+describe('privateHubSync', () => {
   const userId = 'usr_forensic_999';
 
   beforeEach(() => {

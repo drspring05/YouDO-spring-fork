@@ -34,17 +34,17 @@ try {
   `);
 
   for (const name of ['user_backups', 'cloud_backup_revisions', 'public_pace', 'board_evidence']) {
-    await db.exec((await readFile(new URL(`../supabase/${name}.sql`, import.meta.url), 'utf8')).replace('create extension if not exists pgcrypto;', ''));
+    await db.exec((await readFile(new URL(`../../supabase/${name}.sql`, import.meta.url), 'utf8')).replace('create extension if not exists pgcrypto;', ''));
   }
 
   // 1. Run full_hub_rooms_setup.sql twice to verify idempotency
-  const fullSql = await readFile(new URL('../supabase/full_hub_rooms_setup.sql', import.meta.url), 'utf8');
+  const fullSql = await readFile(new URL('../../supabase/full_hub_rooms_setup.sql', import.meta.url), 'utf8');
   await db.exec(fullSql);
   await db.exec(fullSql);
   check(true, 'full_hub_rooms_setup.sql is idempotent and safe to rerun');
 
   // 2. Run rooms_privacy_and_invites.sql twice to verify idempotency
-  const roomsSql = await readFile(new URL('../supabase/rooms_privacy_and_invites.sql', import.meta.url), 'utf8');
+  const roomsSql = await readFile(new URL('../../supabase/rooms_privacy_and_invites.sql', import.meta.url), 'utf8');
   await db.exec(roomsSql);
   await db.exec(roomsSql);
   check(true, 'rooms_privacy_and_invites.sql is idempotent and safe to rerun');

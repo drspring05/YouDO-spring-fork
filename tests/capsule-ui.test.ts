@@ -51,7 +51,7 @@ function renderBoard(
   return renderToStaticMarkup(element);
 }
 
-describe('M3 Empirical Challenge: Capsule UI & Visual Merging Logic', () => {
+describe('Capsule UI and visual merging', () => {
   // ---------------------------------------------------------------------------
   // 7. Complete Absence of "Live Board" DOM elements, imports, or state
   // ---------------------------------------------------------------------------

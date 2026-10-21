@@ -27,7 +27,7 @@ interface MockChannel {
   on: (type: string, filter: RegisteredListener['filter'], callback: (payload?: unknown) => void) => MockChannel;
 }
 
-describe('Adversarial Empirical Challenge: Requirement R2 Realtime Listeners', () => {
+describe('Private Hub realtime listeners', () => {
   let createdChannels: MockChannel[] = [];
   let removedChannels: unknown[] = [];
   let dispatchedSyncEvents: CustomEvent<{ reason?: PrivateHubSyncReason }>[] = [];

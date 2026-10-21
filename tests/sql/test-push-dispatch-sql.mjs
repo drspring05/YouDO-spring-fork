@@ -29,9 +29,9 @@ try{
   await db.exec(recordingHttpPost);
   await db.exec(`create table public.user_backups(id uuid primary key default gen_random_uuid(),user_id uuid not null references auth.users(id) on delete cascade,backup_data text not null,updated_at timestamptz not null default now(),constraint user_backups_user_id_key unique(user_id));`);
   for(const file of ['public_pace','community','community_chat','community_hashtags','user_push_tokens']){
-    await db.exec((await readFile(new URL(`../supabase/${file}.sql`,import.meta.url),'utf8')).replace('create extension if not exists pgcrypto;',''));
+    await db.exec((await readFile(new URL(`../../supabase/${file}.sql`,import.meta.url),'utf8')).replace('create extension if not exists pgcrypto;',''));
   }
-  const migration=(await readFile(new URL('../supabase/push_dispatch.sql',import.meta.url),'utf8'))
+  const migration=(await readFile(new URL('../../supabase/push_dispatch.sql',import.meta.url),'utf8'))
     .replace('create extension if not exists pg_net with schema extensions;','');
   await db.exec(migration);await db.exec(migration);
   check(true,'push dispatch migration is rerunnable');

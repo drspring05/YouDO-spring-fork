@@ -34,7 +34,7 @@ function createMockPaceRow(userId: string, todayMs: number, barHours: number = 4
   };
 }
 
-describe('Auditor Forensic Verification: Requirement R4 - Interactive Member DPs', () => {
+describe('Interactive member avatars', () => {
   const squadProgressBoardPath = path.resolve('src/components/squad/SquadProgressBoard.tsx');
   const squadRoomSheetPath = path.resolve('src/components/SquadRoomSheet.tsx');
 

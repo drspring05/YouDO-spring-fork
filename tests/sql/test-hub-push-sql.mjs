@@ -4,7 +4,7 @@
 import { PGlite } from '@electric-sql/pglite';
 import { readFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
-import { SUPABASE_SETUP_ORDER } from './supabase-setup-order.mjs';
+import { SUPABASE_SETUP_ORDER } from '../../scripts/supabase-setup-order.mjs';
 
 const db = new PGlite();
 const id = (n) => `40000000-0000-0000-0000-${String(n).padStart(12, '0')}`;
@@ -21,7 +21,7 @@ try {
   await db.exec(`create table net.calls(id serial primary key, body jsonb);
     create function net.http_post(url text, body jsonb default '{}', params jsonb default '{}', headers jsonb default '{}', timeout_milliseconds int default 5000)
       returns bigint language sql as $$insert into net.calls(body) values(body) returning id$$;`);
-  const load = async (name) => (await readFile(new URL(`../supabase/${name}.sql`, import.meta.url), 'utf8'))
+  const load = async (name) => (await readFile(new URL(`../../supabase/${name}.sql`, import.meta.url), 'utf8'))
     .replace('create extension if not exists pgcrypto;', '')
     .replace('create extension if not exists pg_net with schema extensions;', '');
   for (const name of SUPABASE_SETUP_ORDER) await db.exec(await load(name));
