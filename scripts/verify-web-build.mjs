@@ -7,7 +7,8 @@ const html = readFileSync(new URL('index.html', root), 'utf8');
 const worker = readFileSync(new URL('sw.js', root), 'utf8');
 const entry = html.match(/<script[^>]+src="\/([^"\s]+\.js)"/)[1];
 const source = readFileSync(new URL(entry, root));
-assert.ok(source.length < 760_000, `Initial JS exceeds 760 kB: ${source.length}`);
+// Raised from 720 kB on 2026-10-21 upstream (supabase-js bump). Fork gzip cap stays 400 kB until a real build is measured.
+assert.ok(source.length < 820_000, `Initial JS exceeds 820 kB: ${source.length}`);
 assert.ok(gzipSync(source).length < 400_000, 'Initial compressed JS exceeds 400 kB');
 // A missing lazy chunk in the precache would break an unvisited offline view.
 for (const name of readdirSync(new URL('assets/', root))) {

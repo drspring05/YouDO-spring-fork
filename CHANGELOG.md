@@ -17,6 +17,33 @@ Guidance: keep 3–6 short, user-facing bullets. Group related small fixes under
 
 ---
 
+## [v8.1.2] - 2026-10-20 - Tidier Task Card and Settings
+
+- **A tidier focus card** — The Ambient button sits in the card's Focus strip, the pause button no longer pushes the title away from its path, and the ambient tip appears once as a small pop-up instead of inside the card.
+- **Settings** — A slim back arrow replaces the big round button, and About and updates is a row again, with a dot when an update is waiting.
+- **Android APK** — versionName **8.1.2**, versionCode **82**. Installs over v8.1.1 (81).
+
+---
+
+## [v8.1.1] - 2026-10-20 - Private Hub Fix
+
+- **Private Hub opens once** — Opening the Private Hub no longer reloads it again and again while the app signs you back in.
+- **Android APK** — versionName **8.1.1**, versionCode **81**. Installs over v8.1.0 (80).
+
+---
+
+## [v8.1.0] - 2026-10-20 - Ambient Clock, Focus Sounds and Goal Sharing
+
+- **Ambient clock** — Turn your phone sideways during a session (or tap Ambient on the task card) for a full-screen clock in big, soft accent-coloured digits on true black. Tap for pause, stop and sounds. The digits drift and dim gently over time to protect OLED screens from burn-in.
+- **Focus sounds** — Pick a calm sound in Settings → Focus and streak or on the ambient clock. It plays with your session, pauses when you pause, and can keep playing with the screen off.
+- **Share a goal with a friend** — Send any goal tree in a direct message. Your friend can view the whole plan and save a fresh copy to their own Goals; showing your progress is optional.
+- **Board updates do more** — Admins can add a poll, private replies, an action button and quick reactions to a Board update, and notify everyone after confirming.
+- **Clearer glass, cleaner Settings** — The tab bar's Liquid Glass is clearer, with a brighter edge and a frosted selected tab. Settings opens on your profile and a plain list, with updates and support right on it; every page now shares one tidy layout. Today at a glance shows when your last session was and how it went.
+- **Fixes** — Profile edits no longer fail, password managers stay out of search fields, Blueprint Studio number fields can be cleared, a better layout when the phone is sideways, and in-app updates now verify correctly on Android 9–12.
+- **Android APK** — versionName **8.1.0**, versionCode **80**. Installs over v8.0.0 (79).
+
+---
+
 ## [v8.0.0] - 2026-10-14 - A New Look and the Private Hub
 
 - **A new look, end to end** — YouDO is redesigned around Apple's design language: large titles, borderless cards, a floating Liquid Glass tab bar with springy buttons, and native-style switches and sheets. Six calm accent colours and five app icons to choose from; the start screen, header and notifications follow your accent. Classic Look in Settings brings back the v7 design.

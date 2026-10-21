@@ -1,0 +1,3 @@
+v8.1.2: Tidier task card and Settings
+- The Ambient button moves to the Focus strip; the ambient tip is a one-time pop-up.
+- A slim back arrow in Settings; About and updates shows a dot when an update is waiting.

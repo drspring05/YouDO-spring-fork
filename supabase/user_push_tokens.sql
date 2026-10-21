@@ -29,15 +29,10 @@ create policy "Users can manage their own push tokens"
 -- 4. Index for fast lookup by user_id
 create index if not exists idx_user_push_tokens_user on public.user_push_tokens(user_id);
 
--- 5. Helper function for housekeeping: remove stale tokens not updated in 90 days
-create or replace function public.cleanup_stale_push_tokens()
-returns void
-language sql
-security definer
-as $$
-  delete from public.user_push_tokens
-  where updated_at < now() - interval '90 days';
-$$;
+-- 5. Dead tokens are removed by send-push when Firebase reports them
+--    unregistered. An age-based cleanup was dropped: updated_at refreshes on
+--    every app start, so it would silence installed but idle devices.
+drop function if exists public.cleanup_stale_push_tokens();
 
 -- 6. Pushes to these tokens are dispatched by database triggers in
 --    push_dispatch.sql, which call the send-push Edge Function with a shared secret.

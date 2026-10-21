@@ -217,16 +217,27 @@ export default function CreateRoomSheet({ open, onClose, onSuccess, personalPace
             <div className="hub-search mb-2">
               <Search size={16} aria-hidden />
               <input
+                type="search"
                 value={query}
                 placeholder="Search @username"
                 aria-label="Search friends to invite"
                 name="room_invite_search"
+                id="room_invite_search_query"
+                inputMode="search"
+                enterKeyHint="search"
                 autoComplete="off"
                 autoCapitalize="none"
                 autoCorrect="off"
+                spellCheck={false}
                 data-1p-ignore="true"
                 data-protonpass-ignore="true"
                 data-lpignore="true"
+                data-bwignore="true"
+                data-form-type="other"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') e.preventDefault();
+                }}
+                className="[&::-webkit-search-cancel-button]:hidden"
                 onChange={(e) => setQuery(e.target.value)}
               />
               {searching && <Loader2 size={15} className="animate-spin" />}

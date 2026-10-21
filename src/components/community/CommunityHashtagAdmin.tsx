@@ -16,6 +16,7 @@ import {
   type CommunityHashtagRequest,
 } from '../../lib/communityHashtags';
 import Overlay from '../Overlay';
+import { ADMIN_QUEUE_EVENT } from '../../hooks/useAdminHubCounts';
 
 interface Props {
   requests: CommunityHashtagRequest[];
@@ -38,15 +39,18 @@ export default function CommunityHashtagAdmin({
   const [chatRequest, setChatRequest] = useState<CommunityHashtagRequest | null>(null);
   const [chatReply, setChatReply] = useState('');
   const [chatLabel, setChatLabel] = useState('');
+  /** Requests already handled here: hidden at once, even if the follow-up refresh fails. */
+  const [handled, setHandled] = useState<ReadonlySet<string>>(() => new Set());
 
   const groups = useMemo(() => {
     const grouped = new Map<string, CommunityHashtagRequest[]>();
     for (const request of requests) {
+      if (handled.has(request.id)) continue;
       const key = request.normalizedExam || request.examName.toLowerCase();
       grouped.set(key, [...(grouped.get(key) || []), request]);
     }
     return [...grouped.entries()];
-  }, [requests]);
+  }, [requests, handled]);
 
   if (!groups.length) return null;
 
@@ -70,6 +74,15 @@ export default function CommunityHashtagAdmin({
       );
 
       // The requester's push is sent by the database (supabase/push_dispatch.sql).
+      // Rejected: that request is done. Created: every request for the exam is approved.
+      if (decision !== 'wait') {
+        const key = request.normalizedExam || request.examName.toLowerCase();
+        const done = decision === 'reject'
+          ? [request.id]
+          : requests.filter((r) => (r.normalizedExam || r.examName.toLowerCase()) === key).map((r) => r.id);
+        setHandled((prev) => new Set([...prev, ...done]));
+      }
+      window.dispatchEvent(new Event(ADMIN_QUEUE_EVENT));
       setConfirmReject('');
       setOpen('');
       setLabel('');

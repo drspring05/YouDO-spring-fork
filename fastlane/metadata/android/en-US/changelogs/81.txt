@@ -1,0 +1,2 @@
+v8.1.1: Private Hub fix
+- Opening the Private Hub no longer reloads it again and again while the app signs you back in.

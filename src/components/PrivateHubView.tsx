@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import {
   fetchAcceptedFriends,
@@ -80,17 +80,27 @@ export default function PrivateHubView({
 
   const needsUsernameClaim = Boolean(user && !loadingProfile && !normalizeUsername(myProfile?.username));
 
-  const refreshFriends = useCallback(async () => {
-    if (!user) return;
-    const list = await fetchAcceptedFriends(user.id);
-    setFriends(list);
+  // Supabase hands out a fresh user object on every auth event (session
+  // restore, token refresh, metadata sync), often several in a row when the
+  // app opens. Keyed on the object, the Hub reloaded once per event; keyed on
+  // the id it loads once per account. The latest object is read from a ref.
+  const userId = user?.id;
+  const userRef = useRef(user);
+  useEffect(() => {
+    userRef.current = user;
   }, [user]);
 
+  const refreshFriends = useCallback(async () => {
+    if (!userId) return;
+    const list = await fetchAcceptedFriends(userId);
+    setFriends(list);
+  }, [userId]);
+
   const refreshDmPreviews = useCallback(async () => {
-    if (!user) return;
-    setDmPreviews(await fetchDmInboxPreviews(user.id));
+    if (!userId) return;
+    setDmPreviews(await fetchDmInboxPreviews(userId));
     refreshDmInbox?.();
-  }, [user, refreshDmInbox]);
+  }, [userId, refreshDmInbox]);
 
   const localDmUnread = useMemo(() => {
     let n = 0;
@@ -112,7 +122,8 @@ export default function PrivateHubView({
   }, [friends, dmPreviews]);
 
   useEffect(() => {
-    if (!user) {
+    const user = userRef.current;
+    if (!userId || !user) {
       setLoadingProfile(false);
       setFriends([]);
       setMyProfile(null);
@@ -156,7 +167,7 @@ export default function PrivateHubView({
     })();
 
 
-    const stopInbox = subscribePrivateHubInbox(user.id, {
+    const stopInbox = subscribePrivateHubInbox(userId, {
       onFriends: () => void refreshFriends(),
       onDms: () => void refreshDmPreviews(),
     });
@@ -164,7 +175,7 @@ export default function PrivateHubView({
     return () => {
       stopInbox();
     };
-  }, [user, refreshFriends, refreshDmPreviews, refreshPendingCount]);
+  }, [userId, refreshFriends, refreshDmPreviews, refreshPendingCount]);
 
   // "Message" from a profile elsewhere (Public Board, a room) lands here.
   const openDmWith = useCallback(

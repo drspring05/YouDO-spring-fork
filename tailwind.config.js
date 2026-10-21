@@ -2,6 +2,9 @@
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   darkMode: ['class'],
+  // hover: styles only on devices that really hover, so a touched row
+  // doesn't stay highlighted after scrolling on a phone.
+  future: { hoverOnlyWhenSupported: true },
   theme: {
     extend: {
       colors: {

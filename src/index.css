@@ -770,24 +770,12 @@ html.dark .ios-segmented > button[aria-selected='true'] { background: #636366; }
   touch-action: none;
 }
 
-.briefing-slider-knob--snap {
-  transition: transform 520ms cubic-bezier(0.22, 1.25, 0.36, 1);
-}
-
 .briefing-slider-knob--drag {
   cursor: grabbing;
 }
 
-.briefing-slider-knob--done {
-  transition: transform 420ms cubic-bezier(0.22, 1.2, 0.36, 1);
-}
-
-.briefing-slider-fill--snap {
-  transition: width 520ms cubic-bezier(0.22, 1.25, 0.36, 1), opacity 320ms ease;
-}
-
 .briefing-slider-label {
-  transition: color 220ms ease, opacity 180ms ease, text-shadow 220ms ease;
+  transition: color 220ms ease;
 }
 
 .briefing-slider-sheen {
@@ -821,10 +809,6 @@ html.dark .ios-segmented > button[aria-selected='true'] { background: #636366; }
 .briefing-sheet--exit {
   animation: briefing-sheet-exit 0.45s cubic-bezier(0.33, 1, 0.68, 1) forwards;
   pointer-events: none;
-}
-
-.briefing-slider--done {
-  animation: briefing-done-pulse 420ms ease-out;
 }
 
 @keyframes briefing-sheen {
@@ -866,34 +850,15 @@ html.dark .ios-segmented > button[aria-selected='true'] { background: #636366; }
   }
 }
 
-@keyframes briefing-done-pulse {
-  0% {
-    transform: scale(1);
-  }
-  40% {
-    transform: scale(1.015);
-  }
-  100% {
-    transform: scale(1);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .briefing-slider-sheen,
   .briefing-slider-label--idle,
-  .briefing-slider--done,
   .briefing-sheet--exit {
     animation: none !important;
   }
 
   .briefing-sheet--exit {
     opacity: 0;
-  }
-
-  .briefing-slider-knob--snap,
-  .briefing-slider-knob--done,
-  .briefing-slider-fill--snap {
-    transition-duration: 160ms !important;
   }
 }
 
@@ -975,8 +940,10 @@ input[type='datetime-local'] {
   border-radius: 999px;
   box-shadow: 0 8px 22px -12px color-mix(in srgb, var(--primary) 80%, transparent);
 }
-.btn-primary:hover {
-  background: color-mix(in srgb, var(--primary) 88%, #ffffff);
+@media (hover: hover) {
+  .btn-primary:hover {
+    background: color-mix(in srgb, var(--primary) 88%, #ffffff);
+  }
 }
 
 .progress-track {
@@ -1176,26 +1143,69 @@ input[type='datetime-local'] {
 @media (prefers-reduced-motion: reduce) {
   .admin-hold-ring circle { animation: none; stroke-dashoffset: 0; opacity: 0.6; }
 }
-/* Admin items waiting: a number, top-left, so it never reads as the sync warning dot. */
+/* Settings home (new look): a Signal-style profile header and plain rows,
+   no cards; each row opens its own page. */
+.settings-home-profile { display: flex; align-items: center; gap: 14px; width: 100%; padding: 6px 16px 18px; }
+.settings-home-avatar {
+  display: grid; place-items: center; flex: none; width: 64px; height: 64px; overflow: hidden;
+  border-radius: 999px; background: color-mix(in srgb, var(--primary) 18%, var(--bg-surface));
+  color: var(--primary); font-size: 24px; font-weight: 600;
+}
+.settings-home-row { display: flex; align-items: center; gap: 16px; width: 100%; min-height: 54px; padding: 0 16px; }
+.settings-home-row:active, .settings-home-profile:active { background: var(--bg-elevated); }
+@media (hover: hover) {
+  .settings-home-row:hover, .settings-home-profile:hover { background: var(--bg-surface); }
+}
+.settings-home-group { margin-top: 6px; padding-top: 6px; border-top: 0.5px solid var(--separator); }
+.settings-home-count {
+  min-width: 20px; height: 20px; padding: 0 6px; display: grid; place-items: center; border-radius: 999px;
+  background: var(--primary); color: var(--on-primary); font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+/* Settings pages (new look): the groups are plain rows like the list, not cards. */
+.settings-content .settings-card {
+  background: transparent; border-color: transparent; box-shadow: none; border-radius: 0;
+}
+.settings-content .settings-card + .settings-card { border-top: 0.5px solid var(--separator); }
+.settings-home-pill {
+  padding: 2px 8px; border-radius: 999px; background: var(--primary-soft); color: var(--primary);
+  font-size: 11px; font-weight: 600;
+}
+
+/* Admin items waiting: a small accent count sitting on the orb's rim, top-left
+   (clear of the gear, and never mistaken for the sync warning dot top-right). */
 .admin-orb-badge {
   position: absolute;
-  left: 8px;
-  top: 8px;
-  min-width: 17px;
-  height: 17px;
-  padding: 0 4px;
+  left: 2px;
+  top: 2px;
+  z-index: 2; /* above the Liquid Glass rim (::after, z-index 1), which greyed it out */
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
   display: grid;
   place-items: center;
   border-radius: 999px;
   background: var(--primary);
   color: var(--on-primary);
-  font-size: 9.5px;
+  font-size: 10.5px;
   font-weight: 700;
   line-height: 1;
-  box-shadow: 0 0 0 2px var(--bg-surface);
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 0 0 2px var(--bg-base), 0 2px 6px color-mix(in srgb, black 25%, transparent);
   pointer-events: none;
 }
 .tab-bar-sheet { border-radius: 30px; padding: 8px; }
+
+/* Phone held sideways: little height, plenty of width. A slimmer icon-only bar
+   and a smaller title leave room for the page, which uses more of the width. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .app-frame { max-width: 44rem; }
+  .app-large-title { font-size: 26px; line-height: 32px; }
+  .tab-bar-wrap { bottom: max(0.5rem, env(safe-area-inset-bottom, 0px)); max-width: 22rem; }
+  .tab-bar { min-height: 48px; padding: 3px; }
+  .tab-bar-item { height: 42px; }
+  .tab-bar-label { display: none; }
+  .tab-bar-orb { width: 48px; height: 48px; }
+}
 
 @media (max-width: 340px) {
   .tab-bar-label { display: none; }
@@ -1314,8 +1324,10 @@ input[type='datetime-local'] {
   min-width: 44px; height: 44px; border-radius: 9px;
   color: var(--text-muted); font-size: 10px; font-variant-numeric: tabular-nums;
 }
-.board-appreciation:not(:disabled):hover,
 .board-appreciation.is-active { color: var(--primary); }
+@media (hover: hover) {
+  .board-appreciation:not(:disabled):hover { color: var(--primary); }
+}
 .board-appreciation:disabled { cursor: default; }
 .board-person-progress { grid-column: 2 / -1; display: grid; grid-template-columns: minmax(0,1fr) 106px; align-items: center; gap: 10px; margin-top: 4px; }
 .board-bar-label { text-align: right; font-size: 10px; line-height: 16px; font-variant-numeric: tabular-nums; }
@@ -1709,6 +1721,8 @@ html[data-native-shell='true'] .auth-scroll-page { height: 100%; }
   border-radius: 999px;
   color: var(--primary);
 }
+/* New look: a plain chevron, iOS-style; the 44px tap target stays. */
+.settings-header > button.settings-back { width: 36px; margin-left: -6px; }
 
 .settings-content section { margin: 0; }
 
@@ -1796,6 +1810,10 @@ html[data-native-shell='true'] .auth-scroll-page { height: 100%; }
   line-height: 16px;
 }
 
+/* Sub-rows inside a settings card read the same everywhere. */
+.settings-content .settings-card h4 { font-size: 13px; line-height: 18px; }
+.settings-content .settings-card h4 + p.text-\[10px\] { font-size: 11.5px; line-height: 16px; }
+
 .settings-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1805,8 +1823,8 @@ html[data-native-shell='true'] .auth-scroll-page { height: 100%; }
 }
 
 .settings-row > div:first-child > div:first-child,
-.settings-focus-card > div > div:first-child,
-.settings-board-card > div:first-child > div:first-child,
+.settings-card div.w-9.h-9.rounded-xl,
+.settings-card div.size-9.rounded-xl,
 .settings-data-row > div:first-child > div.w-9:first-child {
   width: 32px;
   height: 32px;

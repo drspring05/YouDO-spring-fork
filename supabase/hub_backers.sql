@@ -80,6 +80,32 @@ $$;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_backer BOOLEAN DEFAULT FALSE;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS backer_tier TEXT DEFAULT NULL;
 
+-- Members may edit their own profile, but the badge is set only by the admin
+-- review below (SECURITY DEFINER, so it runs as the owner, not as the member).
+CREATE OR REPLACE FUNCTION public.protect_profile_backer_fields()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+BEGIN
+  IF current_user IN ('anon', 'authenticated') THEN
+    IF TG_OP = 'INSERT' THEN
+      NEW.is_backer := FALSE;
+      NEW.backer_tier := NULL;
+    ELSE
+      NEW.is_backer := OLD.is_backer;
+      NEW.backer_tier := OLD.backer_tier;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_protect_profile_backer_fields ON public.profiles;
+CREATE TRIGGER trg_protect_profile_backer_fields
+  BEFORE INSERT OR UPDATE ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION public.protect_profile_backer_fields();
+
 -- RPC: Get pending backer claims (Admin only)
 CREATE OR REPLACE FUNCTION public.get_pending_hub_backers()
 RETURNS JSONB

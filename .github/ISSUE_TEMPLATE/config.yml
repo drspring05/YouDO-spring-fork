@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and discussion
+    url: https://t.me/+-manVNAPhThkMzRl
+    about: Ask questions and share feedback in the Telegram group.
+  - name: Report a security problem
+    url: https://github.com/mattedhairr/YouDO/security/advisories/new
+    about: Report vulnerabilities privately, never in a public issue.

@@ -9,16 +9,22 @@ import type { NotificationPreferences } from './notifications';
 export async function syncPushPreferences(userId: string | undefined, prefs: NotificationPreferences): Promise<void> {
   if (!userId) return;
   const hub = prefs.privateHub;
+  const row = {
+    user_id: userId,
+    private_hub: prefs.enabled && hub.enabled,
+    direct_messages: hub.directMessages,
+    requests: hub.friendRequests || hub.roomInvites,
+    room_messages: hub.roomMessages,
+    message_previews: hub.messagePreviews !== false,
+    updated_at: new Date().toISOString(),
+  };
   try {
-    await supabase.from('push_preferences').upsert({
-      user_id: userId,
-      private_hub: prefs.enabled && hub.enabled,
-      direct_messages: hub.directMessages,
-      requests: hub.friendRequests || hub.roomInvites,
-      room_messages: hub.roomMessages,
-      message_previews: hub.messagePreviews !== false,
-      updated_at: new Date().toISOString(),
+    const { error } = await supabase.from('push_preferences').upsert({
+      ...row,
+      board_updates: prefs.enabled && prefs.publicHub.enabled && prefs.publicHub.boardUpdates !== false,
     });
+    // Until supabase/board_update_push.sql adds the column, keep syncing the rest.
+    if (error?.code === 'PGRST204') await supabase.from('push_preferences').upsert(row);
   } catch {
     /* Retried on the next change or sign-in. */
   }

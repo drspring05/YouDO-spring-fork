@@ -1,6 +1,6 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import HubAuthGate from './HubAuthGate';
 import PrivateHubUsernameGate from './PrivateHubUsernameGate';
 import type { User } from '@supabase/supabase-js';
@@ -149,8 +149,14 @@ describe('PrivateHubUsernameGate', () => {
 });
 
 describe('HubView unauthenticated scrolling layout', () => {
+  // HubView pulls in most of the app; load it once, with time to spare when
+  // the whole suite runs in parallel, instead of inside each test's timeout.
+  let HubView: typeof import('./HubView').default;
+  beforeAll(async () => {
+    HubView = (await import('./HubView')).default;
+  }, 60_000);
+
   it('renders unauthenticated gate in naturally flowing w-full container without trapping overflow', async () => {
-    const HubView = (await import('./HubView')).default;
     const html = renderToStaticMarkup(
       createElement(HubView, {
         onOpenBoardSettings: vi.fn(),
@@ -166,7 +172,6 @@ describe('HubView unauthenticated scrolling layout', () => {
   }, 15000);
 
   it('asks a signed-out visitor to sign in on the Private tab', async () => {
-    const HubView = (await import('./HubView')).default;
     const html = renderToStaticMarkup(
       createElement(HubView, {
         onOpenBoardSettings: vi.fn(),

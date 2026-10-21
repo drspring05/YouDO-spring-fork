@@ -5,7 +5,8 @@
 // - full_hub_rooms_rollback.sql: removes the Private Hub.
 // - rooms_privacy_and_invites.sql: fully contained in full_hub_rooms_setup.sql.
 // - cleanup_retired_private_hub.sql: one-off removal of the old Private Hub switch and waitlist.
-// - add_pace_window_keys.sql, user_backup_snapshots.sql: patches for old projects,
+// - profiles_hardening.sql: one-off patch for older projects; its changes are in the setup files.
+// - add_pace_window_keys.sql, user_backup_snapshots.sql, dm_goal_share.sql: patches for old projects,
 //   already part of their canonical setup files.
 export const SUPABASE_SETUP_ORDER = [
   'user_backups',

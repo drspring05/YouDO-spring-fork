@@ -91,20 +91,20 @@ jobs:
           chmod +x gradlew
           ./gradlew --version
 
-      - name: Build Android Debug APK
+      - name: Build Android Release APK
         env:
           GRADLE_OPTS: "-Xmx6144m -Dorg.gradle.daemon=false -Dorg.gradle.parallel=false -Dorg.gradle.unsafe.build-cache=false"
           YOUDO_SIGNING_KEYSTORE: ${{ steps.signing.outputs.persistent == 'true' && format('{0}/youdo-release.p12', runner.temp) || '' }}
           YOUDO_SIGNING_PASSWORD: ${{ steps.signing.outputs.persistent == 'true' && secrets.YOUDO_SIGNING_PASSWORD || '' }}
         run: |
           cd android
-          ./gradlew clean assembleDebug --no-daemon --no-build-cache --stacktrace -x lint
+          ./gradlew clean assembleRelease --no-daemon --no-build-cache --stacktrace -x lint
 
       - name: Verify APK signature and checksum
         run: |
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
-          "$APKSIGNER" verify --verbose --print-certs android/app/build/outputs/apk/debug/app-debug.apk
-          sha256sum android/app/build/outputs/apk/debug/app-debug.apk
+          "$APKSIGNER" verify --verbose --print-certs android/app/build/outputs/apk/release/app-release.apk
+          sha256sum android/app/build/outputs/apk/release/app-release.apk
 
       # The signing certificate's SHA-256 is public. It is printed below so it can
       # be copied into the optional repository variable YOUDO_SIGNING_CERT_SHA256,
@@ -114,7 +114,7 @@ jobs:
           PERSISTENT_KEY: ${{ steps.signing.outputs.persistent }}
           PINNED_CERT_SHA256: ${{ vars.YOUDO_SIGNING_CERT_SHA256 }}
         run: |
-          CURRENT_APK="android/app/build/outputs/apk/debug/app-debug.apk"
+          CURRENT_APK="android/app/build/outputs/apk/release/app-release.apk"
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
           CURRENT_CERT="$("$APKSIGNER" verify --print-certs "$CURRENT_APK" | sed -n 's/.*certificate SHA-256 digest: //p' | head -n 1)"
@@ -139,5 +139,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.signing.outputs.persistent == 'true' && 'YouDO-APK' || 'YouDO-APK-throwaway-key' }}
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 30 
+          path: android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 30

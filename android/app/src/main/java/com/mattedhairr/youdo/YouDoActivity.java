@@ -23,6 +23,7 @@ public class YouDoActivity extends BridgeActivity {
         registerPlugin(YouDoAppUpdatePlugin.class);
         registerPlugin(YouDoAppIconPlugin.class);
         registerPlugin(YouDoCalendarPlugin.class);
+        registerPlugin(YouDoFocusSoundPlugin.class);
         super.onCreate(savedInstanceState);
 
         // Keep Android system bars and the software keyboard outside the WebView.

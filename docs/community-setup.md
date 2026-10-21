@@ -10,7 +10,7 @@ The upgrade adds server ordering, 30-message pages, one read cursor per member, 
 
 Unlike the legacy implementation described below, new messages no longer create a delivery row for every member. Existing delivery rows are retained, but visibility and the Chat dot use membership start time and the shared message sequence. Migration initializes existing members as caught up, without hiding their active history. Leaving and rejoining resets that membership boundary. Background fetching does not advance the read cursor; expiry, removal, and banned-author filtering also apply to unread state. Broadcasts use a separate revision cursor and clear only after the compact update event is opened in Chat. This removes message-insert fan-out, not all polling, database, or realtime costs.
 
-Run `node scripts/test-community-chat-sql.mjs` in addition to the baseline suites. Verify legacy-client reads/posts, hosted grants, account switching, cross-device message and broadcast unread state, room restrictions, and moderation after the upgrade. SQL-level checks do not establish real-device performance. Mentions, numeric counts, image storage, and Community push notifications are not enabled by this upgrade.
+Run `node tests/sql/test-community-chat-sql.mjs` in addition to the baseline suites. Verify legacy-client reads/posts, hosted grants, account switching, cross-device message and broadcast unread state, room restrictions, and moderation after the upgrade. SQL-level checks do not establish real-device performance. Mentions, numeric counts, image storage, and Community push notifications are not enabled by this upgrade.
 
 ## Exam hashtag upgrade
 
@@ -18,7 +18,7 @@ Run `node scripts/test-community-chat-sql.mjs` in addition to the baseline suite
 
 Creating a hashtag from Admin → Review closes every unresolved request with the same normalized exam name and assigns those requesters to the new hashtag. A waiting reply reaches only the matching requesters and remains private from the public room. The migration does not rewrite messages: filtered feeds derive membership from each author's current profile hashtag and retain Chat's existing 24-hour visibility, moderation, and 120-message ceiling.
 
-Run `node scripts/test-community-hashtags-sql.mjs`. Before releasing the client, verify the hosted migration with a member without a hashtag, two members requesting the same exam, an admin wait reply, grouped approval, a banned member, and direct-table/RPC permission checks. Apply the migration before the client; older clients continue using General Chat.
+Run `node tests/sql/test-community-hashtags-sql.mjs`. Before releasing the client, verify the hosted migration with a member without a hashtag, two members requesting the same exam, an admin wait reply, grouped approval, a banned member, and direct-table/RPC permission checks. Apply the migration before the client; older clients continue using General Chat.
 
 ### Configure the private staff roles
 
@@ -104,4 +104,4 @@ The admin home shows two distinct counts: **Active recently** and **Used today**
 5. Simulate a failed save. Switches must not claim success; retry should work. A failed queue fetch must not masquerade as an empty queue.
 6. Verify exact 24-hour expiry, the UTC acknowledgement reset, and cleanup retention in a non-production database. Do not alter the owner's phone clock to test them.
 
-Run `node scripts/test-community-sql.mjs` for isolated PostgreSQL/RLS tests (installation command is at the top of that script). The harness uses PGlite, simulated Supabase roles, and fixture accounts; it omits only pgcrypto installation because UUID generation is built into its PostgreSQL runtime. It runs the real setup twice and exercises rolling 24-hour expiry, replies, protected posting, both Kudos eligibility conditions, acknowledgement deduplication, cleanup, and moderation. It does not validate the hosted project's deployed grants, PostgREST cache, or network behavior; record those live integration results separately before release.
+Run `node tests/sql/test-community-sql.mjs` for isolated PostgreSQL/RLS tests (installation command is at the top of that script). The harness uses PGlite, simulated Supabase roles, and fixture accounts; it omits only pgcrypto installation because UUID generation is built into its PostgreSQL runtime. It runs the real setup twice and exercises rolling 24-hour expiry, replies, protected posting, both Kudos eligibility conditions, acknowledgement deduplication, cleanup, and moderation. It does not validate the hosted project's deployed grants, PostgREST cache, or network behavior; record those live integration results separately before release.

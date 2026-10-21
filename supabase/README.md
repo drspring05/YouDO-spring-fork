@@ -15,6 +15,9 @@ files in this directory.
 - **YouDO — Community Chat Upgrade** → `community_chat.sql`
 - **YouDO — Community Hashtags Upgrade** → `community_hashtags.sql`
 - **YouDO — Admin Hashtag Management** → `community_hashtag_admin.sql`
+- **YouDO — Hashtag Request Cleanup** → `hashtag_request_cleanup.sql` (after `community_hashtag_admin.sql`)
+- **YouDO — Board Update Push** → `board_update_push.sql` (after `push_dispatch.sql`, `hub_push.sql` and `community_chat.sql`)
+- **YouDO — Board Update Extras** → `board_update_extras.sql` (after `board_update_push.sql`)
 - **YouDO — Managed App Quotes** → `app_quotes.sql`
 - **YouDO — Account Sessions** → `account_sessions.sql`
 - **YouDO — Optimize Auth RLS Policies** → `optimize_auth_rls_policies.sql`
@@ -115,6 +118,10 @@ members who choose "All messages"; rooms default to @mentions only).
 
 Projects set up before v8.0.0: run `cleanup_retired_private_hub.sql` once. It
 removes the old Private Hub on/off switch and the waitlist; the app no longer uses them.
+
+Projects set up before 2026-10-21: run `profiles_hardening.sql` once. Signed-out
+visitors can no longer read profiles, and members can no longer set their own
+Founding Backer badge.
 
 Without the Vault secrets, triggers skip the push with a warning and the user's
 action still succeeds. `claim_push_token` moves a device to the account signed in

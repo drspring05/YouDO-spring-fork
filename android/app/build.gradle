@@ -20,8 +20,8 @@ android {
         applicationId "com.mattedhairr.youdo"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 79
-        versionName "8.0.0"
+        versionCode 82
+        versionName "8.1.2"
         // versionCode MUST increase for every release APK (install-over / sideload).
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
@@ -29,6 +29,10 @@ android {
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
+    }
+    lint {
+        // CI already skips lint (-x lint); keep assembleRelease from running it implicitly.
+        checkReleaseBuilds = false
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_21
@@ -41,6 +45,14 @@ android {
             }
         }
         release {
+            // Users get the release build: not debuggable, no WebView inspection.
+            if (System.getenv("YOUDO_SIGNING_KEYSTORE") && System.getenv("YOUDO_SIGNING_PASSWORD")) {
+                signingConfig signingConfigs.durableRelease
+            } else {
+                // Fork fallback: without the repository's signing secrets, sign with the throwaway
+                // debug key so the APK still installs (an unsigned release APK cannot be installed).
+                signingConfig signingConfigs.debug
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
