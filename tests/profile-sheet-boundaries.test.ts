@@ -128,7 +128,7 @@ function renderBoard(
 // ---------------------------------------------------------------------------
 // TEST SUITE: Empirical Adversarial Boundary & Stress Testing
 // ---------------------------------------------------------------------------
-describe('Empirical Adversarial Stress Suite: Boundary Conditions & Robustness', () => {
+describe('Profile sheet boundary conditions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });

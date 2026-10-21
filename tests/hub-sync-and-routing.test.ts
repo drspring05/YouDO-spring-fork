@@ -70,7 +70,7 @@ vi.mock('../src/lib/supabase', () => ({
   },
 }));
 
-describe('Milestone 2 Requirement R2 — Empirical Adversarial Stress Suite', () => {
+describe('Private Hub sync and routing', () => {
   let eventListeners: Map<string, Set<(e: Event) => void>>;
   let documentListeners: Map<string, Set<(e: Event) => void>>;
   let currentVisibility: DocumentVisibilityState;

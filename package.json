@@ -1,6 +1,13 @@
 {
     "name": "youdo",
     "description": "Execution & Goal Tracker",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/mattedhairr/YouDO.git"
+    },
+    "homepage": "https://youdo-app.vercel.app",
+    "bugs": "https://github.com/mattedhairr/YouDO/issues",
     "private": true,
     "version": "8.1.2",
     "type": "module",
@@ -11,7 +18,7 @@
         "preview": "vite preview",
         "typecheck": "tsc --noEmit -p tsconfig.app.json",
         "test": "vitest run",
-        "test:sql": "node scripts/test-sql.mjs",
+        "test:sql": "node tests/sql/test-sql.mjs",
         "benchmark": "vitest bench --run",
         "verify:build": "node scripts/verify-web-build.mjs",
         "icons": "node scripts/generate-icons.mjs"

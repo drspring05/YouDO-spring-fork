@@ -19,7 +19,7 @@ try{
     alter default privileges in schema public grant usage,select on sequences to authenticated;`);
   await db.exec(`create table public.user_backups(id uuid primary key default gen_random_uuid(),user_id uuid not null references auth.users(id) on delete cascade,backup_data text not null,updated_at timestamptz not null default now(),constraint user_backups_user_id_key unique(user_id));`);
   for(const file of ['user_backups','public_pace','community','app_quotes']){
-    await db.exec((await readFile(new URL(`../supabase/${file}.sql`,import.meta.url),'utf8')).replace('create extension if not exists pgcrypto;',''));
+    await db.exec((await readFile(new URL(`../../supabase/${file}.sql`,import.meta.url),'utf8')).replace('create extension if not exists pgcrypto;',''));
   }
   await db.query('insert into auth.users(id,email) values($1,$2),($3,$4)',[id(1),'admin@example.com',id(2),'member@example.com']);
   await db.query('insert into public.community_admins(user_id) values($1)',[id(1)]);
@@ -38,7 +38,7 @@ try{
   const seeded=(await rows('select id from public.admin_app_quotes() order by sort_order limit 1'))[0].id;
   await rows('select public.delete_app_quote($1)',[seeded]);
   await db.exec('reset role');
-  await db.exec(await readFile(new URL('../supabase/app_quotes.sql',import.meta.url),'utf8'));
+  await db.exec(await readFile(new URL('../../supabase/app_quotes.sql',import.meta.url),'utf8'));
   await as(1);
   check((await rows('select count(*)::int n from public.admin_app_quotes()'))[0].n===19,'rerunning the migration does not restore an admin-deleted default');
   console.log(`${checks} app quote SQL checks passed.`);

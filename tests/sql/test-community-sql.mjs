@@ -1,6 +1,6 @@
 // Isolated PostgreSQL verification, no network or production credentials.
 // Installed by npm ci. Run all isolated SQL suites with npm run test:sql.
-// Run: node scripts/test-community-sql.mjs
+// Run: node tests/sql/test-community-sql.mjs
 import { PGlite } from '@electric-sql/pglite';
 import { readFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
@@ -31,10 +31,10 @@ try {
     alter default privileges in schema public grant all on tables to authenticated;
     alter default privileges in schema public grant usage, select on sequences to authenticated;
   `);
-  await db.exec(await readFile(new URL('../supabase/public_pace.sql', import.meta.url), 'utf8'));
+  await db.exec(await readFile(new URL('../../supabase/public_pace.sql', import.meta.url), 'utf8'));
   // PGlite includes gen_random_uuid in core, but does not bundle pgcrypto.
   // This is the only omitted statement; the application schema/RLS/RPCs run unchanged.
-  const sql = (await readFile(new URL('../supabase/community.sql', import.meta.url), 'utf8'))
+  const sql = (await readFile(new URL('../../supabase/community.sql', import.meta.url), 'utf8'))
     .replace('create extension if not exists pgcrypto;', '');
   await db.exec(sql);
   // Reproduce the previously installed audit constraint before upgrading it.

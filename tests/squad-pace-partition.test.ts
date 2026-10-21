@@ -11,7 +11,7 @@ import {
 import { supabase } from '../src/lib/supabase';
 import * as profilesModule from '../src/lib/profiles';
 
-describe('Adversarial Challenge: partitionSquadPaceMembers', () => {
+describe('partitionSquadPaceMembers', () => {
   it('handles massive member volume (50,000 members) without stack overflow or performance degradation', () => {
     const start = performance.now();
     const count = 50_000;

@@ -24,7 +24,7 @@ function createMockPaceRow(userId: string, todayMs: number, barHours: number = 8
   };
 }
 
-describe('Auditor Forensic Verification: Requirement R3 Live Board Complete Purge', () => {
+describe('Live Board removal', () => {
   const squadProgressBoardPath = path.resolve('src/components/squad/SquadProgressBoard.tsx');
   const squadRoomSheetPath = path.resolve('src/components/SquadRoomSheet.tsx');
 
@@ -77,7 +77,7 @@ describe('Auditor Forensic Verification: Requirement R3 Live Board Complete Purg
   });
 });
 
-describe('Auditor Forensic Verification: Mathematical Computation of Progress', () => {
+describe('Progress computation', () => {
   const anchorISO = '2026-10-09';
   const targetMs8h = 8 * 60 * 60 * 1000;
 

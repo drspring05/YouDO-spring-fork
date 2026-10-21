@@ -3,7 +3,7 @@
 import { PGlite } from '@electric-sql/pglite';
 import { readFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
-import { SUPABASE_SETUP_ORDER } from './supabase-setup-order.mjs';
+import { SUPABASE_SETUP_ORDER } from '../../scripts/supabase-setup-order.mjs';
 
 const db = new PGlite();
 const rows = async sql => (await db.query(sql)).rows;
@@ -27,7 +27,7 @@ try {
     create function net.http_post(url text, body jsonb default '{}', params jsonb default '{}', headers jsonb default '{}', timeout_milliseconds int default 5000)
       returns bigint language sql as $$select 1::bigint$$;
   `);
-  const load = async name => (await readFile(new URL(`../supabase/${name}.sql`, import.meta.url), 'utf8'))
+  const load = async name => (await readFile(new URL(`../../supabase/${name}.sql`, import.meta.url), 'utf8'))
     .replace('create extension if not exists pgcrypto;', '')
     .replace('create extension if not exists pg_net with schema extensions;', '');
   for (const pass of [1, 2]) {

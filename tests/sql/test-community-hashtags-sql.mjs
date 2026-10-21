@@ -20,10 +20,10 @@ try{
     alter default privileges in schema public grant usage,select on sequences to authenticated;`);
   await db.exec(`create table public.user_backups(id uuid primary key default gen_random_uuid(),user_id uuid not null references auth.users(id) on delete cascade,backup_data text not null,updated_at timestamptz not null default now(),constraint user_backups_user_id_key unique(user_id));`);
   for(const file of ['user_backups','public_pace','community','community_chat','community_hashtags']){
-    await db.exec((await readFile(new URL(`../supabase/${file}.sql`,import.meta.url),'utf8')).replace('create extension if not exists pgcrypto;',''));
+    await db.exec((await readFile(new URL(`../../supabase/${file}.sql`,import.meta.url),'utf8')).replace('create extension if not exists pgcrypto;',''));
   }
-  await db.exec(await readFile(new URL('../supabase/community_hashtags.sql',import.meta.url),'utf8'));
-  const adminMigration=await readFile(new URL('../supabase/community_hashtag_admin.sql',import.meta.url),'utf8');
+  await db.exec(await readFile(new URL('../../supabase/community_hashtags.sql',import.meta.url),'utf8'));
+  const adminMigration=await readFile(new URL('../../supabase/community_hashtag_admin.sql',import.meta.url),'utf8');
   await db.exec(adminMigration);await db.exec(adminMigration);
   check(true,'hashtag migrations are rerunnable');
   for(let n=1;n<=6;n++){

@@ -39,7 +39,7 @@ try {
     grant usage on schema public, auth to authenticated, anon;
     grant execute on function auth.uid(), auth.jwt() to authenticated, anon;
   `);
-  const sql = await readFile(new URL('../supabase/account_sessions.sql', import.meta.url), 'utf8');
+  const sql = await readFile(new URL('../../supabase/account_sessions.sql', import.meta.url), 'utf8');
   await db.exec(sql);
   await db.exec(sql);
   check(true, 'migration is safe to rerun');

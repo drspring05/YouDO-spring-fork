@@ -1,0 +1,22 @@
+name: Feature idea
+description: Suggest something that would help your preparation.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe the situation and where YouDO slows you down today.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help?
+      description: Your idea for how it could work.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: How do you handle it now?
