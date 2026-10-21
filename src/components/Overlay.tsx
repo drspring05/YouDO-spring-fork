@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { Capacitor } from '@capacitor/core';
 import { registerOverlayCloser } from '../lib/overlayNavigation';
 
 type Align = 'center' | 'bottom' | 'full';
@@ -46,13 +47,17 @@ export default function Overlay({
     layer.style.zIndex = String(1000 + layers.length);
     document.body.style.overflow = 'hidden';
     if (!layer.contains(document.activeElement)) layer.focus({ preventScroll: true });
+    // On the Android app the system already resizes the window for the keyboard, and the layer is
+    // fixed to that window. Sizing it again from visualViewport left the sheet hidden behind the
+    // keyboard (black screen), so this only runs in a normal browser.
+    const trackViewport = !Capacitor.isNativePlatform() && Boolean(window.visualViewport);
     const onViewport = () => {
       if (window.visualViewport) {
         layer.style.height = `${window.visualViewport.height}px`;
         layer.style.top = `${window.visualViewport.offsetTop}px`;
       }
     };
-    if (window.visualViewport) {
+    if (trackViewport && window.visualViewport) {
       onViewport();
       window.visualViewport.addEventListener('resize', onViewport);
       window.visualViewport.addEventListener('scroll', onViewport);
