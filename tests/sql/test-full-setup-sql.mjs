@@ -74,8 +74,8 @@ try {
   await db.exec(`update public.profiles set is_backer = true, backer_tier = 'founding' where id = '${member}'`);
   const reviewed = (await rows(`select is_backer from public.profiles where id = '${member}'`))[0].is_backer;
   assert.equal(reviewed, true, 'the admin review (running as the owner) can still grant the badge');
-  const cleanup = (await rows(`select proconfig from pg_proc where proname = 'cleanup_stale_push_tokens'`))[0].proconfig;
-  assert.ok(cleanup?.includes('search_path=public'), 'cleanup_stale_push_tokens has a fixed search_path');
+  const cleanup = await rows(`select 1 from pg_proc where proname = 'cleanup_stale_push_tokens'`);
+  assert.equal(cleanup.length, 0, 'the unused age-based push token cleanup is gone');
   console.log(`Full setup: ${SUPABASE_SETUP_ORDER.length} scripts apply in order to an empty project and rerun cleanly.`);
 } finally {
   await db.close();

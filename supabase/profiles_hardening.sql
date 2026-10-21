@@ -9,8 +9,8 @@
 --    The app only reads profiles while signed in.
 -- 2. Members can no longer set their own Founding Backer badge. Only the admin
 --    review (review_hub_backer, SECURITY DEFINER) can change it.
--- 3. cleanup_stale_push_tokens, where it exists, gets a fixed search_path like
---    every other SECURITY DEFINER function.
+-- 3. The unused cleanup_stale_push_tokens function is dropped where it exists
+--    (see user_push_tokens.sql for why).
 --
 -- Applied to production (iyrnywfaxakvjkmddmqv) on 2026-10-21.
 --
@@ -49,12 +49,6 @@ create trigger trg_protect_profile_backer_fields
   before insert or update on public.profiles
   for each row execute function public.protect_profile_backer_fields();
 
--- Some projects never created this housekeeping function; skip it there.
-do $$
-begin
-  if to_regprocedure('public.cleanup_stale_push_tokens()') is not null then
-    alter function public.cleanup_stale_push_tokens() set search_path = public;
-  end if;
-end $$;
+drop function if exists public.cleanup_stale_push_tokens();
 
 commit;
