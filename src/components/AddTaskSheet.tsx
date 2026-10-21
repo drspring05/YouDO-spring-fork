@@ -70,26 +70,30 @@ export default function AddTaskSheet({ open, onClose, onAdd, initialDate }: Prop
   const calendarSupported = supportsDeviceCalendar();
 
   useEffect(() => {
-    if (open) {
-      const times = defaultTimes();
-      setTitle('');
-      setDescription('');
-      setPriority('medium');
-      const first = initialDate ?? todayISO();
-      setTargetDate(first);
-      setEndDate('');
-      setCustomDate(first !== todayISO() && first !== tomorrowISO());
-      setColor(null);
-      setDeadline('');
-      setSteps(['']);
-      setAllDay(true);
-      setStartTime(times.startTime);
-      setEndTime(times.endTime);
-      setAddToCalendar(true);
-      setCalendarError('');
-      setBusy(false);
-      setTimeout(() => titleRef.current?.focus(), 150);
-    }
+    if (!open) return undefined;
+    const times = defaultTimes();
+    setTitle('');
+    setDescription('');
+    setPriority('medium');
+    const first = initialDate ?? todayISO();
+    setTargetDate(first);
+    setEndDate('');
+    setCustomDate(first !== todayISO() && first !== tomorrowISO());
+    setColor(null);
+    setDeadline('');
+    setSteps(['']);
+    setAllDay(true);
+    setStartTime(times.startTime);
+    setEndTime(times.endTime);
+    setAddToCalendar(true);
+    setCalendarError('');
+    setBusy(false);
+    // Wait for the sheet's slide-up animation (0.5s) to finish before the keyboard opens. Opening it
+    // mid-animation resized the screen while the tall sheet was still moving, which could leave the
+    // screen black with only the keyboard visible. preventScroll stops the browser scrolling the
+    // animating sheet to reveal the field.
+    const focusTimer = window.setTimeout(() => titleRef.current?.focus({ preventScroll: true }), 600);
+    return () => window.clearTimeout(focusTimer);
   }, [open, initialDate]);
 
   // If calendar access is already granted, load the calendars now so the picker is ready.
