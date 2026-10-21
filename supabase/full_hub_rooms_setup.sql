@@ -32,7 +32,8 @@ begin
 end $$;
 
 grant select, insert, update on table public.profiles to authenticated;
-grant select on table public.profiles to anon;
+-- Profiles are for signed-in members only; the app never reads them signed out.
+revoke all on table public.profiles from anon;
 
 -- ============================================================================
 -- 2. Friendships Table
@@ -200,7 +201,8 @@ grant execute on function public.is_squad_member_or_invited(uuid, uuid) to authe
 
 -- Profiles Policies
 drop policy if exists "Profiles are viewable by everyone" on public.profiles;
-create policy "Profiles are viewable by everyone" on public.profiles for select using (true);
+drop policy if exists "Profiles are viewable by signed-in users" on public.profiles;
+create policy "Profiles are viewable by signed-in users" on public.profiles for select to authenticated using (true);
 
 drop policy if exists "Users can update own profile" on public.profiles;
 create policy "Users can update own profile" on public.profiles for update using (auth.uid() = id);

@@ -119,6 +119,10 @@ members who choose "All messages"; rooms default to @mentions only).
 Projects set up before v8.0.0: run `cleanup_retired_private_hub.sql` once. It
 removes the old Private Hub on/off switch and the waitlist; the app no longer uses them.
 
+Projects set up before 2026-10-21: run `profiles_hardening.sql` once. Signed-out
+visitors can no longer read profiles, and members can no longer set their own
+Founding Backer badge.
+
 Without the Vault secrets, triggers skip the push with a warning and the user's
 action still succeeds. `claim_push_token` moves a device to the account signed in
 on it, so an earlier account's notifications stop arriving after a switch.
