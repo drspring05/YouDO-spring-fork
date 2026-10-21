@@ -84,7 +84,7 @@ export function focusSoundAction(state: {
  * Brown (deep, like a far waterfall) or pink (softer rain-like hiss) noise. The
  * last `blend` samples are mixed into the first ones so the loop has no seam.
  */
-export function generateNoise(kind: 'brown' | 'pink', length: number, random: () => number = Math.random): Float32Array {
+export function generateNoise(kind: 'brown' | 'pink', length: number, random: () => number = Math.random) {
   const blend = Math.min(Math.floor(length / 8), 4096);
   const raw = new Float32Array(length + blend);
   if (kind === 'brown') {
