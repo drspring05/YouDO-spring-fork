@@ -48,6 +48,10 @@ android {
             // Users get the release build: not debuggable, no WebView inspection.
             if (System.getenv("YOUDO_SIGNING_KEYSTORE") && System.getenv("YOUDO_SIGNING_PASSWORD")) {
                 signingConfig signingConfigs.durableRelease
+            } else {
+                // Fork fallback: without the repository's signing secrets, sign with the throwaway
+                // debug key so the APK still installs (an unsigned release APK cannot be installed).
+                signingConfig signingConfigs.debug
             }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
