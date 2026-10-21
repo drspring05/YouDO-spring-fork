@@ -55,6 +55,27 @@ try {
   assert.ok(board.includes('public.profiles'), 'the Board uses the Private Hub display name (hub setup ran after board_evidence)');
   const prune = (await rows(`select pg_get_functiondef('public.prune_community_history()'::regprocedure) d`))[0].d;
   assert.ok(prune.includes('community_messages') && prune.includes('direct_messages'), 'pruning covers community and private messages');
+  // The one-off patch for older projects must also apply on top of a current setup.
+  await db.exec(await load('profiles_hardening'));
+  const anonProfiles = (await rows(`select has_table_privilege('anon', 'public.profiles', 'select') ok`))[0].ok;
+  assert.equal(anonProfiles, false, 'signed-out visitors cannot read profiles');
+  const member = '00000000-0000-4000-8000-0000000000b1';
+  await db.exec(`insert into auth.users(id, email) values ('${member}', 'member@example.test')`);
+  await db.exec(`
+    set role authenticated;
+    select set_config('request.jwt.claim.sub', '${member}', false);
+    insert into public.profiles(id, username, display_name, is_backer, backer_tier)
+      values ('${member}', 'member', 'Member', true, 'founding');
+    update public.profiles set is_backer = true, backer_tier = 'founding', bio = 'hello' where id = '${member}';
+    reset role;
+  `);
+  const own = (await rows(`select is_backer, backer_tier, bio from public.profiles where id = '${member}'`))[0];
+  assert.deepEqual(own, { is_backer: false, backer_tier: null, bio: 'hello' }, 'members edit their profile but not their backer badge');
+  await db.exec(`update public.profiles set is_backer = true, backer_tier = 'founding' where id = '${member}'`);
+  const reviewed = (await rows(`select is_backer from public.profiles where id = '${member}'`))[0].is_backer;
+  assert.equal(reviewed, true, 'the admin review (running as the owner) can still grant the badge');
+  const cleanup = (await rows(`select proconfig from pg_proc where proname = 'cleanup_stale_push_tokens'`))[0].proconfig;
+  assert.ok(cleanup?.includes('search_path=public'), 'cleanup_stale_push_tokens has a fixed search_path');
   console.log(`Full setup: ${SUPABASE_SETUP_ORDER.length} scripts apply in order to an empty project and rerun cleanly.`);
 } finally {
   await db.close();

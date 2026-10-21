@@ -30,6 +30,10 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    lint {
+        // CI already skips lint (-x lint); keep assembleRelease from running it implicitly.
+        checkReleaseBuilds = false
+    }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_21
         targetCompatibility JavaVersion.VERSION_21
@@ -41,6 +45,10 @@ android {
             }
         }
         release {
+            // Users get the release build: not debuggable, no WebView inspection.
+            if (System.getenv("YOUDO_SIGNING_KEYSTORE") && System.getenv("YOUDO_SIGNING_PASSWORD")) {
+                signingConfig signingConfigs.durableRelease
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

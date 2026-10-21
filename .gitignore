@@ -21,6 +21,13 @@ tmp
 scratch
 *firebase-adminsdk*.json
 *service-account*.json
+
+# Signing keys and certificates (the release key lives only in GitHub secrets)
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.pem
 supabase/.temp/
 
 # Logs

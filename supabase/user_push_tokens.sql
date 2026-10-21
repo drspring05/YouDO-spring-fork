@@ -34,6 +34,7 @@ create or replace function public.cleanup_stale_push_tokens()
 returns void
 language sql
 security definer
+set search_path = public
 as $$
   delete from public.user_push_tokens
   where updated_at < now() - interval '90 days';

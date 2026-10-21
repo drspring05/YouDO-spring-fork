@@ -74,7 +74,7 @@ All five locations must be identical before tagging:
 
 ### Phase 5: GitHub Release & APK Publishing
 - [ ] Download `YouDO-APK` artifact from the successful GitHub Actions run.
-- [ ] Extract `app-debug.apk` and rename to `YouDO.apk`.
+- [ ] Extract `app-release.apk` and rename to `YouDO.apk`.
 - [ ] Open `https://github.com/mattedhairr/YouDO/releases/new?tag=vX.Y.Z`.
 - [ ] Set title: `YouDO vX.Y.Z`.
 - [ ] Copy the exact markdown block for `[vX.Y.Z]` from `CHANGELOG.md` into the release notes.
