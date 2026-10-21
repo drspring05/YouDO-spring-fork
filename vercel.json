@@ -1,4 +1,7 @@
 {
+  "git": {
+    "deploymentEnabled": { "dependabot/**": false }
+  },
   "headers": [
     {
       "source": "/(.*)",
