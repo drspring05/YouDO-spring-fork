@@ -27,6 +27,7 @@ import { CALENDAR_VIEW_OPTIONS, readCalendarDefaultView, type CalendarViewMode }
 import { formatDuration } from '../lib/format';
 import { buildSessionSummary, isCountableSession, sessionOverlapsLocalDate } from '../lib/sessionStats';
 import { taskOccurrenceOnDate, taskTimelineDates } from '../lib/taskTimeline';
+import { DIAGNOSTIC_NO_FOCUS_REFRESH } from '../lib/diagnostics';
 
 interface Props {
   tasks: Task[];
@@ -174,7 +175,7 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
   useEffect(() => {
     const reload = () => setGoalLinks(readGoalLinks());
     window.addEventListener(CALENDAR_CHANGED_EVENT, reload);
-    window.addEventListener('focus', reload);
+    if (!DIAGNOSTIC_NO_FOCUS_REFRESH) window.addEventListener('focus', reload);
     return () => {
       window.removeEventListener(CALENDAR_CHANGED_EVENT, reload);
       window.removeEventListener('focus', reload);

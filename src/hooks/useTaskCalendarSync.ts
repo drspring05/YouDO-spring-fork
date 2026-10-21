@@ -28,6 +28,7 @@ import {
   writeSnapshots,
 } from '../lib/taskCalendarSync';
 import type { Task } from '../types';
+import { DIAGNOSTIC_NO_FOCUS_REFRESH } from '../lib/diagnostics';
 
 /** Fired after YouDo changes the phone calendar, so open calendar views reload right away. */
 export const CALENDAR_CHANGED_EVENT = 'youdo-calendar-changed';
@@ -259,8 +260,10 @@ export function useTaskCalendarSync(
     const refresh = () => {
       if (document.visibilityState === 'visible') void runSync();
     };
-    window.addEventListener('focus', refresh);
-    document.addEventListener('visibilitychange', refresh);
+    if (!DIAGNOSTIC_NO_FOCUS_REFRESH) {
+      window.addEventListener('focus', refresh);
+      document.addEventListener('visibilitychange', refresh);
+    }
     return () => {
       window.clearTimeout(timer);
       window.removeEventListener('focus', refresh);

@@ -19,6 +19,7 @@ import {
 import { chooseTaskCalendar, readTaskCalendarId } from '../lib/taskSchedule';
 import { notifyCalendarChanged } from './useTaskCalendarSync';
 import type { GoalNode } from '../types';
+import { DIAGNOSTIC_NO_FOCUS_REFRESH } from '../lib/diagnostics';
 
 const LOOKUP_CHUNK = 200;
 const DEBOUNCE_MS = 900;
@@ -71,8 +72,10 @@ export function useGoalCalendarSync(goals: GoalNode[]) {
       if (document.visibilityState === 'visible') void runSync();
     };
     const prefs = () => void runSync();
-    window.addEventListener('focus', refresh);
-    document.addEventListener('visibilitychange', refresh);
+    if (!DIAGNOSTIC_NO_FOCUS_REFRESH) {
+      window.addEventListener('focus', refresh);
+      document.addEventListener('visibilitychange', refresh);
+    }
     window.addEventListener(CALENDAR_PREFS_CHANGED_EVENT, prefs);
     return () => {
       window.clearTimeout(timer);
