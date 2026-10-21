@@ -7,8 +7,9 @@ const html = readFileSync(new URL('index.html', root), 'utf8');
 const worker = readFileSync(new URL('sw.js', root), 'utf8');
 const entry = html.match(/<script[^>]+src="\/([^"\s]+\.js)"/)[1];
 const source = readFileSync(new URL(entry, root));
-assert.ok(source.length < 720_000, `Initial JS exceeds 720 kB: ${source.length}`);
-assert.ok(gzipSync(source).length < 210_000, 'Initial compressed JS exceeds 210 kB');
+// Raised from 720 kB / 210 kB on 2026-10-21: supabase-js 2.57 -> 2.118 adds about 100 kB (25 kB gzip).
+assert.ok(source.length < 820_000, `Initial JS exceeds 820 kB: ${source.length}`);
+assert.ok(gzipSync(source).length < 235_000, 'Initial compressed JS exceeds 235 kB');
 // A missing lazy chunk in the precache would break an unvisited offline view.
 for (const name of readdirSync(new URL('assets/', root))) {
   if (/\.(js|css)$/.test(name)) assert.ok(worker.includes(`assets/${name}`), `Not precached: ${name}`);
