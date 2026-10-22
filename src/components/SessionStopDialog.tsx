@@ -20,7 +20,8 @@ export function SessionStopDialog({ open, task, onConfirm, onDiscard, onCancel, 
 
   if (!open) return null;
 
-  const hasSteps = task.steps.length > 0;
+  // Steps are gone from the app: stopping a sitting only asks whether the task is done.
+  const hasSteps = false;
   const resultingStepCount = new Set([
     ...Array.from({ length: task.progress }, (_, index) => index),
     ...selectedSteps,

@@ -49,9 +49,10 @@ export default function PlannedTaskCard({
   onDelete,
   onJumpToGoal,
 }: Props) {
-  const hasSteps = task.steps.length > 0;
-  const total = hasSteps ? task.steps.length : 1;
-  const doneCount = hasSteps ? stepStates.filter(Boolean).length : Math.min(task.progress, 1);
+  // Steps are gone from the app; a task with old steps still counts as one task (done when all its steps are).
+  const hasSteps = false;
+  const total = 1;
+  const doneCount = task.steps.length > 0 ? (stepStates.length > 0 && stepStates.every(Boolean) ? 1 : 0) : Math.min(task.progress, 1);
   const complete = doneCount >= total;
   const [confirming, setConfirming] = useState(false);
 

@@ -696,7 +696,7 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
                           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ml-[1px] ${resolved ? 'bg-secondary/30' : 'bg-primary'}`} aria-hidden />
                           <p className={`min-w-0 flex-1 text-[13px] leading-snug truncate ${resolved ? 'line-through text-content-muted' : 'text-content-primary'}`}>{task.title}</p>
                           <span className="text-[11px] font-bold tabular-nums text-content-secondary shrink-0">
-                            {task.progress}/{task.steps.length > 0 ? task.steps.length : 1}
+                            {isTaskComplete(task) ? '✓' : ''}
                           </span>
                         </li>
                       );
@@ -1014,28 +1014,6 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
                                 {summary.wallClockRange}
                               </span>
                             </div>
-
-                            {summary.hasSteps && (
-                              <div>
-                                <p className="text-[9px] font-bold uppercase tracking-wider text-content-muted mb-1.5">
-                                  Steps this session
-                                </p>
-                                {summary.stepNames.length > 0 ? (
-                                  <div className="flex flex-wrap gap-1.5">
-                                    {summary.stepNames.map((step) => (
-                                      <span
-                                        key={step}
-                                        className="text-[10px] px-2 py-0.5 rounded-md font-medium bg-secondary/10 text-secondary border border-secondary/20"
-                                      >
-                                        ✓ {step}
-                                      </span>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <p className="text-[10.5px] text-content-muted italic">None marked</p>
-                                )}
-                              </div>
-                            )}
                           </div>
                         )}
                       </div>

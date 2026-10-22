@@ -145,7 +145,7 @@ function nodeMeta(node: GoalNode): { icon: typeof Target; tint: string; label: s
 }
 
 export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddChild, onEditNode, onPushNode, onUnplan, onCopy, onSelectionChange, clearSelectionRef, onNavigateToPath, onOpenStudio, onOpenDescription, onJumpToNode }: Props) {
-  const { goals, tasks, toggleGoalStep, togglePin, reorderGoalNodes, toggleNodeCompletion, updateGoalNode } = useStore();
+  const { goals, tasks, togglePin, reorderGoalNodes, toggleNodeCompletion, updateGoalNode } = useStore();
   const [{ legacyStyle }] = useUiPrefs();
   const { activeSession } = useSessionStore();
   const runningTask = tasks.find((task) => task.id === activeSession?.taskId);
@@ -168,7 +168,7 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
   // the next tap.
   const suppressClickUntilRef = useRef(0);
 
-  const stepsOf = (node: GoalNode) => node.steps?.map((label, i) => ({ label, done: Boolean(node.stepDone?.[i]) }));
+  const stepsOf = (_node: GoalNode): { label: string; done: boolean }[] | undefined => undefined;
   /** The "…" on a cut title opens the full name, description and steps. */
   const showFullText = onOpenDescription
     ? (node: GoalNode) => () => onOpenDescription(node.title, node.description ?? '', stepsOf(node))
@@ -588,9 +588,7 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
               <div className="bg-surface rounded-[12px] border border-subtle overflow-hidden divide-y divide-subtle">
                 {searchHits.map((hit) => {
                   const Icon = hit.role === 'Goal' ? Target : hit.role === 'Branch' ? Layers : CircleDot;
-                  const hitPct = hit.node.children.length === 0 && hit.node.steps?.length
-                    ? Math.round(((hit.node.stepDone ?? []).filter(Boolean).length / hit.node.steps.length) * 100)
-                    : rollupPct(hit.node);
+                  const hitPct = rollupPct(hit.node);
                   const place = hit.ancestors.map((a) => a.title).join(' › ');
                   return (
                     <button
@@ -744,7 +742,7 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
               {countCompletedDirectChildren(current)} of {countDirectChildren(current)}{' '}
               {current.children.length > 0
                 ? current.children.every(isGoalEndpoint) ? 'tasks' : 'branches'
-                : (current.steps?.length ?? 0) > 0 ? 'steps' : 'task'} complete
+                : 'task'} complete
             </span>
             {(current.startDate || current.endDate) && (
               <span className="inline-flex items-center gap-1 tabular-nums text-content-muted">
@@ -834,9 +832,8 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
           const canDrill = child.kind === 'goal' || child.children.length > 0 || !hasGoalExecutionState(child);
           const isEndpoint = child.children.length === 0;
           const isWorkItem = isEndpoint && child.kind !== 'goal';
-          const hasSteps = !!child.steps && child.steps.length > 0;
-          const stepDone = child.stepDone ?? [];
-          const pct = isEndpoint && hasSteps ? Math.round((stepDone.filter(Boolean).length / child.steps!.length) * 100) : rollupPct(child);
+          // Steps are gone from the app; old step data stays stored but is not shown.
+          const pct = rollupPct(child);
           const isSelected = selected.has(child.id);
           const isDone = child.completed || pct === 100;
           const linkedTask = child.todayTaskId ? tasks.find((t) => t.id === child.todayTaskId) : null;
@@ -1068,29 +1065,6 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                   </p>
                 )}
 
-                {isWorkItem && hasSteps && (
-                  <div className="goal-row-line">
-                    <div className="goal-row-steps">
-                      {child.steps!.map((s, i) => (
-                        <button
-                          key={i}
-                          type="button"
-                          disabled={selected.size > 0 || locked}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleGoalStep(child.id, i);
-                          }}
-                          className="goal-row-step"
-                          data-done={Boolean(stepDone[i])}
-                          title={locked ? 'Save progress from the running sitting first' : s}
-                        >
-                          {s}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
                 {selected.size === 0 ? (
                   <div className="goal-row-footer">
                     <div className="goal-row-footer-main">
@@ -1112,7 +1086,6 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                           ) : isBacklogged ? (
                             <span data-tone="backlog">Backlog · </span>
                           ) : null}
-                          {hasSteps ? `${stepDone.filter(Boolean).length} of ${child.steps!.length} steps` : 'No steps'}
                         </span>
                       )}
                     </div>

@@ -21,7 +21,8 @@ interface Props {
 
 export default function StepSliceSheet({ open, nodes, node, onClose, onConfirm }: Props) {
   const { updateGoalNode } = useStore();
-  const targetNodes = nodes && nodes.length > 0 ? nodes : node ? [node] : [];
+  // Steps are gone from the app: every task is planned whole, whatever steps old data may still hold.
+  const targetNodes = (nodes && nodes.length > 0 ? nodes : node ? [node] : []).map((n) => ({ ...n, steps: [] as string[], stepDone: [] as boolean[] }));
   // Map of nodeId -> Set of selected step indices
   const [selectedMap, setSelectedMap] = useState<Record<string, Set<number>>>({});
   const [date, setDate] = useState(todayISO());
@@ -151,7 +152,7 @@ export default function StepSliceSheet({ open, nodes, node, onClose, onConfirm }
               {isMulti ? `Plan ${targetNodes.length} Tasks` : 'Plan Task'}
             </h3>
             <p className="text-[11px] font-medium text-content-muted leading-tight mt-0.5">
-              Choose steps for this date
+              Choose the dates for this task
             </p>
           </div>
         </div>
@@ -236,7 +237,6 @@ export default function StepSliceSheet({ open, nodes, node, onClose, onConfirm }
                 <div key={n.id} className="bg-surface border border-subtle rounded-2xl p-3.5 shadow-sm">
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-[13px] font-bold text-content-primary truncate">{n.title}</span>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-content-muted shrink-0">No steps</span>
                   </div>
                 </div>
               );

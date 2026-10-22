@@ -109,7 +109,8 @@ function ModernTaskCard({
   const total = task.steps.length || 1;
   const fillPct = (task.progress / total) * 100;
   const complete = isTaskComplete(task);
-  const hasSteps = task.steps.length > 0;
+  // Steps are gone from the app, so the steps card and step ring never show.
+  const hasSteps = false;
   const originBadgeNodes = originNodes?.slice(0, Math.min(2, originNodes.length)) ?? [];
   const originContextNodes = originNodes?.slice(originBadgeNodes.length) ?? [];
 

@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { TITLE_MAX, isTitleTooLong } from '../lib/titleLimit';
 import TitleCounter from './TitleCounter';
-import { ListPlus, Trash2 } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 import type { GoalNode } from '../types';
 import { uid, useStore } from '../store';
 import Overlay from './Overlay';
-import StepListEditor, { MAX_STEPS } from './StepListEditor';
 import EventColorPicker from './EventColorPicker';
 import Toggle from './Toggle';
 import { branchIdsInside, goalShowsAsEvent, hasEventAncestor } from '../lib/goalCalendar';
@@ -29,8 +28,6 @@ export default function AddGoalSheet({
   const [description, setDescription] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [steps, setSteps] = useState<string[]>(['']);
-  const [showChecklist, setShowChecklist] = useState(false);
   const [color, setColor] = useState<string | null>(null);
   const [showAsEvent, setShowAsEvent] = useState(false);
   const [inside, setInside] = useState<'none' | 'next' | 'all'>('none');
@@ -43,7 +40,6 @@ export default function AddGoalSheet({
   const hasChildren = Boolean(editing && editing.children.length > 0);
   const aboveItem = editing ? findPathToNode(goals, editing.id).slice(0, -1) : parentId ? findPathToNode(goals, parentId) : [];
   const showHint = canToggleEvent && !showAsEvent && !hasChildren && Boolean(startDate) && !hasEventAncestor(aboveItem);
-  const isWorkItem = Boolean(parentId && !editing) || Boolean(editing && editing.kind !== 'goal' && editing.children.length === 0);
 
   useEffect(() => {
     if (!open) return;
@@ -52,16 +48,12 @@ export default function AddGoalSheet({
       setDescription(editing.description ?? '');
       setStartDate(editing.startDate ?? '');
       setEndDate(editing.endDate ?? '');
-      setSteps(editing.steps && editing.steps.length ? [...editing.steps] : ['']);
-      setShowChecklist(Boolean(editing.steps?.length));
       setShowAsEvent(goalShowsAsEvent(editing));
     } else {
       setTitle('');
       setDescription('');
       setStartDate('');
       setEndDate('');
-      setSteps(['']);
-      setShowChecklist(false);
       setShowAsEvent(false);
     }
     setInside('none');
@@ -76,10 +68,7 @@ export default function AddGoalSheet({
 
   const submit = () => {
     if (!title.trim() || isTitleTooLong(title)) return;
-    const cleanSteps = steps.map((s) => s.trim()).filter(Boolean).slice(0, MAX_STEPS);
     if (isEditing && editing) {
-      const prevStepDone = editing.stepDone ?? [];
-      const newStepDone = cleanSteps.map((_, i) => prevStepDone[i] ?? false);
       onUpdateNode(editing.id, (n) => ({
         ...n,
         title: title.trim(),
@@ -87,9 +76,6 @@ export default function AddGoalSheet({
         startDate: startDate || undefined,
         endDate: endDate || undefined,
         ...(canToggleEvent ? { showAsEvent } : {}),
-        steps: isWorkItem ? cleanSteps : n.steps,
-        stepDone: isWorkItem ? newStepDone : n.stepDone,
-        completed: isWorkItem && cleanSteps.length > 0 ? newStepDone.every(Boolean) : n.completed,
       }));
       if (hasChildren && showAsEvent && inside !== 'none') {
         for (const id of branchIdsInside(editing, inside)) onUpdateNode(id, (n) => ({ ...n, showAsEvent: true }));
@@ -104,8 +90,6 @@ export default function AddGoalSheet({
         endDate: endDate || undefined,
         ...(parentId ? { showAsEvent } : {}),
         ...(parentId && color ? { color } : {}),
-        steps: parentId ? cleanSteps : undefined,
-        stepDone: parentId ? cleanSteps.map(() => false) : undefined,
         completed: false,
         createdAt: Date.now(),
         children: [],
@@ -213,36 +197,6 @@ export default function AddGoalSheet({
 
           {/* Color for a new item on the calendar */}
           {!isEditing && parentId && <EventColorPicker value={color} onChange={setColor} label="Calendar color" />}
-
-          {/* Checklist */}
-          {isWorkItem && (
-            <div className="bg-surface border border-subtle rounded-2xl overflow-hidden shadow-sm">
-              {showChecklist ? (
-                <div className="p-3">
-                  <div className="mb-2 flex items-center justify-between gap-3 px-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-content-muted">Optional checklist</span>
-                    {(editing?.steps?.length ?? 0) === 0 && (
-                      <button type="button" onClick={() => { setShowChecklist(false); setSteps(['']); }} className="text-[10px] font-bold uppercase text-content-secondary hover:text-content-primary">
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                  <StepListEditor label="Steps" steps={steps} onChange={setSteps} />
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowChecklist(true)}
-                  className="w-full flex items-center justify-between px-4 h-12 text-left hover:bg-elevated transition-colors"
-                >
-                  <div className="flex items-center gap-2">
-                    <ListPlus size={16} className="text-primary" />
-                    <span className="text-[13px] font-semibold text-content-primary">Add checklist</span>
-                  </div>
-                </button>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Footer Actions */}

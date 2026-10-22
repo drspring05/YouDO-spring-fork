@@ -5,7 +5,6 @@ import { Calendar } from 'lucide-react';
 import type { Priority, Task } from '../types';
 import { todayISO, tomorrowISO } from '../store';
 import Overlay from './Overlay';
-import StepListEditor, { MAX_STEPS } from './StepListEditor';
 import Toggle from './Toggle';
 import EventColorPicker from './EventColorPicker';
 import {
@@ -57,7 +56,6 @@ export default function AddTaskSheet({ open, onClose, onAdd, initialDate }: Prop
   const [customDate, setCustomDate] = useState(false);
   const [color, setColor] = useState<string | null>(null);
   const [deadline, setDeadline] = useState('');
-  const [steps, setSteps] = useState<string[]>(['']);
   const [allDay, setAllDay] = useState(true);
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('10:00');
@@ -81,7 +79,6 @@ export default function AddTaskSheet({ open, onClose, onAdd, initialDate }: Prop
       setCustomDate(first !== todayISO() && first !== tomorrowISO());
       setColor(null);
       setDeadline('');
-      setSteps(['']);
       setAllDay(true);
       setStartTime(times.startTime);
       setEndTime(times.endTime);
@@ -167,7 +164,6 @@ export default function AddTaskSheet({ open, onClose, onAdd, initialDate }: Prop
       }
       setBusy(false);
     }
-    const cleanSteps = steps.map((s) => s.trim()).filter(Boolean).slice(0, MAX_STEPS);
     onAdd({
       id: uid(),
       title: title.trim(),
@@ -175,7 +171,7 @@ export default function AddTaskSheet({ open, onClose, onAdd, initialDate }: Prop
       priority,
       targetDate: date,
       deadline: deadline ? new Date(deadline).toISOString() : null,
-      steps: cleanSteps,
+      steps: [],
       progress: 0,
       createdAt: Date.now(),
       order: Date.now(),
@@ -412,11 +408,6 @@ export default function AddTaskSheet({ open, onClose, onAdd, initialDate }: Prop
                 className="w-full h-10 px-3 bg-elevated border border-subtle rounded-xl text-[13px] font-medium text-content-primary outline-none focus:border-primary transition-colors"
               />
             </div>
-          </div>
-
-          {/* Steps */}
-          <div className="bg-surface border border-subtle rounded-2xl p-3 shadow-sm">
-            <StepListEditor label="Sub-steps" steps={steps} onChange={setSteps} />
           </div>
         </div>
 
