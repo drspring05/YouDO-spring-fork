@@ -168,10 +168,9 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
   // the next tap.
   const suppressClickUntilRef = useRef(0);
 
-  const stepsOf = (_node: GoalNode): { label: string; done: boolean }[] | undefined => undefined;
   /** The "…" on a cut title opens the full name, description and steps. */
   const showFullText = onOpenDescription
-    ? (node: GoalNode) => () => onOpenDescription(node.title, node.description ?? '', stepsOf(node))
+    ? (node: GoalNode) => () => onOpenDescription(node.title, node.description ?? '')
     : () => undefined;
   const pressHighlightRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -973,7 +972,7 @@ export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddCh
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onOpenDescription(child.title, child.description ?? '', stepsOf(child));
+                        onOpenDescription(child.title, child.description ?? '');
                       }}
                       className="goal-row-inline-icon hover:text-primary"
                       title="View description"
