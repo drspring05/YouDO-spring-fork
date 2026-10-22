@@ -1,3 +1,4 @@
+import { formatDateLabel, useDateFormat } from '../lib/dateFormat';
 import { useMemo } from 'react';
 import type { DeviceCalendarEvent } from '../lib/deviceCalendar';
 import { readableTextColor } from '../lib/monthLayout';
@@ -19,6 +20,7 @@ interface Props {
  * events stay plain. No names or dots, so the year reads as a color map at a glance.
  */
 export default function YearView({ year, todayStr, events, onOpenMonth, onOpenDay }: Props) {
+  useDateFormat();
   const months = useMemo(() => yearMonths(year), [year]);
   const colors = useMemo(() => dayColorsByLongestEvent(events, yearStartDay(year), yearEndDay(year)), [events, year]);
 
@@ -55,7 +57,7 @@ export default function YearView({ year, todayStr, events, onOpenMonth, onOpenDa
                   <button
                     key={cell.date}
                     type="button"
-                    aria-label={new Date(cell.date + 'T12:00:00').toLocaleDateString(undefined, { dateStyle: 'full' })}
+                    aria-label={formatDateLabel(cell.date, 'full')}
                     onClick={(event) => {
                       event.stopPropagation();
                       onOpenDay(cell.date as string);

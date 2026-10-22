@@ -1,3 +1,4 @@
+import { formatDateLabel, useDateFormat } from '../lib/dateFormat';
 import { useMemo, useState, useEffect, useRef, type TouchEvent as ReactTouchEvent } from 'react';
 import Overlay from './Overlay';
 import { useLocalDay } from '../hooks/useLocalDay';
@@ -61,6 +62,7 @@ interface MonthWeekRowProps {
 
 /** One week of the month grid: tappable day cells underneath, date numbers and colored event bars on top. */
 function MonthWeekRow({ days, events, month, todayStr, selectedDate, tasksByDate, bulletsByDate, onSelect }: MonthWeekRowProps) {
+  useDateFormat();
   const layout = useMemo(() => layoutWeek(days, events), [days, events]);
   // Events of two or more days join their day cells into one tinted block (the longest event sets the tint).
   const blocks = useMemo(() => mergedBlocksForWeek(days, events), [days, events]);
@@ -93,7 +95,7 @@ function MonthWeekRow({ days, events, month, todayStr, selectedDate, tasksByDate
       <div className="absolute inset-0 grid grid-cols-7">
         {days.map((date, col) => {
           const count = events.filter((ev) => ev.startDay <= date && ev.endDay >= date).length;
-          const fullDate = new Date(date + 'T12:00:00').toLocaleDateString(undefined, { dateStyle: 'full' });
+          const fullDate = formatDateLabel(date, 'full');
           return (
             <button
               key={date}
@@ -202,6 +204,7 @@ function MonthWeekRow({ days, events, month, todayStr, selectedDate, tasksByDate
 }
 
 export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) {
+  useDateFormat();
   const { goals, sessionHistory, toggleTaskStep, setTaskDone, unlinkTask, removeTask } = useStore();
   const [cursor, setCursor] = useState(() => {
     const n = new Date();
@@ -669,7 +672,7 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
                     className={`w-full flex items-center justify-between px-3.5 py-2 text-left ${isSelected ? 'bg-primary-soft' : ''}`}
                   >
                     <span className={`text-[12.5px] font-bold ${date === todayStr ? 'text-primary-glow' : 'text-content-primary'}`}>
-                      {new Date(date + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                      {formatDateLabel(date, 'weekdayShort')}
                     </span>
                     {date === todayStr && <span className="text-[10px] font-bold uppercase tracking-wider text-primary-glow">Today</span>}
                   </button>
@@ -710,7 +713,7 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
       )}
       <section className="calendar-day-summary" aria-label="Selected day summary">
         <div className="calendar-summary-heading">
-          <h2>{selectedDate ? new Date(selectedDate + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) : 'Daily summary'}</h2>
+          <h2>{selectedDate ? formatDateLabel(selectedDate, 'weekdayShort') : 'Daily summary'}</h2>
           <button type="button" aria-haspopup="dialog" onClick={() => setDayStatsModalDate(selectedDate)}><BarChart2 size={14} /> Full stats <ChevronRight size={13} /></button>
         </div>
         <div className="calendar-summary-values" key={selectedDate}>
@@ -786,7 +789,7 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
                 <div>
                   <h3 className="text-sm font-bold text-content-primary">{dayStatsPage === 'sessions' ? `Sessions (${modalDateSessions.length})` : 'Daily Focus Stats'}</h3>
                   <p className="text-xs text-content-secondary">
-                    {new Date(dayStatsModalDate + 'T00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
+                    {formatDateLabel(dayStatsModalDate, 'weekdayLong')}
                   </p>
                 </div>
               </div>

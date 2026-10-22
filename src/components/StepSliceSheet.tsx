@@ -1,3 +1,4 @@
+import DateField from './DateField';
 import { useEffect, useState } from 'react';
 import { Check, Zap } from 'lucide-react';
 import type { GoalNode } from '../types';
@@ -189,9 +190,8 @@ export default function StepSliceSheet({ open, nodes, node, onClose, onConfirm }
               <label htmlFor="plan-start" className="px-1 text-[10px] font-bold uppercase tracking-wider text-content-muted">
                 Start
               </label>
-              <input
+              <DateField
                 id="plan-start"
-                type="date"
                 value={date}
                 onChange={(e) => changeStart(e.target.value)}
                 className="w-full h-10 px-2.5 bg-elevated border border-subtle rounded-xl text-[13px] font-medium text-content-primary outline-none focus:border-primary transition-colors"
@@ -208,9 +208,8 @@ export default function StepSliceSheet({ open, nodes, node, onClose, onConfirm }
                   </button>
                 )}
               </div>
-              <input
+              <DateField
                 id="plan-end"
-                type="date"
                 min={date}
                 value={effectiveEnd}
                 onChange={(e) => setEndDate(e.target.value)}

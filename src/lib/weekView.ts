@@ -1,3 +1,4 @@
+import { formatDateLabel, readDateFormat } from './dateFormat';
 import { localISODate } from './dates';
 
 /** Notes for the Week view, one text per week. Saved on this device only. */
@@ -52,13 +53,17 @@ export function weekRangeLabel(days: string[]): string {
   if (days.length === 0) return '';
   const first = parseLocalDay(days[0]);
   const last = parseLocalDay(days[days.length - 1]);
-  const short = (d: Date) => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const order = readDateFormat();
+  const short = (d: Date) => (order === 'auto' ? d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : formatDateLabel(d, 'short', order));
   if (first.getFullYear() !== last.getFullYear()) {
-    const full = (d: Date) => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    const full = (d: Date) => (order === 'auto' ? d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : `${formatDateLabel(d, 'short', order)} ${d.getFullYear()}`);
     return `${full(first)} – ${full(last)}`;
   }
+  if (order === 'dmy' && first.getMonth() === last.getMonth()) {
+    return `${first.getDate()}–${short(last)}, ${last.getFullYear()}`;
+  }
   const sameMonth = first.getMonth() === last.getMonth();
-  const tail = sameMonth ? String(last.getDate()) : short(last);
+  const tail = sameMonth && order !== 'ymd' ? String(last.getDate()) : short(last);
   return `${short(first)} – ${tail}, ${last.getFullYear()}`;
 }
 

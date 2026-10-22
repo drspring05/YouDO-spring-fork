@@ -1,3 +1,4 @@
+import { formatDateLabel, useDateFormat } from '../lib/dateFormat';
 import { MapPin, Plus } from 'lucide-react';
 import Overlay from './Overlay';
 import PlannedTaskCard from './PlannedTaskCard';
@@ -77,11 +78,8 @@ export default function CalendarDaySheet({
   onRequestAccess,
   onOpenSettings,
 }: Props) {
-  const heading = new Date(date + 'T12:00:00').toLocaleDateString(undefined, {
-    weekday: 'long',
-    month: 'short',
-    day: 'numeric',
-  });
+  const order = useDateFormat();
+  const heading = formatDateLabel(date, 'weekdayLong', order);
 
   return (
     <Overlay open onClose={onClose} align="bottom">

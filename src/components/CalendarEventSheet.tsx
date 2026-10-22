@@ -1,3 +1,4 @@
+import DateField from './DateField';
 import { useEffect, useState } from 'react';
 import { MapPin } from 'lucide-react';
 import Overlay from './Overlay';
@@ -220,8 +221,7 @@ export default function CalendarEventSheet({ event, date, onClose, onChanged }: 
                   <div className="grid grid-cols-2 gap-2">
                     <label className="flex flex-col gap-1">
                       <span className={labelClass}>{draft.allDay ? 'From' : 'Starts'}</span>
-                      <input
-                        type="date"
+                      <DateField
                         value={draft.startDate}
                         onChange={(e) => {
                           const next = e.target.value;
@@ -233,8 +233,7 @@ export default function CalendarEventSheet({ event, date, onClose, onChanged }: 
                     </label>
                     <label className="flex flex-col gap-1">
                       <span className={labelClass}>{draft.allDay ? 'To' : 'Ends'}</span>
-                      <input
-                        type="date"
+                      <DateField
                         value={draft.endDate}
                         min={draft.startDate || undefined}
                         onChange={(e) => change({ endDate: e.target.value }, true)}

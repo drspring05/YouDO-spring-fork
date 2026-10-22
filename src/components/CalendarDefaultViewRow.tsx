@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { CalendarDays } from 'lucide-react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import Toggle from './Toggle';
+import { DATE_FORMAT_OPTIONS, useDateFormat, writeDateFormat } from '../lib/dateFormat';
 import {
   CALENDAR_DEFAULT_VIEW_KEY,
   CALENDAR_GOAL_ITEMS_KEY,
@@ -172,6 +173,7 @@ export default function CalendarDefaultViewRow() {
   const current = normalizeCalendarView(stored);
   const phoneCalendar = supportsDeviceCalendar();
   const calendars = usePhoneCalendars();
+  const dateFormat = useDateFormat();
 
   return (
     <div className="settings-data-row p-4 space-y-3">
@@ -199,6 +201,28 @@ export default function CalendarDefaultViewRow() {
             {option.label}
           </button>
         ))}
+      </div>
+      <div className="space-y-2 pt-1">
+        <div>
+          <h4 className="text-xs font-semibold text-content-primary">Date format</h4>
+          <p className="text-[10.5px] text-content-secondary font-medium">How dates are written in the calendar, goal dates and date boxes. The phone's own date picker pop-up keeps your phone's language</p>
+        </div>
+        <div role="radiogroup" aria-label="Date format" className="grid grid-cols-2 gap-1 p-0.5 rounded-xl bg-surface border border-subtle">
+          {DATE_FORMAT_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              role="radio"
+              aria-checked={dateFormat === option.value}
+              onClick={() => writeDateFormat(option.value)}
+              className={`h-9 rounded-[10px] text-[12px] font-semibold transition-colors ${
+                dateFormat === option.value ? 'bg-primary text-on-primary' : 'text-content-secondary'
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
       </div>
       {phoneCalendar && (
         <div className="space-y-3 pt-1">

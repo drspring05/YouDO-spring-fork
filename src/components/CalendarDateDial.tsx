@@ -1,3 +1,4 @@
+import { formatDateLabel, useDateFormat } from '../lib/dateFormat';
 import { useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { shiftLocalISO } from '../lib/dates';
@@ -7,6 +8,7 @@ import { dialStep } from '../lib/calendarDial';
 interface Props { value: string; today: string; onChange: (date: string) => void }
 
 export default function CalendarDateDial({ value, today, onChange }: Props) {
+  const order = useDateFormat();
   const [reduced] = useReducedEffects();
   const gesture = useRef<{ x: number; y: number } | null>(null);
   const suppressClick = useRef(false);
@@ -53,7 +55,7 @@ export default function CalendarDateDial({ value, today, onChange }: Props) {
           {[-1, 0, 1].map((offset) => {
             const date = shiftLocalISO(value, offset);
             return <button type="button" key={offset} aria-pressed={offset === 0}
-              aria-label={new Date(date + 'T12:00:00').toLocaleDateString(undefined, { dateStyle: 'full' })}
+              aria-label={formatDateLabel(date, 'full', order)}
               onClick={() => select(offset)}>
               <span>{dayLabel(date)}</span><strong>{new Date(date + 'T12:00:00').getDate()}</strong>
             </button>;
@@ -62,6 +64,6 @@ export default function CalendarDateDial({ value, today, onChange }: Props) {
       </div>
       <button type="button" className="calendar-dial-arrow" aria-label="Next day" onClick={() => select(1)}><ChevronRight size={17} /></button>
     </div>
-    <span className="sr-only" aria-live="polite">{new Date(value + 'T12:00:00').toLocaleDateString(undefined, { dateStyle: 'full' })}</span>
+    <span className="sr-only" aria-live="polite">{formatDateLabel(value, 'full', order)}</span>
   </section>;
 }

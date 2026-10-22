@@ -1,3 +1,4 @@
+import DateField from './DateField';
 import { useEffect, useRef, useState } from 'react';
 import { TITLE_MAX, isTitleTooLong } from '../lib/titleLimit';
 import TitleCounter from './TitleCounter';
@@ -286,8 +287,7 @@ export default function AddTaskSheet({ open, onClose, onAdd, initialDate }: Prop
             </div>
             {showCustomDate && (
               <div className="p-2 border-b border-subtle bg-elevated/30 flex items-center gap-2">
-                <input
-                  type="date"
+                <DateField
                   value={targetDate}
                   onChange={(e) => setTargetDate(e.target.value)}
                   aria-label="Start date"
@@ -315,9 +315,8 @@ export default function AddTaskSheet({ open, onClose, onAdd, initialDate }: Prop
                     Until (optional)
                   </label>
                   <div className="flex items-center gap-2 min-w-0">
-                    <input
+                    <DateField
                       id="task-until"
-                      type="date"
                       min={targetDate}
                       value={effectiveEnd}
                       onChange={(e) => setEndDate(e.target.value)}

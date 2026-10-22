@@ -1,3 +1,4 @@
+import { formatDateLabel, useDateFormat } from '../lib/dateFormat';
 import { useMemo } from 'react';
 import type { Task } from '../types';
 import type { GoalBullet } from '../lib/goalCalendar';
@@ -35,6 +36,7 @@ export default function WeekView({
   onNoteChange,
   onSelect,
 }: Props) {
+  const order = useDateFormat();
   const cells = useMemo(() => weekCells(anchorDate), [anchorDate]);
 
   return (
@@ -65,7 +67,7 @@ export default function WeekView({
         const total = events.length + tasks.length + goalItems.length;
         const isToday = date === todayStr;
         const isSelected = date === selectedDate;
-        const fullDate = new Date(date + 'T12:00:00').toLocaleDateString(undefined, { dateStyle: 'full' });
+        const fullDate = formatDateLabel(date, 'full', order);
 
         // Events first, then tasks; the cell keeps a fixed height, so the rest collapse into "+N more".
         const items: Array<

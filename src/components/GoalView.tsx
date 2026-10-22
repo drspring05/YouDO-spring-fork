@@ -1,3 +1,4 @@
+import { formatDateLabel, readDateFormat, useDateFormat } from '../lib/dateFormat';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useUiPrefs } from '../hooks/useUiPrefs';
 import {
@@ -53,7 +54,7 @@ const coarsePointer = typeof window !== 'undefined' && Boolean(window.matchMedia
 
 function formatShortDate(iso: string): string {
   const [y, m, d] = iso.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  return formatDateLabel(new Date(y, m - 1, d, 12), 'short');
 }
 
 function getScheduledDateLabel(targetDate: string | null | undefined): string {
@@ -69,10 +70,7 @@ function getScheduledDateLabel(targetDate: string | null | undefined): string {
 }
 
 function formatGoalDateRange(startDate: string | null | undefined, endDate: string | null | undefined): string {
-  const format = (value: string) => new Date(`${value}T00:00:00`).toLocaleDateString(undefined, {
-    day: 'numeric',
-    month: 'short',
-  });
+  const format = (value: string) => formatDateLabel(value, 'short');
   const start = startDate ?? endDate;
   const end = endDate ?? startDate;
   if (!start || !end) return '';
@@ -80,7 +78,8 @@ function formatGoalDateRange(startDate: string | null | undefined, endDate: stri
   const startParts = new Date(`${start}T00:00:00`);
   const endParts = new Date(`${end}T00:00:00`);
   if (start !== end && startParts.getFullYear() === endParts.getFullYear() && startParts.getMonth() === endParts.getMonth()) {
-    return `${startParts.getDate()}–${format(end)}`;
+    const order = readDateFormat();
+    return order === 'auto' || order === 'dmy' ? `${startParts.getDate()}–${format(end)}` : `${format(start)} – ${format(end)}`;
   }
   return start === end ? format(start) : `${format(start)} – ${format(end)}`;
 }
@@ -145,6 +144,7 @@ function nodeMeta(node: GoalNode): { icon: typeof Target; tint: string; label: s
 }
 
 export default function GoalView({ pathIds, setPathIds, highlightNodeId, onAddChild, onEditNode, onPushNode, onUnplan, onCopy, onSelectionChange, clearSelectionRef, onNavigateToPath, onOpenStudio, onOpenDescription, onJumpToNode }: Props) {
+  useDateFormat();
   const { goals, tasks, togglePin, reorderGoalNodes, toggleNodeCompletion, updateGoalNode } = useStore();
   const [{ legacyStyle }] = useUiPrefs();
   const { activeSession } = useSessionStore();

@@ -1,3 +1,4 @@
+import DateField from './DateField';
 import { useEffect, useRef, useState } from 'react';
 import { TITLE_MAX, isTitleTooLong } from '../lib/titleLimit';
 import TitleCounter from './TitleCounter';
@@ -143,8 +144,7 @@ export default function AddGoalSheet({
           <div className="bg-surface border border-subtle rounded-2xl overflow-hidden shadow-sm flex divide-x divide-subtle">
             <div className="flex-1 p-2">
               <label className="px-1.5 text-[10px] font-bold uppercase tracking-wider text-content-muted block mb-1.5">Start date</label>
-              <input
-                type="date"
+              <DateField
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
                 className="w-full h-10 px-2.5 bg-elevated border border-subtle rounded-xl text-[13px] font-medium text-content-primary outline-none focus:border-primary transition-colors"
@@ -152,8 +152,7 @@ export default function AddGoalSheet({
             </div>
             <div className="flex-1 p-2">
               <label className="px-1.5 text-[10px] font-bold uppercase tracking-wider text-content-muted block mb-1.5">End date</label>
-              <input
-                type="date"
+              <DateField
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
                 className={`w-full h-10 px-2.5 bg-elevated border border-subtle rounded-xl text-[13px] font-medium text-content-primary outline-none focus:border-primary transition-colors`}
