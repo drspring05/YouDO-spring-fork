@@ -1,3 +1,4 @@
+import { SPRING_FORK_ON } from '../lib/springFork';
 import { useState } from 'react';
 import { Check, Clock, StickyNote, Trash2, Circle } from 'lucide-react';
 import Overlay from './Overlay';
@@ -20,8 +21,8 @@ export function SessionStopDialog({ open, task, onConfirm, onDiscard, onCancel, 
 
   if (!open) return null;
 
-  // Steps are gone from the app: stopping a sitting only asks whether the task is done.
-  const hasSteps = false;
+  // With Spring Fork on, steps are gone: stopping a sitting only asks whether the task is done.
+  const hasSteps = !SPRING_FORK_ON && task.steps.length > 0;
   const resultingStepCount = new Set([
     ...Array.from({ length: task.progress }, (_, index) => index),
     ...selectedSteps,

@@ -1,3 +1,4 @@
+import { SPRING_FORK_ON } from '../lib/springFork';
 import { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { Calendar, Clock, FileText, Play, Pause, Square, StickyNote, Trash2, CheckCircle2, Check, MoonStar } from 'lucide-react';
 import { useUiPrefs } from '../hooks/useUiPrefs';
@@ -109,8 +110,8 @@ function ModernTaskCard({
   const total = task.steps.length || 1;
   const fillPct = (task.progress / total) * 100;
   const complete = isTaskComplete(task);
-  // Steps are gone from the app, so the steps card and step ring never show.
-  const hasSteps = false;
+  // With Spring Fork on, steps are gone, so the steps card and step ring never show.
+  const hasSteps = !SPRING_FORK_ON && task.steps.length > 0;
   const originBadgeNodes = originNodes?.slice(0, Math.min(2, originNodes.length)) ?? [];
   const originContextNodes = originNodes?.slice(originBadgeNodes.length) ?? [];
 
