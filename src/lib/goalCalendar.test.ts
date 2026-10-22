@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { desiredGoalEvents, goalEventWindow, planGoalSync, type GoalEventLink } from './goalCalendar';
+import { branchIdsInside, desiredGoalEvents, goalBullets, goalEventWindow, hasEventAncestor, planGoalSync, type GoalEventLink } from './goalCalendar';
 import type { GoalNode } from '../types';
 
 const DAY = 86_400_000;
@@ -104,5 +104,47 @@ describe('goal item color', () => {
     };
     expect(planGoalSync([plain], { a: link }, new Set(['9'])).update).toHaveLength(0);
     expect(planGoalSync([{ ...plain, color: '#AA5500' }], { a: link }, new Set(['9'])).update).toHaveLength(1);
+  });
+});
+
+describe('goalBullets', () => {
+  const tree = [
+    node('patho', { startDate: '2026-11-01', endDate: '2026-11-14', showAsEvent: true }, [
+      node('cns', { startDate: '2026-11-01', endDate: '2026-11-03', showAsEvent: false }, [
+        node('video', { startDate: '2026-11-01', showAsEvent: false }),
+        node('mcq', { startDate: '2026-11-02', showAsEvent: false }),
+        node('later', { showAsEvent: false }),
+      ]),
+    ]),
+    node('micro', { startDate: '2026-11-15', endDate: '2026-11-28', showAsEvent: false }, [
+      node('virus', { startDate: '2026-11-15', showAsEvent: false }, [node('t', { startDate: '2026-11-15', showAsEvent: false })]),
+    ]),
+  ];
+  it('shows dated lowest items under an event as bullets, with no planning step', () => {
+    expect(goalBullets(tree).map((b) => b.nodeId)).toEqual(['video', 'mcq']);
+  });
+  it('shows nothing under subjects that are not events', () => {
+    expect(goalBullets(tree).some((b) => b.nodeId === 't')).toBe(false);
+  });
+  it('lets any ancestor count, not only the parent', () => {
+    expect(goalBullets(tree).find((b) => b.nodeId === 'video')?.firstDay).toBe('2026-11-01');
+  });
+  it('turns off bullets when the event above is finished', () => {
+    const done = [node('p', { startDate: '2026-11-01', showAsEvent: true, completed: true }, [node('x', { startDate: '2026-11-01', showAsEvent: false })])];
+    expect(goalBullets(done)).toEqual([]);
+  });
+});
+
+describe('hasEventAncestor / branchIdsInside', () => {
+  const ev = node('ev', { startDate: '2026-11-01', showAsEvent: true });
+  const off = node('off', { startDate: '2026-11-01', showAsEvent: false });
+  it('detects an event anywhere above', () => {
+    expect(hasEventAncestor([off, ev])).toBe(true);
+    expect(hasEventAncestor([off])).toBe(false);
+  });
+  it('picks next-level or all branches, never lowest items', () => {
+    const subject = node('s', {}, [node('a', {}, [node('a1', {}, [node('leaf')])]), node('b', {}, [node('leaf2')]), node('c')]);
+    expect(branchIdsInside(subject, 'next')).toEqual(['a', 'b']);
+    expect(branchIdsInside(subject, 'all')).toEqual(['a', 'a1', 'b']);
   });
 });

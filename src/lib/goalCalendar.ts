@@ -66,6 +66,68 @@ export function goalShowsAsEvent(node: Pick<GoalNode, 'showAsEvent' | 'children'
   return node.showAsEvent ?? node.children.length === 0;
 }
 
+/** A dated goal item with nothing inside it that is drawn as a bullet in the calendar cells. */
+export interface GoalBullet {
+  nodeId: string;
+  title: string;
+  color?: string;
+  done: boolean;
+  /** inclusive first and last day, YYYY-MM-DD */
+  firstDay: string;
+  lastDay: string;
+}
+
+const isoOf = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+
+/**
+ * Open or finished lowest-level items (nothing inside them) that have a date but no bar of their own,
+ * and that sit under at least one ancestor that is shown as an event. That is the "task under an event"
+ * case: videonotes / mcq / test under a system under a subject. Dates alone are enough, no Plan needed.
+ */
+export function goalBullets(goals: GoalNode[]): GoalBullet[] {
+  const out: GoalBullet[] = [];
+  const visit = (node: GoalNode, underEvent: boolean) => {
+    const dated = goalEventWindow(node);
+    const hasChildren = node.children.length > 0;
+    if (!hasChildren && underEvent && dated && !goalShowsAsEvent(node)) {
+      const title = (node.title ?? '').trim();
+      if (title) {
+        const color = normalizeHex(node.color);
+        out.push({
+          nodeId: node.id,
+          title,
+          done: Boolean(node.completed),
+          firstDay: isoOf(dated.begin),
+          lastDay: isoOf(dated.end - DAY_MS),
+          ...(color ? { color } : {}),
+        });
+      }
+    }
+    const nextUnder = underEvent || (!node.completed && Boolean(dated) && goalShowsAsEvent(node));
+    node.children.forEach((child) => visit(child, nextUnder));
+  };
+  goals.forEach((root) => visit(root, false));
+  return out;
+}
+
+/** True when some item above `nodeId` (any level) is shown as a dated event. */
+export function hasEventAncestor(path: GoalNode[]): boolean {
+  return path.some((node) => !node.completed && Boolean(goalEventWindow(node)) && goalShowsAsEvent(node));
+}
+
+/** Ids of the items inside `node` that have items of their own (branches), at the next level only or all levels. */
+export function branchIdsInside(node: GoalNode, scope: 'next' | 'all'): string[] {
+  const out: string[] = [];
+  const visit = (n: GoalNode, depth: number) => {
+    for (const child of n.children) {
+      if (child.children.length > 0 && (scope === 'all' || depth === 0)) out.push(child.id);
+      if (scope === 'all') visit(child, depth + 1);
+    }
+  };
+  visit(node, 0);
+  return out;
+}
+
 export function desiredGoalEvents(goals: GoalNode[]): DesiredGoalEvent[] {
   const out: DesiredGoalEvent[] = [];
   const visit = (node: GoalNode) => {

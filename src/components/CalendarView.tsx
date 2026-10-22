@@ -21,7 +21,7 @@ import { eventTimeLabel, groupDeviceEventsByDay, type DeviceCalendarEvent } from
 import { chunkWeeks, layoutWeek, MAX_BAR_LANES, monthGridDays, readableTextColor } from '../lib/monthLayout';
 import { innerEdges, mergedBlocksForWeek, mergedTint } from '../lib/monthMerge';
 import { yearEndDay, yearStartDay } from '../lib/yearView';
-import { readGoalLinks } from '../lib/goalCalendar';
+import { goalBullets, readGoalLinks } from '../lib/goalCalendar';
 import YearView from './YearView';
 import { CALENDAR_VIEW_OPTIONS, readCalendarDefaultView, type CalendarViewMode } from '../lib/calendarPrefs';
 import { formatDuration } from '../lib/format';
@@ -336,8 +336,19 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
         });
       }
     }
+    // Dated lowest-level goal items under an event show as bullets with no Plan needed. An item that was
+    // also planned as a task is already shown above.
+    const planned = new Set(tasks.flatMap((task) => (task.goalNodeId ? [task.goalNodeId] : [])));
+    for (const item of goalBullets(goals)) {
+      if (planned.has(item.nodeId)) continue;
+      let day = item.firstDay;
+      for (let i = 0; i < 62 && day <= item.lastDay; i++) {
+        (map[day] ??= []).push({ id: `goal:${item.nodeId}`, title: item.title, color: item.color, done: item.done });
+        day = shiftLocalISO(day, 1);
+      }
+    }
     return map;
-  }, [tasksWithSpans, barNodeIds]);
+  }, [tasksWithSpans, barNodeIds, tasks, goals]);
 
   const year = cursor.getFullYear();
   const month = cursor.getMonth();

@@ -3,12 +3,13 @@ import { TITLE_MAX, isTitleTooLong } from '../lib/titleLimit';
 import TitleCounter from './TitleCounter';
 import { ListPlus, Trash2 } from 'lucide-react';
 import type { GoalNode } from '../types';
-import { uid } from '../store';
+import { uid, useStore } from '../store';
 import Overlay from './Overlay';
 import StepListEditor, { MAX_STEPS } from './StepListEditor';
 import EventColorPicker from './EventColorPicker';
 import Toggle from './Toggle';
-import { goalShowsAsEvent } from '../lib/goalCalendar';
+import { branchIdsInside, goalShowsAsEvent, hasEventAncestor } from '../lib/goalCalendar';
+import { findPathToNode } from '../lib/goalTree';
 
 interface Props {
   open: boolean;
@@ -31,12 +32,20 @@ export default function AddGoalSheet({
   const [steps, setSteps] = useState<string[]>(['']);
   const [showChecklist, setShowChecklist] = useState(false);
   const [color, setColor] = useState<string | null>(null);
-  const [showAsEvent, setShowAsEvent] = useState(true);
+  const [showAsEvent, setShowAsEvent] = useState(false);
+  const [inside, setInside] = useState<'none' | 'next' | 'all'>('none');
+  const { goals } = useStore();
   const titleRef = useRef<HTMLInputElement>(null);
 
   const isEditing = !!editing;
   const isRootGoal = !editing && !parentId;
   const canToggleEvent = Boolean(parentId) || Boolean(editing && editing.kind !== 'goal');
+  const hasChildren = Boolean(editing && editing.children.length > 0);
+  // A lowest-level item with the event switch off is a one-day bullet, so its end date is greyed.
+  // Items with items inside (subjects, systems) keep the end date open so their span can be planned first.
+  const endLocked = canToggleEvent && !showAsEvent && !hasChildren;
+  const aboveItem = editing ? findPathToNode(goals, editing.id).slice(0, -1) : parentId ? findPathToNode(goals, parentId) : [];
+  const showHint = canToggleEvent && !showAsEvent && !hasChildren && Boolean(startDate) && !hasEventAncestor(aboveItem);
   const isWorkItem = Boolean(parentId && !editing) || Boolean(editing && editing.kind !== 'goal' && editing.children.length === 0);
 
   useEffect(() => {
@@ -56,8 +65,9 @@ export default function AddGoalSheet({
       setEndDate('');
       setSteps(['']);
       setShowChecklist(false);
-      setShowAsEvent(Boolean(parentId));
+      setShowAsEvent(false);
     }
+    setInside('none');
     setColor(null);
     // Keyboard opens automatically only when ADDING; editing an existing item waits for a tap.
     if (editing) return;
@@ -84,6 +94,9 @@ export default function AddGoalSheet({
         stepDone: isWorkItem ? newStepDone : n.stepDone,
         completed: isWorkItem && cleanSteps.length > 0 ? newStepDone.every(Boolean) : n.completed,
       }));
+      if (hasChildren && showAsEvent && inside !== 'none') {
+        for (const id of branchIdsInside(editing, inside)) onUpdateNode(id, (n) => ({ ...n, showAsEvent: true }));
+      }
     } else {
       const node: GoalNode = {
         id: uid('goal'),
@@ -161,8 +174,10 @@ export default function AddGoalSheet({
               <input
                 type="date"
                 value={endDate}
+                disabled={endLocked}
+                title={endLocked ? 'Turn on "Show as event in calendar" to pick an end date' : undefined}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="w-full h-10 px-2.5 bg-elevated border border-subtle rounded-xl text-[13px] font-medium text-content-primary outline-none focus:border-primary transition-colors"
+                className={`w-full h-10 px-2.5 bg-elevated border border-subtle rounded-xl text-[13px] font-medium text-content-primary outline-none focus:border-primary transition-colors ${endLocked ? 'opacity-40' : ''}`}
               />
             </div>
           </div>
@@ -176,6 +191,29 @@ export default function AddGoalSheet({
               </div>
               <Toggle checked={showAsEvent} onChange={() => setShowAsEvent((v) => !v)} label="Show as event in calendar" />
             </div>
+          )}
+
+          {canToggleEvent && hasChildren && showAsEvent && (
+            <div className="bg-surface border border-subtle rounded-2xl shadow-sm px-4 py-3">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-content-muted mb-2">Also turn on items inside</p>
+              <div className="flex gap-1.5">
+                {([['none', 'None'], ['next', 'Next level'], ['all', 'All levels']] as const).map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setInside(key)}
+                    className={`flex-1 h-9 rounded-xl text-[12px] font-semibold border ${inside === key ? 'bg-primary text-on-primary border-primary' : 'bg-elevated text-content-secondary border-subtle'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1.5 text-[11px] text-content-muted">Only items that have items of their own become bars. Lowest tasks stay bullets.</p>
+            </div>
+          )}
+
+          {showHint && (
+            <p className="px-1 text-[11px] text-content-muted">Not on the calendar yet: turn on an event above this item to see it as a bullet.</p>
           )}
 
           {/* Color for a new item on the calendar */}
