@@ -41,9 +41,6 @@ export default function AddGoalSheet({
   const isRootGoal = !editing && !parentId;
   const canToggleEvent = Boolean(parentId) || Boolean(editing && editing.kind !== 'goal');
   const hasChildren = Boolean(editing && editing.children.length > 0);
-  // A lowest-level item with the event switch off is a one-day bullet, so its end date is greyed.
-  // Items with items inside (subjects, systems) keep the end date open so their span can be planned first.
-  const endLocked = canToggleEvent && !showAsEvent && !hasChildren;
   const aboveItem = editing ? findPathToNode(goals, editing.id).slice(0, -1) : parentId ? findPathToNode(goals, parentId) : [];
   const showHint = canToggleEvent && !showAsEvent && !hasChildren && Boolean(startDate) && !hasEventAncestor(aboveItem);
   const isWorkItem = Boolean(parentId && !editing) || Boolean(editing && editing.kind !== 'goal' && editing.children.length === 0);
@@ -174,10 +171,8 @@ export default function AddGoalSheet({
               <input
                 type="date"
                 value={endDate}
-                disabled={endLocked}
-                title={endLocked ? 'Turn on "Show as event in calendar" to pick an end date' : undefined}
                 onChange={(e) => setEndDate(e.target.value)}
-                className={`w-full h-10 px-2.5 bg-elevated border border-subtle rounded-xl text-[13px] font-medium text-content-primary outline-none focus:border-primary transition-colors ${endLocked ? 'opacity-40' : ''}`}
+                className={`w-full h-10 px-2.5 bg-elevated border border-subtle rounded-xl text-[13px] font-medium text-content-primary outline-none focus:border-primary transition-colors`}
               />
             </div>
           </div>

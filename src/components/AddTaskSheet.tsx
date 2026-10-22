@@ -61,7 +61,7 @@ export default function AddTaskSheet({ open, onClose, onAdd, initialDate }: Prop
   const [allDay, setAllDay] = useState(true);
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('10:00');
-  const [addToCalendar, setAddToCalendar] = useState(true);
+  const [addToCalendar, setAddToCalendar] = useState(false);
   const [calendars, setCalendars] = useState<DeviceCalendar[]>([]);
   const [calendarId, setCalendarId] = useState('');
   const [calendarError, setCalendarError] = useState('');
@@ -85,7 +85,7 @@ export default function AddTaskSheet({ open, onClose, onAdd, initialDate }: Prop
       setAllDay(true);
       setStartTime(times.startTime);
       setEndTime(times.endTime);
-      setAddToCalendar(true);
+      setAddToCalendar(false);
       setCalendarError('');
       setBusy(false);
       setTimeout(() => titleRef.current?.focus(), 150);
