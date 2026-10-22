@@ -1,0 +1,694 @@
+import { useMemo, useState, useEffect, useRef } from 'react';
+import Overlay from './Overlay';
+import { useLocalDay } from '../hooks/useLocalDay';
+import CalendarDateDial from './CalendarDateDial';
+import { calendarFocusSummary } from '../lib/calendarSummary';
+import { hapticTick } from '../lib/haptics';
+import { ChevronLeft, ChevronRight, Plus, BarChart2, X, Info, ChevronDown, ChevronUp } from 'lucide-react';
+import OriginChip from './OriginChip';
+import type { Task } from '../types';
+import { localISODate, pathTitles, useStore, isOpenBacklogTask } from '../store';
+import { formatDuration } from '../lib/format';
+import { buildSessionSummary, isCountableSession, sessionOverlapsLocalDate } from '../lib/sessionStats';
+import { taskCompletionModeOnDate, taskOccurrenceOnDate, taskTimelineDates } from '../lib/taskTimeline';
+
+interface Props {
+  tasks: Task[];
+  onAddTask: (date: string) => void;
+  onJumpToGoal: (goalNodeId: string | null | undefined) => void;
+}
+
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) {
+  const { goals, sessionHistory } = useStore();
+  const [cursor, setCursor] = useState(() => {
+    const n = new Date();
+    return new Date(n.getFullYear(), n.getMonth(), 1);
+  });
+  const todayStr = useLocalDay();
+  const [selectedDate, setSelectedDate] = useState<string | null>(todayStr);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const previousToday = useRef(todayStr);
+  useEffect(() => {
+    if (todayStr !== previousToday.current && selectedDate === previousToday.current) {
+      setSelectedDate(todayStr);
+      const date = new Date(todayStr + 'T12:00:00');
+      setCursor(new Date(date.getFullYear(), date.getMonth(), 1));
+    }
+    previousToday.current = todayStr;
+  }, [todayStr, selectedDate]);
+  const [dayStatsModalDate, setDayStatsModalDate] = useState<string | null>(null);
+  const [showDayStatsHelp, setShowDayStatsHelp] = useState(false);
+  const [openSessionSummaryId, setOpenSessionSummaryId] = useState<string | null>(null);
+  /** Full stats is two pages in one sheet: the overview, and every session of the day. */
+  const [dayStatsPage, setDayStatsPage] = useState<'overview' | 'sessions'>('overview');
+  const dayStatsScrollRef = useRef<HTMLDivElement>(null);
+  const closeDayStats = () => {
+    setDayStatsModalDate(null);
+    setDayStatsPage('overview');
+  };
+  const showDayStatsPage = (page: 'overview' | 'sessions') => {
+    setDayStatsPage(page);
+    if (dayStatsScrollRef.current) dayStatsScrollRef.current.scrollTop = 0;
+  };
+
+  useEffect(() => {
+    setOpenSessionSummaryId(null);
+  }, [dayStatsModalDate]);
+
+  const getOriginPath = (goalNodeId: string | undefined): string | null => {
+    if (!goalNodeId) return null;
+    for (const root of goals) {
+      const titles = pathTitles(root, goalNodeId);
+      if (titles.length) return titles.join(' / ');
+    }
+    return null;
+  };
+
+  const tasksByDate = useMemo(() => {
+    const map: Record<string, Task[]> = {};
+    const add = (d: string, t: Task) => {
+      if (!map[d]) map[d] = [];
+      if (!map[d].some(x => x.id === t.id)) map[d].push(t);
+    };
+    for (const t of tasks) {
+      for (const date of taskTimelineDates(t)) {
+        if (taskOccurrenceOnDate(t, date)) add(date, t);
+      }
+    }
+    return map;
+  }, [tasks]);
+
+  const year = cursor.getFullYear();
+  const month = cursor.getMonth();
+  const monthName = cursor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  const cells: (number | null)[] = [];
+  for (let i = 0; i < firstDay; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const prevMonth = () => setCursor(new Date(year, month - 1, 1));
+  const nextMonth = () => setCursor(new Date(year, month + 1, 1));
+
+  const selectedTasks = selectedDate ? (tasksByDate[selectedDate] ?? []) : [];
+  const selectedDone = selectedDate
+    ? selectedTasks.filter((task) => taskOccurrenceOnDate(task, selectedDate)?.completedOnDate).length
+    : 0;
+
+  const summary = useMemo(() => calendarFocusSummary(Object.values(sessionHistory).flat(), selectedDate ?? todayStr), [sessionHistory, selectedDate, todayStr]);
+  const selectDay = (date: string) => {
+    if (date !== selectedDate) hapticTick();
+    setSelectedDate(date);
+    const parsed = new Date(date + 'T12:00:00');
+    setCursor(new Date(parsed.getFullYear(), parsed.getMonth(), 1));
+  };
+
+  // Gather sessions for modal date
+  const modalDateSessions = useMemo(() => {
+    if (!dayStatsModalDate) return [];
+    const allSessions = Object.values(sessionHistory).flat();
+    return allSessions.flatMap((s) => {
+      const slice = sessionOverlapsLocalDate(s, dayStatsModalDate);
+      if (!slice || (slice.durationMs <= 0 && slice.netFocusMs <= 0)) return [];
+      return [{ session: s, slice }];
+    });
+  }, [dayStatsModalDate, sessionHistory]);
+
+  const modalDateTasks = useMemo(() => {
+    return dayStatsModalDate ? (tasksByDate[dayStatsModalDate] ?? []) : [];
+  }, [dayStatsModalDate, tasksByDate]);
+
+  const hasSessionProcess = (tId: string, date: string) => {
+    return sessionHistory[tId]?.some((s) => {
+      if (!isCountableSession(s)) return false;
+      const slice = sessionOverlapsLocalDate(s, date);
+      return !!slice && slice.netFocusMs > 0;
+    }) ?? false;
+  };
+
+  // Group 1: Task Execution (Native)
+  const nativeTasks = modalDateTasks.filter((task) => {
+    const kind = taskOccurrenceOnDate(task, dayStatsModalDate!)?.kind;
+    return kind === 'scheduled' || kind === 'failed';
+  });
+  
+  // Filter out manual completions from stats calculation
+  const processNativeTasks = nativeTasks.filter((task) => {
+    const occurrence = taskOccurrenceOnDate(task, dayStatsModalDate!);
+    return occurrence?.kind === 'failed' || !occurrence?.completedOnDate || hasSessionProcess(task.id, dayStatsModalDate!);
+  });
+  
+  const nativeScheduledCount = processNativeTasks.length;
+  const nativeCompletedCount = processNativeTasks.filter(
+    (task) => taskOccurrenceOnDate(task, dayStatsModalDate!)?.completedOnDate,
+  ).length;
+  const nativeFailedCount = processNativeTasks.filter(
+    (task) => taskOccurrenceOnDate(task, dayStatsModalDate!)?.kind === 'failed',
+  ).length;
+  
+  const taskEfficiency = nativeScheduledCount > 0 ? Math.round((nativeCompletedCount / nativeScheduledCount) * 100) : 0;
+
+  // Group 2: Focus Quality
+  const dayTotalNFT = useMemo(
+    () => modalDateSessions.filter(({ session }) => isCountableSession(session)).reduce((acc, { slice }) => acc + slice.netFocusMs, 0),
+    [modalDateSessions],
+  );
+  const dayTotalWCD = useMemo(
+    () => modalDateSessions.filter(({ session }) => isCountableSession(session)).reduce((acc, { slice }) => acc + slice.durationMs, 0),
+    [modalDateSessions],
+  );
+  const focusEfficiency = dayTotalWCD > 0 ? Math.min(100, Math.round((dayTotalNFT / dayTotalWCD) * 100)) : 0;
+
+  // Group 3: Momentum
+  const globalBacklogsCount = tasks.filter((t) => isOpenBacklogTask(t)).length;
+  const backlogsCleared = modalDateTasks.filter(
+    (task) => taskOccurrenceOnDate(task, dayStatsModalDate!)?.kind === 'backlog-completed' && hasSessionProcess(task.id, dayStatsModalDate!),
+  ).length;
+  const totalRelevantBacklogs = globalBacklogsCount + backlogsCleared;
+
+  let momentumStr = "";
+  if (globalBacklogsCount === 0 && backlogsCleared === 0) {
+    momentumStr = "Keeping the slate clean.";
+  } else if (globalBacklogsCount === 0 && backlogsCleared > 0) {
+    momentumStr = "Incredible. All backlogs crushed.";
+  } else if (backlogsCleared > 0) {
+    momentumStr = "Solid work catching up.";
+  } else {
+    momentumStr = "Backlogs are piling up. Time to focus.";
+  }
+
+  return (
+    <div className="calendar-workspace">
+      <CalendarDateDial value={selectedDate ?? todayStr} today={todayStr} onChange={selectDay} />
+      <button type="button" className="calendar-expand" aria-expanded={calendarOpen} aria-controls="calendar-month-grid" onClick={() => setCalendarOpen((open) => !open)}>
+        <span>{calendarOpen ? 'Close calendar' : 'Choose another date'}</span><ChevronDown size={16} className={calendarOpen ? 'rotate-180' : ''} />
+      </button>
+      {calendarOpen && <div id="calendar-month-grid" className="calendar-month-panel">
+      {/* Month navigation */}
+      <div className="flex items-center justify-between mb-2">
+        <button type="button" aria-label="Previous month" onClick={prevMonth} className="p-2 rounded-lg text-content-secondary hover:text-content-primary hover:bg-surface transition-colors">
+          <ChevronLeft size={18} />
+        </button>
+        <h2 className="text-base font-bold text-content-primary">{monthName}</h2>
+        <button type="button" aria-label="Next month" onClick={nextMonth} className="p-2 rounded-lg text-content-secondary hover:text-content-primary hover:bg-surface transition-colors">
+          <ChevronRight size={18} />
+        </button>
+      </div>
+
+      {/* Calendar grid */}
+      <div className="bg-surface border border-subtle rounded-2xl shadow-card p-3.5">
+        <div className="grid grid-cols-7 mb-2">
+          {WEEKDAYS.map((d) => (
+            <div key={d} className="text-center text-[10px] font-bold uppercase tracking-wider text-content-secondary py-1">{d}</div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-1">
+          {cells.map((day, i) => {
+            if (day === null) return <div key={i} />;
+            const dateStr = localISODate(new Date(year, month, day));
+            const dayTasks = tasksByDate[dateStr] ?? [];
+            const isToday = dateStr === todayStr;
+            const isSelected = dateStr === selectedDate;
+            const hasTasks = dayTasks.length > 0;
+            const allDone = hasTasks && dayTasks.every((task) => taskOccurrenceOnDate(task, dateStr)?.completedOnDate);
+
+            return (
+              <button
+                key={i}
+                type="button"
+                aria-pressed={isSelected}
+                aria-label={new Date(dateStr + 'T12:00:00').toLocaleDateString(undefined, {dateStyle:'full'})}
+                onClick={() => selectDay(dateStr)}
+                className={`relative aspect-square rounded-xl flex items-center justify-center transition-all text-[13px] font-medium ${
+                  isSelected
+                    ? 'bg-primary text-on-primary font-semibold'
+                    : isToday
+                      ? 'bg-primary-soft text-primary-glow font-bold border border-primary/20'
+                      : 'text-content-primary hover:bg-surface'
+                }`}
+              >
+                {/* Math Superscript Notation x^n */}
+                <span className="inline-flex items-baseline">
+                  <span>{day}</span>
+                  {hasTasks && (
+                    <sup className={`task-sup font-bold ${
+                      isSelected
+                        ? 'text-warning'
+                        : allDone
+                          ? 'text-secondary'
+                          : 'text-warning'
+                    }`}>
+                      {dayTasks.length}
+                    </sup>
+                  )}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      </div>}
+      <section className="calendar-day-summary" aria-label="Selected day summary">
+        <div className="calendar-summary-heading">
+          <h2>{selectedDate ? new Date(selectedDate + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) : 'Daily summary'}</h2>
+          <button type="button" aria-haspopup="dialog" onClick={() => setDayStatsModalDate(selectedDate)}><BarChart2 size={14} /> Full stats <ChevronRight size={13} /></button>
+        </div>
+        <div className="calendar-summary-values" key={selectedDate}>
+          <div><strong>{selectedDone}<small> / {selectedTasks.length}</small></strong><span>Finished</span></div>
+          <div><strong>{formatDuration(summary.netFocusMs)}</strong><span>Net focus</span></div>
+          <div><strong>{summary.count}</strong><span>Sessions</span></div>
+        </div>
+      </section>
+
+      {/* Selected date tasks */}
+      <div className="calendar-planned">
+        <div className="calendar-planned-heading flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-[14px] font-bold text-content-primary">
+                Planned work
+              </h3>
+
+            </div>
+          </div>
+          {selectedDate && (
+            <button
+              onClick={() => onAddTask(selectedDate)}
+              className="calendar-add-task flex items-center gap-1.5 bg-primary text-on-primary text-xs font-semibold"
+            >
+              <Plus size={14} /> Add task
+            </button>
+          )}
+        </div>
+
+        {selectedTasks.length === 0 ? (
+          <div className="bg-surface border border-subtle rounded-2xl shadow-card p-6 text-center text-content-secondary text-xs">
+            No tasks planned for this date.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {selectedTasks.map((t) => {
+              const occurrence = taskOccurrenceOnDate(t, selectedDate!);
+              if (!occurrence) return null;
+              const resolved = occurrence.resolved;
+              const hasSteps = t.steps.length > 0;
+              const originPath = getOriginPath(t.goalNodeId);
+              const completionMode = taskCompletionModeOnDate(t, selectedDate!, sessionHistory[t.id] ?? []);
+
+              return (
+                <div
+                  key={t.id}
+                  className={`bg-surface border border-subtle rounded-2xl shadow-card p-4 transition-all select-none ${
+                    resolved ? 'opacity-60 bg-surface/50' : ''
+                  }`}
+                >
+                  <div className="flex flex-col gap-1.5 mb-2">
+                    {/* Eyebrow: Path */}
+                    {originPath && (
+                      <OriginChip
+                        names={originPath.split('/').slice(0, 2).map((part) => part.trim())}
+                        onClick={() => onJumpToGoal(t.goalNodeId)}
+                      />
+                    )}
+
+                    {/* Title Row */}
+                    <div className="flex items-start justify-between gap-3 pr-1">
+                      <div className="flex items-start gap-2 flex-1">
+                        <span className={`mt-[6px] w-1.5 h-1.5 rounded-full shrink-0 ${resolved ? 'bg-secondary/30' : 'bg-primary'} shadow-sm`} />
+                        <div className="flex flex-col gap-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className={`text-[14.5px] font-bold leading-snug tracking-tight ${resolved ? 'line-through text-content-muted' : 'text-content-primary'}`}>
+                              {t.title}
+                            </h3>
+                            {occurrence.kind === 'failed' && (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-error-soft text-error border border-error/20">
+                                FAILED
+                              </span>
+                            )}
+                            {occurrence.kind === 'backlog-completed' && (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-error-soft text-error border border-error/20">
+                                BACKLOG
+                              </span>
+                            )}
+                            {completionMode === 'manual' && (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-surface text-content-muted border border-subtle">
+                                MANUAL
+                              </span>
+                            )}
+                            {completionMode === 'mixed' && (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-primary-soft text-primary border border-primary/20">
+                                MIXED
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Subtitle context (remaining path) */}
+                          {originPath && originPath.split('/').length > 3 && (
+                            <div className="text-[11px] font-normal text-content-muted line-clamp-1">
+                              {originPath.split('/').slice(2, -1).map(p => p.trim()).join(' / ')}
+                            </div>
+                          )}
+
+                          {t.description && (
+                            <p className="text-[11.5px] text-content-secondary/80 line-clamp-2 mt-1">
+                              {t.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <span className={`text-[12px] font-bold shrink-0 mt-0.5 ${occurrence.kind === 'failed' ? 'text-error' : 'tabular-nums text-content-secondary'}`}>
+                        {occurrence.kind === 'failed' ? 'Missed' : `${t.progress}/${hasSteps ? t.steps.length : 1}`}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Progress bar */}
+                  {occurrence.kind !== 'failed' && (
+                    <div className="mt-1 h-1.5 rounded-full bg-border-subtle overflow-hidden mb-2.5">
+                      <div
+                        className="h-full bg-secondary progress-bar-fill rounded-full"
+                        style={{ width: `${(t.progress / (hasSteps ? t.steps.length : 1)) * 100}%` }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Step chips */}
+                  {hasSteps && occurrence.kind !== 'failed' && (
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {t.steps.map((s, idx) => {
+                        const stepDone = idx < t.progress;
+                        return (
+                          <span
+                            key={idx}
+                            className={`text-[10px] px-2 py-0.5 rounded-md font-medium transition-all ${
+                              stepDone
+                                ? 'bg-secondary/10 text-secondary border border-secondary/20 line-through'
+                                : 'bg-surface text-content-secondary border border-subtle'
+                            }`}
+                          >
+                            {stepDone ? '✓ ' : ''}{s}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ── Daily Focus Stats & Efficiency Modal ── */}
+      {dayStatsModalDate && (
+        <Overlay open onClose={closeDayStats} align="center">
+          <div className="panel sheet-up p-5 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-subtle">
+              <div className="flex items-center gap-2">
+                {dayStatsPage === 'sessions' ? (
+                  <button
+                    type="button"
+                    onClick={() => showDayStatsPage('overview')}
+                    aria-label="Back to daily stats"
+                    className="w-8 h-8 rounded-xl bg-elevated border border-subtle flex items-center justify-center text-content-primary"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                ) : (
+                <div className="w-8 h-8 rounded-xl bg-primary-soft border border-primary/20 flex items-center justify-center text-primary dark:text-primary">
+                  <BarChart2 className="w-4 h-4" />
+                </div>
+                )}
+                <div>
+                  <h3 className="text-sm font-bold text-content-primary">{dayStatsPage === 'sessions' ? `Sessions (${modalDateSessions.length})` : 'Daily Focus Stats'}</h3>
+                  <p className="text-xs text-content-secondary">
+                    {new Date(dayStatsModalDate + 'T00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                {dayStatsPage === 'overview' && (
+                <button
+                  onClick={() => setShowDayStatsHelp((v) => !v)}
+                  className={`p-1.5 rounded-lg ${showDayStatsHelp ? 'bg-primary-soft text-primary' : 'text-content-secondary hover:text-content-primary hover:bg-elevated'}`}
+                  title="How stats work"
+                >
+                  <Info className="w-4 h-4" />
+                </button>
+                )}
+                <button
+                  onClick={closeDayStats}
+                  aria-label="Close daily statistics"
+                  className="p-1.5 rounded-lg text-content-secondary hover:text-content-primary hover:bg-elevated transition"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            <div ref={dayStatsScrollRef} className="space-y-4 max-h-[70vh] overflow-y-auto no-scrollbar pb-2">
+              {dayStatsPage === 'overview' && (<>
+              {showDayStatsHelp && (
+                <div className="bg-elevated border border-subtle rounded-[12px] p-3.5 space-y-2 text-[12px] text-content-secondary leading-relaxed">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-content-muted">How stats work</p>
+                  <p><span className="font-semibold text-content-primary">Task execution</span> counts scheduled work for this date. Completed and failed are from that set. Manual completions (no focus session) are left out so they do not inflate efficiency.</p>
+                  <p><span className="font-semibold text-content-primary">Task efficiency</span> is completed ÷ scheduled for this date.</p>
+                  <p><span className="font-semibold text-content-primary">Net focus</span> is time sessions were running and not paused. Overnight sessions are split at midnight so each day only gets its share.</p>
+                  <p><span className="font-semibold text-content-primary">Total duration</span> is start-to-stop time on this date, including pauses.</p>
+                  <p><span className="font-semibold text-content-primary">Focus efficiency</span> is net focus ÷ total duration for this date.</p>
+                  <p><span className="font-semibold text-content-primary">Momentum</span> is backlogs you cleared today versus how many are still open.</p>
+                  <p>Sessions under 15 seconds of focus are ignored in the totals.</p>
+                </div>
+              )}
+              {/* Group 1: Task Execution */}
+              <div className="bg-surface p-3 rounded-[12px] border border-subtle space-y-2.5">
+                <h4 className="text-[10px] font-semibold text-content-muted uppercase tracking-wider">Task execution</h4>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="bg-elevated p-2 rounded-xl text-center min-w-0 px-1">
+                    <p className="text-[9px] font-bold uppercase text-content-secondary leading-tight">Scheduled</p>
+                    <p className="text-sm font-semibold text-content-primary tabular-nums">{nativeScheduledCount}</p>
+                  </div>
+                  <div className="bg-secondary/10 p-2 rounded-xl text-center min-w-0 px-1">
+                    <p className="text-[9px] font-bold uppercase text-secondary leading-tight">Completed</p>
+                    <p className="text-sm font-semibold text-secondary tabular-nums">{nativeCompletedCount}</p>
+                  </div>
+                  <div className="bg-error-soft p-2 rounded-xl text-center min-w-0 px-1">
+                    <p className="text-[9px] font-bold uppercase text-error leading-tight">Failed</p>
+                    <p className="text-sm font-semibold text-error tabular-nums">{nativeFailedCount}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-[10px] font-bold text-content-muted shrink-0 w-24">Task Efficiency</span>
+                  <div className="flex-1 min-w-0 h-1.5 rounded-full bg-border-subtle overflow-hidden">
+                    <div className="h-full bg-primary rounded-full" style={{ width: `${taskEfficiency}%` }} />
+                  </div>
+                  <span className="text-[10px] font-bold text-primary w-8 shrink-0 text-right tabular-nums">{taskEfficiency}%</span>
+                </div>
+              </div>
+
+              {/* Group 2: Focus Quality */}
+              <div className="bg-surface p-3 rounded-[12px] border border-subtle space-y-2.5">
+                <h4 className="text-[10px] font-semibold text-content-muted uppercase tracking-wider">Focus quality</h4>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-primary-soft p-2 rounded-xl text-center min-w-0 px-1">
+                    <p className="text-[9px] font-semibold uppercase text-primary leading-tight">Net Focus</p>
+                    <p className="text-sm font-semibold text-primary tabular-nums">{formatDuration(dayTotalNFT)}</p>
+                  </div>
+                  <div className="bg-elevated p-2 rounded-xl text-center min-w-0 px-1">
+                    <p className="text-[9px] font-bold uppercase text-content-secondary leading-tight">Total Duration</p>
+                    <p className="text-sm font-semibold text-content-muted tabular-nums">{formatDuration(dayTotalWCD)}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-[10px] font-bold text-content-muted shrink-0 w-24">Focus Efficiency</span>
+                  <div className="flex-1 min-w-0 h-1.5 rounded-full bg-border-subtle overflow-hidden">
+                    <div className="h-full bg-primary rounded-full" style={{ width: `${focusEfficiency}%` }} />
+                  </div>
+                  <span className="text-[10px] font-semibold text-primary w-8 shrink-0 text-right tabular-nums">{focusEfficiency}%</span>
+                </div>
+              </div>
+
+              {/* Group 3: Momentum */}
+              <div className="bg-surface p-3 rounded-[12px] border border-subtle space-y-2">
+                <h4 className="text-[10px] font-semibold text-content-muted uppercase tracking-wider">Momentum</h4>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-content-muted">Backlogs Cleared</span>
+                  <span className="text-xs font-semibold text-error">
+                    {totalRelevantBacklogs === 0 ? 'No Backlogs Remaining' : `${backlogsCleared} out of ${totalRelevantBacklogs}`}
+                  </span>
+                </div>
+                <p className="text-[10.5px] font-semibold text-content-secondary italic">
+                  {momentumStr}
+                </p>
+              </div>
+
+              {/* Sessions: one row here, the full list on its own page. */}
+              {modalDateSessions.length === 0 ? (
+                <p className="text-xs text-content-secondary italic py-3 text-center bg-elevated  rounded-xl border border-subtle dark:border-subtle">
+                  No focus sessions logged on this date.
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => showDayStatsPage('sessions')}
+                  className="w-full flex items-center justify-between gap-2 bg-surface p-3 rounded-[12px] border border-subtle text-left"
+                >
+                  <span className="text-xs font-bold text-content-primary">Sessions run</span>
+                  <span className="flex items-center gap-1.5 text-xs text-content-secondary tabular-nums">
+                    {modalDateSessions.length} · {formatDuration(dayTotalNFT)}
+                    <ChevronRight className="w-4 h-4 text-content-muted" />
+                  </span>
+                </button>
+              )}
+              </>)}
+
+              {dayStatsPage === 'sessions' && (
+                <div className="space-y-1.5">
+                  {[...modalDateSessions]
+                    .sort((a, b) => a.session.startTime - b.session.startTime)
+                    .map(({ session: s, slice }, index) => {
+                    const overnight = localISODate(new Date(s.startTime)) !== localISODate(new Date(s.endTime));
+                    const task = tasks.find((t) => t.id === s.taskId);
+                    const goalPath = getOriginPath(s.goalNodeId ?? task?.goalNodeId);
+                    const summary = buildSessionSummary(s, task, {
+                      goalPath,
+                      netFocusMs: slice.netFocusMs,
+                      durationMs: slice.durationMs,
+                    });
+                    const summaryOpen = openSessionSummaryId === s.id;
+                    const outcomeClass =
+                      summary.outcomeTone === 'success'
+                        ? 'bg-secondary/10 text-secondary border-secondary/20'
+                        : summary.outcomeTone === 'partial'
+                          ? 'bg-primary-soft text-primary border-primary/20'
+                          : 'bg-surface text-content-muted border-subtle';
+                    return (
+                      <div key={s.id} className="bg-elevated p-2.5 rounded-xl border border-subtle dark:border-subtle text-xs">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="font-bold text-content-primary truncate">Session {index + 1}</p>
+                            <p className="text-[10.5px] text-content-secondary font-mono mt-0.5">
+                              {summary.wallClockRange}
+                              {overnight ? ' · split' : ''} ({formatDuration(slice.durationMs)})
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-primary font-semibold bg-primary-soft px-2 py-0.5 rounded-lg text-[10.5px]">
+                              {formatDuration(slice.netFocusMs)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setOpenSessionSummaryId(summaryOpen ? null : s.id)}
+                              className="inline-flex items-center gap-0.5 py-1 px-2 rounded-lg bg-surface border border-subtle text-[10px] font-semibold text-primary hover:bg-primary-soft transition"
+                              aria-expanded={summaryOpen}
+                              aria-label={summaryOpen ? 'Hide session summary' : 'Show session summary'}
+                            >
+                              Summary
+                              {summaryOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                            </button>
+                          </div>
+                        </div>
+                        {summaryOpen && (
+                          <div className="mt-2.5 pt-2.5 border-t border-subtle space-y-2.5">
+                            <div className="min-w-0">
+                              <p className="text-[9px] font-bold uppercase tracking-wider text-content-muted">Task</p>
+                              <p className="text-[13px] font-bold text-content-primary leading-snug mt-0.5 truncate">
+                                {summary.taskTitle}
+                              </p>
+                              {summary.pathSegments.length > 0 && (
+                                <p className="mt-1 text-[10px] text-content-muted leading-relaxed line-clamp-2">
+                                  {summary.pathSegments.map((seg, i) => (
+                                    <span key={`${seg}-${i}`}>
+                                      {i > 0 && (
+                                        <span className="text-content-secondary/40 mx-1" aria-hidden>
+                                          /
+                                        </span>
+                                      )}
+                                      <span className={i === summary.pathSegments.length - 1 ? 'text-content-secondary font-medium' : undefined}>
+                                        {seg}
+                                      </span>
+                                    </span>
+                                  ))}
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-1.5">
+                              <div className="bg-primary-soft p-2 rounded-xl text-center min-w-0">
+                                <p className="text-[9px] font-semibold uppercase text-primary leading-tight">Net Focus</p>
+                                <p className="text-sm font-semibold text-primary tabular-nums mt-0.5">{summary.netFocusLabel}</p>
+                              </div>
+                              <div className="bg-surface p-2 rounded-xl text-center min-w-0 border border-subtle">
+                                <p className="text-[9px] font-bold uppercase text-content-secondary leading-tight">Total</p>
+                                <p className="text-sm font-semibold text-content-primary tabular-nums mt-0.5">{summary.totalDurationLabel}</p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="text-[10px] font-bold text-content-muted shrink-0">Efficiency</span>
+                              <div className="flex-1 min-w-0 h-1.5 rounded-full bg-border-subtle overflow-hidden">
+                                <div
+                                  className="h-full bg-primary rounded-full transition-[width] duration-300"
+                                  style={{ width: `${summary.focusEfficiency}%` }}
+                                />
+                              </div>
+                              <span className="text-[10px] font-semibold text-primary w-8 shrink-0 text-right tabular-nums">
+                                {summary.focusEfficiency}%
+                              </span>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border ${outcomeClass}`}>
+                                {summary.outcome}
+                              </span>
+                              {summary.pauseCount > 0 && (
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-surface text-content-secondary border border-subtle">
+                                  {summary.pauseCount} pause{summary.pauseCount === 1 ? '' : 's'}
+                                </span>
+                              )}
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-surface text-content-muted border border-subtle font-mono">
+                                {summary.wallClockRange}
+                              </span>
+                            </div>
+
+                            {summary.hasSteps && (
+                              <div>
+                                <p className="text-[9px] font-bold uppercase tracking-wider text-content-muted mb-1.5">
+                                  Steps this session
+                                </p>
+                                {summary.stepNames.length > 0 ? (
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {summary.stepNames.map((step) => (
+                                      <span
+                                        key={step}
+                                        className="text-[10px] px-2 py-0.5 rounded-md font-medium bg-secondary/10 text-secondary border border-secondary/20"
+                                      >
+                                        ✓ {step}
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="text-[10.5px] text-content-muted italic">None marked</p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+          </div>
+          </div>
+        </Overlay>
+      )}
+    </div>
+  );
+}

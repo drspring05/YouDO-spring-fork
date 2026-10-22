@@ -51,6 +51,8 @@ import Overlay from './Overlay';
 import Toggle from './Toggle';
 import CalendarDefaultViewRow from './CalendarDefaultViewRow';
 import GoalPositionRow from './GoalPositionRow';
+import SpringForkRow from './SpringForkRow';
+import { SPRING_FORK_ON } from '../lib/springFork';
 import FocusSoundPicker from './FocusSoundPicker';
 import {
   getNotificationPreferences,
@@ -2030,8 +2032,9 @@ export default function SettingsSheet({
               </div>
               <Toggle checked={legacyStyle} onChange={() => setUiPref('legacyStyle', !legacyStyle)} label="Classic look" />
             </div>
-            <GoalPositionRow />
-            <CalendarDefaultViewRow />
+            <SpringForkRow />
+            {SPRING_FORK_ON && <GoalPositionRow />}
+            {SPRING_FORK_ON && <CalendarDefaultViewRow />}
           </div>
         </section>
 

@@ -34,6 +34,7 @@ import AddGoalSheet from './components/AddGoalSheet';
 import StepSliceSheet from './components/StepSliceSheet';
 import { SessionStopDialog } from './components/SessionStopDialog';
 import { useTheme } from './hooks/useTheme';
+import { SPRING_FORK_ON } from './lib/springFork';
 import { useClockIntegrity } from './hooks/useClockIntegrity';
 import { checkDeviceClock, clearClockIncident } from './lib/deviceClock';
 import UpdateNotice from './components/UpdateNotice';
@@ -53,9 +54,22 @@ import { useUiPrefs } from './hooks/useUiPrefs';
 
 // Keep Today/session controls in the initial bundle. The PWA precaches these
 // chunks and Android packages them locally, so installed offline use is retained.
-const GoalView = lazy(() => import('./components/GoalView'));
+// Spring Fork OFF runs upstream's original screens (the *Stock files). They load only when needed, so the
+// fork's initial bundle does not grow. The switch is read once at app start (see lib/springFork.ts).
+const GoalView = lazy(() =>
+  SPRING_FORK_ON
+    ? import('./components/GoalView')
+    : (import('./components/GoalViewStock') as unknown as Promise<typeof import('./components/GoalView')>),
+);
 const BlueprintStudio = lazy(() => import('./components/BlueprintStudio'));
-const CalendarView = lazy(() => import('./components/CalendarView'));
+const CalendarView = lazy(() =>
+  SPRING_FORK_ON
+    ? import('./components/CalendarView')
+    : (import('./components/CalendarViewStock') as unknown as Promise<typeof import('./components/CalendarView')>),
+);
+const AddTaskSheetStock = lazy(() => import('./components/AddTaskSheetStock'));
+const AddGoalSheetStock = lazy(() => import('./components/AddGoalSheetStock'));
+const StepSliceSheetStock = lazy(() => import('./components/StepSliceSheetStock'));
 const HubView = lazy(() => import('./components/HubView'));
 const SettingsSheet = lazy(() => import('./components/SettingsSheet'));
 const AdminHubSheet = lazy(() => import('./components/AdminHubSheet'));
@@ -312,7 +326,7 @@ function AppInner() {
           replan.push(node);
           unplan.push(node);
         }
-      } else if (node.startDate || node.endDate) {
+      } else if (SPRING_FORK_ON && (node.startDate || node.endDate)) {
         // Dated but not scheduled on a day: still counts as planned (Replan / Unplan).
         replan.push(node);
         unplan.push(node);
@@ -601,7 +615,9 @@ function AppInner() {
     if (batchWorkItemGroups.unplan.length === 0) return;
     for (const node of batchWorkItemGroups.unplan) {
       const linked = node.todayTaskId ? tasks.find((task) => task.id === node.todayTaskId) : null;
-      if (linked && !isBacklogTask(linked) && !isTaskComplete(linked)) unlinkTask(linked.id);
+      if (!SPRING_FORK_ON) {
+        if (node.todayTaskId) unlinkTask(node.todayTaskId);
+      } else if (linked && !isBacklogTask(linked) && !isTaskComplete(linked)) unlinkTask(linked.id);
       else updateGoalNode(node.id, (n) => ({ ...n, startDate: undefined, endDate: undefined }));
     }
     clearSelectionRef.current();
@@ -1466,6 +1482,7 @@ function AppInner() {
                       {openTodayCount}
                     </span>
                   </button>
+                  {SPRING_FORK_ON && (
                   <button
                     onClick={() => startTransition(() => setTodaySubTab('upcoming'))}
                     className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 ${
@@ -1479,6 +1496,7 @@ function AppInner() {
                       {openUpcomingCount}
                     </span>
                   </button>
+                  )}
                   <button
                     onClick={() => startTransition(() => setTodaySubTab('backlog'))}
                     className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 ${
@@ -1504,6 +1522,7 @@ function AppInner() {
                     <span>Scheduled</span>
                     <span className="ios-segmented-count">{openTodayCount}</span>
                   </button>
+                  {SPRING_FORK_ON && (
                   <button
                     type="button"
                     aria-pressed={todaySubTab === 'upcoming'}
@@ -1512,6 +1531,7 @@ function AppInner() {
                     <span>Upcoming</span>
                     <span className="ios-segmented-count">{openUpcomingCount}</span>
                   </button>
+                  )}
                   <button
                     type="button"
                     aria-pressed={todaySubTab === 'backlog'}
@@ -1633,7 +1653,7 @@ function AppInner() {
                       })}
                     </div>
                   )
-                ) : todaySubTab === 'upcoming' ? (
+                ) : SPRING_FORK_ON && todaySubTab === 'upcoming' ? (
                   /* ─────────── UPCOMING TAB ─────────── */
                   upcomingGroups.length === 0 ? (
                     <div className="bg-surface p-8 border border-subtle rounded-[16px] text-center space-y-2">
@@ -1989,17 +2009,38 @@ function AppInner() {
         />
       </div>
 
-      <AddTaskSheet open={sheetOpen} onClose={closeSheet} onAdd={addTask} initialDate={sheetInitialDate} />
-      <AddGoalSheet
-        open={goalSheetOpen}
-        parentId={goalParentId}
-        editing={editingNode}
-        onClose={closeGoalSheet}
-        onAddRoot={addGoalRoot}
-        onAddChild={addChildNode}
-        onUpdateNode={updateGoalNode}
-        onDeleteNode={(id) => { for (const root of goals) deleteGoalNode(root.id, id); }}
-      />
+      {SPRING_FORK_ON ? (
+        <AddTaskSheet open={sheetOpen} onClose={closeSheet} onAdd={addTask} initialDate={sheetInitialDate} />
+      ) : (
+        <Suspense fallback={null}>
+          <AddTaskSheetStock open={sheetOpen} onClose={closeSheet} onAdd={addTask} initialDate={sheetInitialDate} />
+        </Suspense>
+      )}
+      {SPRING_FORK_ON ? (
+        <AddGoalSheet
+          open={goalSheetOpen}
+          parentId={goalParentId}
+          editing={editingNode}
+          onClose={closeGoalSheet}
+          onAddRoot={addGoalRoot}
+          onAddChild={addChildNode}
+          onUpdateNode={updateGoalNode}
+          onDeleteNode={(id) => { for (const root of goals) deleteGoalNode(root.id, id); }}
+        />
+      ) : (
+        <Suspense fallback={null}>
+          <AddGoalSheetStock
+            open={goalSheetOpen}
+            parentId={goalParentId}
+            editing={editingNode}
+            onClose={closeGoalSheet}
+            onAddRoot={addGoalRoot}
+            onAddChild={addChildNode}
+            onUpdateNode={updateGoalNode}
+            onDeleteNode={(id) => { for (const root of goals) deleteGoalNode(root.id, id); }}
+          />
+        </Suspense>
+      )}
       <GoalDestinationSheet
         open={Boolean(destinationSheet?.open)}
         onClose={closeDestinationSheet}
@@ -2027,14 +2068,27 @@ function AppInner() {
           return result;
         }}
       /></Suspense>}
-      <StepSliceSheet
-        open={sliceNodes.length > 0}
-        nodes={sliceNodes}
-        onClose={closeSliceNode}
-        onConfirm={(plans, targetDate) => {
-          for (const plan of plans) planTask(plan.nodeId, targetDate, plan.stepSlice);
-        }}
-      />
+      {SPRING_FORK_ON ? (
+        <StepSliceSheet
+          open={sliceNodes.length > 0}
+          nodes={sliceNodes}
+          onClose={closeSliceNode}
+          onConfirm={(plans, targetDate) => {
+            for (const plan of plans) planTask(plan.nodeId, targetDate, plan.stepSlice);
+          }}
+        />
+      ) : (
+        <Suspense fallback={null}>
+          <StepSliceSheetStock
+            open={sliceNodes.length > 0}
+            nodes={sliceNodes}
+            onClose={closeSliceNode}
+            onConfirm={(plans, targetDate) => {
+              for (const plan of plans) planTask(plan.nodeId, targetDate, plan.stepSlice);
+            }}
+          />
+        </Suspense>
+      )}
       {settingsOpen && (
         <Suspense fallback={null}>
           <SettingsSheet

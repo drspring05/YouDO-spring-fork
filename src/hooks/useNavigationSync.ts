@@ -5,6 +5,7 @@ import type { View } from '../types';
 import { STORAGE_KEYS } from '../lib/storageKeys';
 import { reducedEffectsSnapshot } from './useReducedEffects';
 import { readGoalRememberPosition, trimToExistingPath } from '../lib/goalNavPrefs';
+import { SPRING_FORK_ON } from '../lib/springFork';
 
 const TABS: View[] = ['tasks', 'goals', 'calendar', 'board'];
 
@@ -258,7 +259,7 @@ export function useNavigationSync(onPopState?: () => boolean, goalExists?: (id: 
     if (currentView === 'goals') rememberedGoalPathRef.current = [...pathIdsRef.current];
     // Coming back to Goals: reopen where it was (if the setting is on). Otherwise start at root level.
     let nextPath: string[] = [];
-    if (targetView === 'goals' && readGoalRememberPosition()) {
+    if (SPRING_FORK_ON && targetView === 'goals' && readGoalRememberPosition()) {
       const exists = goalExistsRef.current;
       nextPath = exists
         ? trimToExistingPath(rememberedGoalPathRef.current, exists)

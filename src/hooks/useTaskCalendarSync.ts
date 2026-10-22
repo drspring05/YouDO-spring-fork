@@ -63,8 +63,10 @@ export function useTaskCalendarSync(
   tasks: Task[],
   tasksRef: MutableRefObject<Task[]>,
   setTasks: Dispatch<SetStateAction<Task[]>>,
+  enabled = true,
 ) {
-  const supported = supportsDeviceCalendar();
+  // Spring Fork off: sync stays idle and never touches the phone calendar.
+  const supported = enabled && supportsDeviceCalendar();
   const [gone, setGone] = useState<Task[]>([]);
   const running = useRef(false);
   const again = useRef(false);

@@ -40,8 +40,9 @@ function goalSignature(goals: GoalNode[]): string {
  * it. An event the user deleted on the phone stays deleted until the item itself changes. It runs when the
  * app opens, returns to the foreground, after the goal tree changes, and when the setting is switched.
  */
-export function useGoalCalendarSync(goals: GoalNode[]) {
-  const supported = supportsDeviceCalendar();
+export function useGoalCalendarSync(goals: GoalNode[], enabled = true) {
+  // Spring Fork off: sync stays idle and never touches the phone calendar.
+  const supported = enabled && supportsDeviceCalendar();
   const goalsRef = useRef(goals);
   goalsRef.current = goals;
   const running = useRef(false);

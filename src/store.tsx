@@ -15,6 +15,7 @@ import { useSessionJournal } from './hooks/useSessionJournal';
 import { useTaskCalendarSync, withoutCalendarLink } from './hooks/useTaskCalendarSync';
 import { useGoalCalendarSync } from './hooks/useGoalCalendarSync';
 import CalendarEventGonePrompt from './components/CalendarEventGonePrompt';
+import { SPRING_FORK_ON } from './lib/springFork';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { Capacitor } from '@capacitor/core';
 import { Share } from '@capacitor/share';
@@ -384,12 +385,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const tasksRef = useRef(tasks);
   tasksRef.current = tasks;
   // Keeps tasks and their phone-calendar events in step (Android only; does nothing elsewhere).
-  const calendarSync = useTaskCalendarSync(tasks, tasksRef, setTasks);
+  const calendarSync = useTaskCalendarSync(tasks, tasksRef, setTasks, SPRING_FORK_ON);
   const { releaseEvents } = calendarSync;
   const goalsRef = useRef(goals);
   goalsRef.current = goals;
   // Open goal items that have dates appear on the phone calendar (Android only; does nothing elsewhere).
-  useGoalCalendarSync(goals);
+  useGoalCalendarSync(goals, SPRING_FORK_ON);
   const sessionHistoryRef = useRef(sessionHistory);
   sessionHistoryRef.current = sessionHistory;
   const streakMetaRef = useRef(streakMeta);
@@ -906,7 +907,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                   ? {
                       ...n,
                       todayTaskId: null,
-                      ...(n.children.length === 0 ? { startDate: undefined, endDate: undefined } : {}),
+                      ...(SPRING_FORK_ON && n.children.length === 0 ? { startDate: undefined, endDate: undefined } : {}),
                     }
                   : n,
               )
@@ -1289,7 +1290,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setGoals(restored.goals);
       // The calendar events of these tasks were deleted with them, so the restored tasks start unlinked.
       const revived = new Set((record.tasks ?? []).map((task) => task.id));
-      setTasks(restored.tasks.map((task) => (revived.has(task.id) ? withoutCalendarLink(task) : task)));
+      setTasks(restored.tasks.map((task) => (SPRING_FORK_ON && revived.has(task.id) ? withoutCalendarLink(task) : task)));
 
       setRecentlyDeletedGoals((prev) => prev.filter((r) => r.id !== recordId));
       setLastDeletedNotification(null);
@@ -2170,7 +2171,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       <SessionCtx.Provider value={sessionValue}>
         {children}
         <CalendarEventGonePrompt
-          tasks={calendarSync.gone}
+          tasks={SPRING_FORK_ON ? calendarSync.gone : []}
           onDeleteTask={(id) => {
             removeTask(id);
             calendarSync.askLater(id);
