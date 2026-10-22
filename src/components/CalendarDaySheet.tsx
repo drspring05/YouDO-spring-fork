@@ -164,9 +164,9 @@ export default function CalendarDaySheet({
             </section>
           )}
 
-          <section aria-label="Planned work">
+          <section aria-label="Planned tasks">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-[14px] font-bold text-content-primary">Planned work</h3>
+              <h3 className="text-[14px] font-bold text-content-primary">Planned tasks</h3>
               <button type="button" onClick={() => onAddTask(date)} className={addButtonClass}>
                 <Plus size={14} /> Task
               </button>

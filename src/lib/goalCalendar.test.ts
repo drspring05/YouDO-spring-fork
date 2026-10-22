@@ -41,6 +41,19 @@ describe('desiredGoalEvents', () => {
     // root and e hold other items, so only a and f (the lowest dated items) reach the calendar.
     expect(desiredGoalEvents(tree).map((e) => e.nodeId)).toEqual(['a', 'f']);
   });
+
+  it('follows the per-item "show as event" choice when one was made', () => {
+    const tree = [
+      node('root', { startDate: '2026-10-01' }, [
+        node('chapter', { startDate: '2026-10-02', endDate: '2026-10-09', showAsEvent: true }, [
+          node('t1', { endDate: '2026-10-05', showAsEvent: false }),
+          node('t2', { endDate: '2026-10-06' }),
+        ]),
+      ]),
+    ];
+    // chapter is switched on, t1 is switched off, t2 has no choice and is a lowest item so it shows.
+    expect(desiredGoalEvents(tree).map((e) => e.nodeId)).toEqual(['chapter', 't2']);
+  });
 });
 
 describe('planGoalSync', () => {

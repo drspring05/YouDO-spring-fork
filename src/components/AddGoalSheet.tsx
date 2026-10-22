@@ -7,6 +7,8 @@ import { uid } from '../store';
 import Overlay from './Overlay';
 import StepListEditor, { MAX_STEPS } from './StepListEditor';
 import EventColorPicker from './EventColorPicker';
+import Toggle from './Toggle';
+import { goalShowsAsEvent } from '../lib/goalCalendar';
 
 interface Props {
   open: boolean;
@@ -29,10 +31,12 @@ export default function AddGoalSheet({
   const [steps, setSteps] = useState<string[]>(['']);
   const [showChecklist, setShowChecklist] = useState(false);
   const [color, setColor] = useState<string | null>(null);
+  const [showAsEvent, setShowAsEvent] = useState(true);
   const titleRef = useRef<HTMLInputElement>(null);
 
   const isEditing = !!editing;
   const isRootGoal = !editing && !parentId;
+  const canToggleEvent = Boolean(parentId) || Boolean(editing && editing.kind !== 'goal');
   const isWorkItem = Boolean(parentId && !editing) || Boolean(editing && editing.kind !== 'goal' && editing.children.length === 0);
 
   useEffect(() => {
@@ -44,6 +48,7 @@ export default function AddGoalSheet({
       setEndDate(editing.endDate ?? '');
       setSteps(editing.steps && editing.steps.length ? [...editing.steps] : ['']);
       setShowChecklist(Boolean(editing.steps?.length));
+      setShowAsEvent(goalShowsAsEvent(editing));
     } else {
       setTitle('');
       setDescription('');
@@ -51,6 +56,7 @@ export default function AddGoalSheet({
       setEndDate('');
       setSteps(['']);
       setShowChecklist(false);
+      setShowAsEvent(Boolean(parentId));
     }
     setColor(null);
     // Keyboard opens automatically only when ADDING; editing an existing item waits for a tap.
@@ -71,9 +77,9 @@ export default function AddGoalSheet({
         ...n,
         title: title.trim(),
         description: description.trim() || undefined,
-        // Lowest-level items get their dates from the Plan button, so the pencil leaves them alone.
-        startDate: isWorkItem ? n.startDate : startDate || undefined,
-        endDate: isWorkItem ? n.endDate : endDate || undefined,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+        ...(canToggleEvent ? { showAsEvent } : {}),
         steps: isWorkItem ? cleanSteps : n.steps,
         stepDone: isWorkItem ? newStepDone : n.stepDone,
         completed: isWorkItem && cleanSteps.length > 0 ? newStepDone.every(Boolean) : n.completed,
@@ -84,9 +90,9 @@ export default function AddGoalSheet({
         kind: parentId ? 'node' : 'goal',
         title: title.trim(),
         description: description.trim() || undefined,
-        // New items start undated; dates come from the Plan button (goals and branches keep date fields).
-        startDate: isWorkItem ? undefined : startDate || undefined,
-        endDate: isWorkItem ? undefined : endDate || undefined,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+        ...(parentId ? { showAsEvent } : {}),
         ...(parentId && color ? { color } : {}),
         steps: parentId ? cleanSteps : undefined,
         stepDone: parentId ? cleanSteps.map(() => false) : undefined,
@@ -139,8 +145,8 @@ export default function AddGoalSheet({
             />
           </div>
 
-          {/* Dates Card (not for lowest-level items: they are dated with the Plan button) */}
-          {!isWorkItem && <div className="bg-surface border border-subtle rounded-2xl overflow-hidden shadow-sm flex divide-x divide-subtle">
+          {/* Dates Card */}
+          <div className="bg-surface border border-subtle rounded-2xl overflow-hidden shadow-sm flex divide-x divide-subtle">
             <div className="flex-1 p-2">
               <label className="px-1.5 text-[10px] font-bold uppercase tracking-wider text-content-muted block mb-1.5">Start date</label>
               <input
@@ -159,7 +165,18 @@ export default function AddGoalSheet({
                 className="w-full h-10 px-2.5 bg-elevated border border-subtle rounded-xl text-[13px] font-medium text-content-primary outline-none focus:border-primary transition-colors"
               />
             </div>
-          </div>}
+          </div>
+
+          {/* Show on the calendar as its own bar */}
+          {canToggleEvent && (
+            <div className="bg-surface border border-subtle rounded-2xl shadow-sm flex items-center justify-between gap-3 px-4 py-3">
+              <div className="min-w-0">
+                <p className="text-[13px] font-semibold text-content-primary">Show as event in calendar</p>
+                <p className="text-[11px] text-content-muted">Adds a colored bar for this item's dates.</p>
+              </div>
+              <Toggle checked={showAsEvent} onChange={() => setShowAsEvent((v) => !v)} label="Show as event in calendar" />
+            </div>
+          )}
 
           {/* Color for a new item on the calendar */}
           {!isEditing && parentId && <EventColorPicker value={color} onChange={setColor} label="Calendar color" />}

@@ -58,14 +58,18 @@ export function goalEventWindow(node: Pick<GoalNode, 'startDate' | 'endDate'>): 
 }
 
 /**
- * Every open goal item that has a date, in tree order. Only the lowest items (the ones with nothing
- * inside them) are listed: a goal or branch that holds other items would otherwise show up as one huge
- * bar that covers the whole calendar. Its dates are still kept in the goal tree, just not sent to the calendar.
+ * Every open goal item that has a date and is set to show as an event, in tree order. An item with no
+ * choice made follows the old rule: only the lowest items (nothing inside them) show, so a goal or branch
+ * does not become one huge bar unless the user switches "Show as event" on for it.
  */
+export function goalShowsAsEvent(node: Pick<GoalNode, 'showAsEvent' | 'children'>): boolean {
+  return node.showAsEvent ?? node.children.length === 0;
+}
+
 export function desiredGoalEvents(goals: GoalNode[]): DesiredGoalEvent[] {
   const out: DesiredGoalEvent[] = [];
   const visit = (node: GoalNode) => {
-    if (!node.completed && node.children.length === 0) {
+    if (!node.completed && goalShowsAsEvent(node)) {
       const window = goalEventWindow(node);
       const title = (node.title ?? '').trim();
       const color = normalizeHex(node.color);

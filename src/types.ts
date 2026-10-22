@@ -87,6 +87,11 @@ export interface GoalNode {
   pinned?: boolean;
   /** Color for this item's bar on the phone calendar, "#RRGGBB". Missing means the calendar's own color. */
   color?: string;
+  /**
+   * Show this item on the calendar as its own colored bar. Missing means the old rule: open items with
+   * dates and nothing inside them show, goals and branches do not.
+   */
+  showAsEvent?: boolean;
   createdAt: number;
 }
 
