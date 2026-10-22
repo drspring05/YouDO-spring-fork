@@ -5,7 +5,6 @@ import Toggle from './Toggle';
 import {
   CALENDAR_DEFAULT_VIEW_KEY,
   CALENDAR_GOAL_ITEMS_KEY,
-  CALENDAR_PLANNED_TASKS_KEY,
   CALENDAR_PREFS_CHANGED_EVENT,
   CALENDAR_VIEW_OPTIONS,
   normalizeCalendarView,
@@ -204,14 +203,9 @@ export default function CalendarDefaultViewRow() {
       {phoneCalendar && (
         <div className="space-y-3 pt-1">
           <CalendarSwitch
-            storageKey={CALENDAR_PLANNED_TASKS_KEY}
-            title="Planned tasks on my calendar"
-            hint="Tasks you plan to a date from Goals get an all-day event"
-          />
-          <CalendarSwitch
             storageKey={CALENDAR_GOAL_ITEMS_KEY}
-            title="Dated goal items on my calendar"
-            hint="Open goal items with a start or end date show as all-day events. Turning this off removes them"
+            title="Goal items shown as events"
+            hint="Goal items set to Show as event in calendar appear as all-day events. Turning this off removes them. Planned tasks show as bullets in the month view instead"
           />
         </div>
       )}

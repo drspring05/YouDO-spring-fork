@@ -29,11 +29,9 @@ export function readCalendarDefaultView(): CalendarViewMode {
 
 /* ─── What goes onto the phone calendar ───────────────────────────────────── */
 
-/** Tasks planned from the Goals tab get a phone-calendar event. On unless switched off. */
-export const CALENDAR_PLANNED_TASKS_KEY = 'youdo-calendar-planned-tasks-v1';
-/** Goal items that have a start and/or end date appear on the phone calendar. On unless switched off. */
+/** Goal items set to "Show as event in calendar" appear on the phone calendar. On unless switched off. */
 export const CALENDAR_GOAL_ITEMS_KEY = 'youdo-calendar-goal-items-v1';
-/** Fired when either choice above changes, so the app applies it right away. */
+/** Fired when the choice above changes, so the app applies it right away. */
 export const CALENDAR_PREFS_CHANGED_EVENT = 'youdo-calendar-prefs-changed';
 
 function readFlag(key: string): boolean {
@@ -45,7 +43,6 @@ function readFlag(key: string): boolean {
   }
 }
 
-export const readPlannedTasksToCalendar = () => readFlag(CALENDAR_PLANNED_TASKS_KEY);
 export const readGoalItemsToCalendar = () => readFlag(CALENDAR_GOAL_ITEMS_KEY);
 
 /* ─── Which phone calendars the Calendar tab shows ────────────────────────── */

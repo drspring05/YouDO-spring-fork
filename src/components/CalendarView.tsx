@@ -7,7 +7,7 @@ import { hapticTick } from '../lib/haptics';
 import { ChevronLeft, ChevronRight, BarChart2, X, Info, ChevronDown, ChevronUp } from 'lucide-react';
 import type { Task } from '../types';
 import { findGoal, localISODate, pathTitles, useStore, isOpenBacklogTask } from '../store';
-import { taskStepStates } from '../lib/goalTree';
+import { isTaskComplete, taskStepStates } from '../lib/goalTree';
 import { originChipNames } from '../lib/plannedWork';
 import { useDeviceCalendar } from '../hooks/useDeviceCalendar';
 import { CALENDAR_CHANGED_EVENT, notifyCalendarChanged } from '../hooks/useTaskCalendarSync';
@@ -36,6 +36,17 @@ interface Props {
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+/** A planned task drawn as a small bullet inside a month date cell (it has no calendar event of its own). */
+interface DayBullet {
+  id: string;
+  title: string;
+  color?: string;
+  done: boolean;
+}
+
+/** Bullet lines one date cell has room for; more are summed up as "+N". */
+const MAX_BULLET_LINES = 2;
+
 interface MonthWeekRowProps {
   days: string[];
   events: DeviceCalendarEvent[];
@@ -44,15 +55,18 @@ interface MonthWeekRowProps {
   todayStr: string;
   selectedDate: string | null;
   tasksByDate: Record<string, Task[]>;
+  bulletsByDate: Record<string, DayBullet[]>;
   onSelect: (date: string) => void;
 }
 
 /** One week of the month grid: tappable day cells underneath, date numbers and colored event bars on top. */
-function MonthWeekRow({ days, events, month, todayStr, selectedDate, tasksByDate, onSelect }: MonthWeekRowProps) {
+function MonthWeekRow({ days, events, month, todayStr, selectedDate, tasksByDate, bulletsByDate, onSelect }: MonthWeekRowProps) {
   const layout = useMemo(() => layoutWeek(days, events), [days, events]);
   // Events of two or more days join their day cells into one tinted block (the longest event sets the tint).
   const blocks = useMemo(() => mergedBlocksForWeek(days, events), [days, events]);
   const mergedEdges = useMemo(() => innerEdges(blocks, days.length), [blocks, days.length]);
+  // The extra line of bullets only takes room in weeks that have some.
+  const hasBullets = days.some((date) => (bulletsByDate[date]?.length ?? 0) > 0);
 
   return (
     <div className="relative border-t border-subtle first:border-t-0">
@@ -94,7 +108,7 @@ function MonthWeekRow({ days, events, month, todayStr, selectedDate, tasksByDate
       </div>
       <div
         className="relative pointer-events-none grid grid-cols-7 py-1"
-        style={{ gridTemplateRows: `20px repeat(${MAX_BAR_LANES}, 15px)`, rowGap: 2 }}
+        style={{ gridTemplateRows: `20px repeat(${MAX_BAR_LANES}, 15px)${hasBullets ? ' 24px' : ''}`, rowGap: 2 }}
       >
         {days.map((date, col) => {
           const inMonth = new Date(date + 'T12:00:00').getMonth() === month;
@@ -153,6 +167,35 @@ function MonthWeekRow({ days, events, month, todayStr, selectedDate, tasksByDate
             </div>
           );
         })}
+        {hasBullets &&
+          days.map((date, col) => {
+            const bullets = bulletsByDate[date] ?? [];
+            if (!bullets.length) return null;
+            const inMonth = new Date(date + 'T12:00:00').getMonth() === month;
+            // With more bullets than lines, the last line becomes the "+N" count.
+            const shown = bullets.length > MAX_BULLET_LINES ? bullets.slice(0, MAX_BULLET_LINES - 1) : bullets;
+            const more = bullets.length - shown.length;
+            return (
+              <div
+                key={`bullets:${date}`}
+                style={{ gridColumn: col + 1, gridRow: MAX_BAR_LANES + 2 }}
+                className={`flex flex-col gap-px px-1 overflow-hidden ${inMonth ? '' : 'opacity-40'}`}
+              >
+                {shown.map((bullet) => (
+                  <div key={bullet.id} className="flex items-center gap-0.5 min-w-0 text-[9px] leading-[11px]">
+                    <span
+                      className={`shrink-0 w-1.5 h-1.5 rounded-full ${bullet.color ? '' : 'bg-primary'}`}
+                      style={bullet.color ? { backgroundColor: bullet.color } : undefined}
+                    />
+                    <span className={`truncate text-content-secondary ${bullet.done ? 'line-through opacity-60' : ''}`}>
+                      {bullet.title || '(No title)'}
+                    </span>
+                  </div>
+                ))}
+                {more > 0 && <span className="text-[9px] leading-[11px] font-bold text-content-secondary">+{more}</span>}
+              </div>
+            );
+          })}
       </div>
     </div>
   );
@@ -269,6 +312,32 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
     for (const [day, list] of Object.entries(spanByDate)) merged[day] = [...(merged[day] ?? []), ...list];
     return merged;
   }, [tasksByDate, spanByDate]);
+
+  // Goal items that have their own bar on the calendar; a task planned from one of them shows through that bar.
+  const barNodeIds = useMemo(
+    () => new Set(Object.entries(goalLinks).filter(([, link]) => !link.removed).map(([nodeId]) => nodeId)),
+    [goalLinks],
+  );
+  // Planned tasks as bullets in the month cells. A task with an event of its own (a timed quick task) or a bar
+  // from its goal item is already drawn as a bar, so the bar replaces the bullet.
+  const bulletsByDate = useMemo(() => {
+    const map: Record<string, DayBullet[]> = {};
+    for (const [date, list] of Object.entries(tasksWithSpans)) {
+      const seen = new Set<string>();
+      for (const task of list) {
+        if (seen.has(task.id) || task.calendarEventId) continue;
+        if (task.goalNodeId && barNodeIds.has(task.goalNodeId)) continue;
+        seen.add(task.id);
+        (map[date] ??= []).push({
+          id: task.id,
+          title: task.title,
+          color: task.color,
+          done: taskOccurrenceOnDate(task, date)?.completedOnDate ?? isTaskComplete(task),
+        });
+      }
+    }
+    return map;
+  }, [tasksWithSpans, barNodeIds]);
 
   const year = cursor.getFullYear();
   const month = cursor.getMonth();
@@ -528,6 +597,7 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
               todayStr={todayStr}
               selectedDate={selectedDate}
               tasksByDate={tasksByDate}
+              bulletsByDate={bulletsByDate}
               onSelect={openDay}
             />
           ))}

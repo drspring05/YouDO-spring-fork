@@ -385,7 +385,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   tasksRef.current = tasks;
   // Keeps tasks and their phone-calendar events in step (Android only; does nothing elsewhere).
   const calendarSync = useTaskCalendarSync(tasks, tasksRef, setTasks);
-  const { releaseEvents, linkPlanned } = calendarSync;
+  const { releaseEvents } = calendarSync;
   const goalsRef = useRef(goals);
   goalsRef.current = goals;
   // Open goal items that have dates appear on the phone calendar (Android only; does nothing elsewhere).
@@ -826,9 +826,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setGoals((prev) =>
         prev.map((root) => updateNode(root, target.id, (n) => ({ ...n, todayTaskId: taskId }))),
       );
-      void linkPlanned([taskBase]);
     },
-    [activeSessionRef, setTasks, setGoals, linkPlanned],
+    [activeSessionRef, setTasks, setGoals],
   );
 
   const planBatch = useCallback(
@@ -885,9 +884,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           return working;
         }),
       );
-      void linkPlanned([...newTasks, ...rescheduledTasks.values()]);
     },
-    [activeSessionRef, setTasks, setGoals, linkPlanned],
+    [activeSessionRef, setTasks, setGoals],
   );
 
   const unlinkTask = useCallback(
