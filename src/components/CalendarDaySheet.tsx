@@ -3,6 +3,7 @@ import Overlay from './Overlay';
 import PlannedTaskCard from './PlannedTaskCard';
 import OriginChip from './OriginChip';
 import type { Task, TaskSession } from '../types';
+import type { GoalBullet } from '../lib/goalCalendar';
 import { eventTimeLabel, type DeviceCalendarEvent } from '../lib/deviceCalendar';
 import { daysBetweenLocalISO } from '../lib/dates';
 import { taskCompletionModeOnDate, taskOccurrenceOnDate } from '../lib/taskTimeline';
@@ -16,6 +17,8 @@ interface Props {
   events: DeviceCalendarEvent[];
   /** work planned on this day, including tasks whose timeframe runs through it */
   tasks: Task[];
+  /** dated lowest-level goal items under an event, listed with the planned tasks; tap to open in the Goals tab */
+  goalItems: GoalBullet[];
   /** false off Android, where there is no phone calendar to show */
   calendarSupported: boolean;
   access: DeviceCalendarAccess;
@@ -55,6 +58,7 @@ export default function CalendarDaySheet({
   todayStr,
   events,
   tasks,
+  goalItems,
   calendarSupported,
   access,
   sessionHistory,
@@ -171,7 +175,7 @@ export default function CalendarDaySheet({
                 <Plus size={14} /> Task
               </button>
             </div>
-            {tasks.length === 0 ? (
+            {tasks.length === 0 && goalItems.length === 0 ? (
               <div className={emptyClass}>No tasks planned for this day.</div>
             ) : (
               <div className="space-y-2">
@@ -212,6 +216,24 @@ export default function CalendarDaySheet({
                     />
                   );
                 })}
+                {goalItems.map((item) => (
+                  <button
+                    key={item.nodeId}
+                    type="button"
+                    onClick={() => onJumpToGoal(item.nodeId)}
+                    className="w-full text-left flex items-center gap-2.5 bg-surface border border-subtle rounded-2xl shadow-card p-3.5"
+                  >
+                    <span
+                      className={`w-2 h-2 rounded-full shrink-0 ${item.color ? '' : 'bg-primary'}`}
+                      style={item.color ? { backgroundColor: item.color } : undefined}
+                      aria-hidden
+                    />
+                    <span className={`min-w-0 flex-1 truncate text-[14px] font-bold ${item.done ? 'line-through text-content-muted' : 'text-content-primary'}`}>
+                      {item.title}
+                    </span>
+                    <span className="text-[11px] font-bold text-primary shrink-0">Goals</span>
+                  </button>
+                ))}
               </div>
             )}
           </section>

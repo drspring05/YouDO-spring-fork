@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import type { Task } from '../types';
+import type { GoalBullet } from '../lib/goalCalendar';
 import { eventTimeLabel, type DeviceCalendarEvent } from '../lib/deviceCalendar';
 import { readableTextColor } from '../lib/monthLayout';
 import { taskOccurrenceOnDate } from '../lib/taskTimeline';
@@ -14,6 +15,8 @@ interface Props {
   selectedDate: string | null;
   eventsByDay: Record<string, DeviceCalendarEvent[]>;
   tasksByDate: Record<string, Task[]>;
+  /** dated lowest-level goal items under an event, shown as bullets like tasks */
+  goalItemsByDate: Record<string, GoalBullet[]>;
   /** this week's note text */
   note: string;
   onNoteChange: (weekStart: string, text: string) => void;
@@ -27,6 +30,7 @@ export default function WeekView({
   selectedDate,
   eventsByDay,
   tasksByDate,
+  goalItemsByDate,
   note,
   onNoteChange,
   onSelect,
@@ -57,7 +61,8 @@ export default function WeekView({
         const { date, weekdayIndex } = cell;
         const events = eventsByDay[date] ?? [];
         const tasks = tasksByDate[date] ?? [];
-        const total = events.length + tasks.length;
+        const goalItems = goalItemsByDate[date] ?? [];
+        const total = events.length + tasks.length + goalItems.length;
         const isToday = date === todayStr;
         const isSelected = date === selectedDate;
         const fullDate = new Date(date + 'T12:00:00').toLocaleDateString(undefined, { dateStyle: 'full' });
@@ -66,9 +71,11 @@ export default function WeekView({
         const items: Array<
           | { type: 'event'; event: DeviceCalendarEvent }
           | { type: 'task'; task: Task }
+          | { type: 'goal'; item: GoalBullet }
         > = [
           ...events.map((event) => ({ type: 'event' as const, event })),
           ...tasks.map((task) => ({ type: 'task' as const, task })),
+          ...goalItems.map((item) => ({ type: 'goal' as const, item })),
         ];
         // Up to 5 items show; anything beyond that is counted on its own "+N more" line below them.
         const overflow = total > WEEK_CELL_MAX_ITEMS ? total - WEEK_CELL_MAX_ITEMS : 0;
@@ -79,7 +86,7 @@ export default function WeekView({
             key={date}
             type="button"
             aria-pressed={isSelected}
-            aria-label={`${fullDate}, ${events.length} calendar ${events.length === 1 ? 'event' : 'events'}, ${tasks.length} ${tasks.length === 1 ? 'task' : 'tasks'}`}
+            aria-label={`${fullDate}, ${events.length} calendar ${events.length === 1 ? 'event' : 'events'}, ${tasks.length + goalItems.length} ${tasks.length + goalItems.length === 1 ? 'task' : 'tasks'}`}
             onClick={() => onSelect(date)}
             className={`text-left flex flex-col min-h-[144px] p-1.5 gap-1 transition-colors ${
               isSelected ? 'bg-primary-soft' : 'bg-surface'
@@ -113,6 +120,19 @@ export default function WeekView({
                       title={`${event.title || '(No title)'} · ${eventTimeLabel(event, date)}`}
                     >
                       {event.title || '(No title)'}
+                    </span>
+                  );
+                }
+                if (item.type === 'goal') {
+                  const { item: goal } = item;
+                  return (
+                    <span key={`goal:${goal.nodeId}`} className="flex items-center gap-1 min-w-0 text-[10.5px] leading-[15px]">
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full shrink-0 ${goal.color ? '' : 'bg-primary'} ${goal.done ? 'opacity-40' : ''}`}
+                        style={goal.color ? { backgroundColor: goal.color } : undefined}
+                        aria-hidden
+                      />
+                      <span className={`truncate ${goal.done ? 'line-through text-content-muted' : 'text-content-primary'}`}>{goal.title}</span>
                     </span>
                   );
                 }

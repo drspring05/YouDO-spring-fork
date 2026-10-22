@@ -21,7 +21,7 @@ import { eventTimeLabel, groupDeviceEventsByDay, type DeviceCalendarEvent } from
 import { chunkWeeks, layoutWeek, MAX_BAR_LANES, monthGridDays, readableTextColor } from '../lib/monthLayout';
 import { innerEdges, mergedBlocksForWeek, mergedTint } from '../lib/monthMerge';
 import { yearEndDay, yearStartDay } from '../lib/yearView';
-import { goalBullets, readGoalLinks } from '../lib/goalCalendar';
+import { goalBullets, readGoalLinks, type GoalBullet } from '../lib/goalCalendar';
 import YearView from './YearView';
 import { CALENDAR_VIEW_OPTIONS, readCalendarDefaultView, type CalendarViewMode } from '../lib/calendarPrefs';
 import { formatDuration } from '../lib/format';
@@ -318,6 +318,21 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
     () => new Set(Object.entries(goalLinks).filter(([, link]) => !link.removed).map(([nodeId]) => nodeId)),
     [goalLinks],
   );
+  // Dated lowest-level goal items under an event show as bullets with no Plan needed. An item that was
+  // also planned as a task is already shown through the task.
+  const goalItemsByDate = useMemo(() => {
+    const map: Record<string, GoalBullet[]> = {};
+    const planned = new Set(tasks.flatMap((task) => (task.goalNodeId ? [task.goalNodeId] : [])));
+    for (const item of goalBullets(goals)) {
+      if (planned.has(item.nodeId)) continue;
+      let day = item.firstDay;
+      for (let i = 0; i < 62 && day <= item.lastDay; i++) {
+        (map[day] ??= []).push(item);
+        day = shiftLocalISO(day, 1);
+      }
+    }
+    return map;
+  }, [goals, tasks]);
   // Planned tasks as bullets in the month cells. A task with an event of its own (a timed quick task) or a bar
   // from its goal item is already drawn as a bar, so the bar replaces the bullet.
   const bulletsByDate = useMemo(() => {
@@ -336,19 +351,11 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
         });
       }
     }
-    // Dated lowest-level goal items under an event show as bullets with no Plan needed. An item that was
-    // also planned as a task is already shown above.
-    const planned = new Set(tasks.flatMap((task) => (task.goalNodeId ? [task.goalNodeId] : [])));
-    for (const item of goalBullets(goals)) {
-      if (planned.has(item.nodeId)) continue;
-      let day = item.firstDay;
-      for (let i = 0; i < 62 && day <= item.lastDay; i++) {
-        (map[day] ??= []).push({ id: `goal:${item.nodeId}`, title: item.title, color: item.color, done: item.done });
-        day = shiftLocalISO(day, 1);
-      }
+    for (const [date, list] of Object.entries(goalItemsByDate)) {
+      for (const item of list) (map[date] ??= []).push({ id: `goal:${item.nodeId}`, title: item.title, color: item.color, done: item.done });
     }
     return map;
-  }, [tasksWithSpans, barNodeIds, tasks, goals]);
+  }, [tasksWithSpans, barNodeIds, goalItemsByDate]);
 
   const year = cursor.getFullYear();
   const month = cursor.getMonth();
@@ -634,6 +641,7 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
             selectedDate={selectedDate}
             eventsByDay={eventsByDay}
             tasksByDate={tasksWithSpans}
+            goalItemsByDate={goalItemsByDate}
             note={weekNotes[weekStart] ?? ''}
             onNoteChange={onNoteChange}
             onSelect={openDay}
@@ -719,6 +727,7 @@ export default function CalendarView({ tasks, onAddTask, onJumpToGoal }: Props) 
           todayStr={todayStr}
           events={eventsByDay[daySheetDate] ?? []}
           tasks={tasksWithSpans[daySheetDate] ?? []}
+          goalItems={goalItemsByDate[daySheetDate] ?? []}
           calendarSupported={deviceCalendar.supported}
           access={deviceCalendar.access}
           sessionHistory={sessionHistory}
